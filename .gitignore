@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+.venv
+env/
+build/
+dist/
+fonts/
+setup.bat
+
+# Project Specific
+*.json
+*.pdf
+*.txt
+Nsangou Ngapna et al._ASR_2024.pdf
+outputs/
+fonts/*.ttf
+!fonts/FreeSerif.ttf
+tmp/
+
+
+ROADMAP.md
+
+structure_page_0.json
+extractor_test.py
+reconstructor_test.py
+smart_pdf_test_2.py
+smart_pdf_test.py
+
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
