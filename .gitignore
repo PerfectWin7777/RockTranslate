@@ -31,6 +31,8 @@ smart_pdf_test_2.py
 smart_pdf_test.py
 
 
+src/rocktranslate.egg-info
+
 # IDEs
 .vscode/
 .idea/

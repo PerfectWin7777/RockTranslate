@@ -239,6 +239,36 @@ def compute_rotate(page: fitz.Page, line_dir: tuple) -> int:
     return page.rotation
 
 
+def is_math_block(block: dict) -> bool:
+    """Détecte si un bloc est une formule mathématique de manière statistique."""
+    full_text = ""
+    for line in block["lines"]:
+        for span in line["spans"]:
+            full_text += "".join(c["c"] for c in span["chars"])
+    
+    if not full_text.strip():
+        return False
+
+    # Caractères qui puent la corruption ou les maths pures
+    math_symbols = {"∑", "∫", "√", "∞", "≈", "≠", "≤", "≥", "∂", "∆"}
+    corrupt_char = "\ufffd"
+    
+    # 1. Compter les anomalies
+    bad_count = full_text.count(corrupt_char)
+    symbol_count = sum(1 for c in full_text if c in math_symbols)
+    
+    # 2. Calculer le ratio d'anomalie
+    # Si plus de 30% du bloc est corrompu/symbole, c'est probablement une formule
+    anomaly_ratio = (bad_count + symbol_count) / len(full_text)
+    
+    # 3. Vérifier la police (souvent les polices de maths ont 'Sym' ou 'Math' dans le nom)
+    is_math_font = any("sym" in span["font"].lower() or "math" in span["font"].lower() 
+                       for line in block["lines"] for span in line["spans"])
+
+    if anomaly_ratio > 0.3 or is_math_font:
+        return True
+        
+    return False
 
 # ---------------------------------------------------------------------------
 # 4. RECONSTRUCTION
@@ -261,7 +291,22 @@ def reconstruct_page(
     for block in raw["blocks"]:
         if block["type"] != 0:
             continue
+        
+        # NOUVEAU : skip les blocs math
+        if is_math_block(block):
+            continue
+            
         for line in block["lines"]:
+
+            # On fusionne tous les spans de la ligne pour le LLM
+            full_line_text = "".join("".join(c["c"] for c in s["chars"]) for s in line["spans"])
+            full_line_text = clean_text(full_line_text).strip()
+            
+            if len(full_line_text) > 1: # On ignore les caractères isolés
+                # --- LOG TEMPORAIRE POUR VOIR LE TEXTE ---
+                logger.info(f" [A TRADUIRE] -> {full_line_text}")
+                # -----------------------------------------
+
             angle = compute_rotate(page, line["dir"])
             for span in line["spans"]:
                 raw_text = "".join(c["c"] for c in span["chars"])
@@ -271,10 +316,10 @@ def reconstruct_page(
                 )
                 if not text.strip():
                     continue
- 
+
                 bbox_mid_y = (span["bbox"][1] + span["bbox"][3]) / 2
                 is_super   = span["origin"][1] < bbox_mid_y - span["size"] * 0.3
- 
+
                 spans_to_process.append({
                     "bbox":     fitz.Rect(span["bbox"]),
                     "origin":   list(span["origin"]),
@@ -286,14 +331,19 @@ def reconstruct_page(
                     "angle":    angle,
                     "is_super": is_super,
                 })
- 
-    # Pass 2 : couvrir avec rects blancs
-    shape = page.new_shape()
+
+    # Pass 2 : couvrir avec rects blancs — bbox EXACT sans expansion
+    # shape = page.new_shape()
+    # for s in spans_to_process:
+    #     r = s["bbox"]  # MODIFIÉ : plus d'expansion (+3, etc.)
+    #     shape.draw_rect(r)
+    #     shape.finish(fill=(1, 1, 1), color=(1, 1, 1), width=0)
+    # shape.commit()
+
     for s in spans_to_process:
-        r = s["bbox"] + (-0.5, -1, 3, 1)
-        shape.draw_rect(r)
-        shape.finish(fill=(1, 1, 1), color=(1, 1, 1), width=0)
-    shape.commit()
+        page.add_redact_annot(s["bbox"]) # On marque la zone à effacer
+
+    page.apply_redactions(images=0, graphics=0) # On efface le texte, mais ON GARDE les lignes du tableau (graphics=0)
  
     # Pass 3 : réécrire
     for s in spans_to_process:
@@ -335,8 +385,7 @@ def reconstruct_page(
             page.insert_link(link)
         except Exception:
             pass
- 
- 
+            
 # ---------------------------------------------------------------------------
 # 5. PIPELINE
 # ---------------------------------------------------------------------------
@@ -365,7 +414,28 @@ def run_reconstruction(
             logger.info(f"Page {pno+1} | rotation={page.rotation}°")
             reconstruct_page(page, tmp_dir, text_override)
             logger.success(f"Page {pno+1} done")
- 
+    
+    # for pno in test_pages:
+    #     page = doc[pno]
+    #     raw = page.get_text("rawdict")
+    #     skipped = 0
+    #     translated = 0
+    #     for block in raw["blocks"]:
+    #         if block["type"] != 0:
+    #             continue
+    #         if is_math_block(block):
+    #             skipped += 1
+    #             # Affiche le texte skippé pour vérifier
+    #             text = " ".join(
+    #                 "".join(c["c"] for c in s["chars"])
+    #                 for line in block["lines"]
+    #                 for s in line["spans"]
+    #             )
+    #             logger.debug(f"  SKIPPED: {text}")
+    #         else:
+    #             translated += 1
+    #     logger.info(f"Page {pno+1}: {translated} blocs à traduire, {skipped} skippés")
+
     doc.save(output_file, garbage=1, deflate=False, clean=False)
     doc.close()
     logger.success(f"Output → {output_file}")
@@ -379,8 +449,11 @@ def run_reconstruction(
 if __name__ == "__main__":
     
     run_reconstruction(
-        # input_file  = "Nsangou Ngapna et al._ASR_2024.pdf",
-        input_file  =r"C:\Users\TONY\Desktop\Dossiers\DOCUMENT OPEN  GL\scipy-ref.pdf",
+        input_file  = "Nsangou Ngapna et al._ASR_2024.pdf",
+        # input_file  =r"C:\Users\TONY\Desktop\Dossiers\DOCUMENT OPEN  GL\scipy-ref.pdf",
         output_file = "RESULTAT_ROCK_V5.pdf",
-        test_pages  = [0,1,2,3,4,5,6,7,8,9],
+        test_pages  = [0,1,2,3,4,5,6,7,8,9,10,12],
     )
+
+
+
