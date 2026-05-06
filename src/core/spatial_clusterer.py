@@ -38,8 +38,8 @@ class SpatialClusterer:
 
     def __init__(
         self,
-        span_x_gap_factor: float = 1.2,
-        block_gap_factor: float  = 2.0,
+        span_x_gap_factor: float = 2.0,
+        block_gap_factor: float  = 1.1,
     ):
         self.span_x_gap_factor = span_x_gap_factor
         self.block_gap_factor  = block_gap_factor
@@ -76,20 +76,20 @@ class SpatialClusterer:
 
             prev = merged[-1]
 
-            h_overlap = min(curr.right, prev.right) - max(curr.left, prev.left)
-            is_near_x = (curr.left - prev.right) < 2.0
-            v_overlap  = min(curr.top, prev.top) - max(curr.bottom, prev.bottom)
-            is_same_row = v_overlap > -8.0  # tolérance exposants/indices
-
-            if (h_overlap > -2.0 or is_near_x) and is_same_row:
-                # Fusion : on étend la bbox de prev et on concatène le texte
+            # Calcul du gap horizontal
+            gap_x = curr.left - prev.right
+            
+            # FIX : On augmente la tolérance verticale à 10pt (au lieu de 8) 
+            # et on fusionne si c'est très proche horizontalement (< 3pt)
+            v_dist = abs(curr.y_center - prev.y_center)
+            
+            if gap_x < 5.0 and v_dist < 10.0: 
                 prev.text  += curr.text
                 prev.right  = max(prev.right,  curr.right)
                 prev.top    = max(prev.top,    curr.top)
                 prev.bottom = min(prev.bottom, curr.bottom)
             else:
                 merged.append(curr)
-
         return merged
 
     # ══════════════════════════════════════════════════════════
@@ -110,32 +110,54 @@ class SpatialClusterer:
         if not raw_objects:
             return []
 
-        sorted_objs = sorted(
-            raw_objects, key=lambda o: (round(o.bottom, 1), o.left)
-        )
+        # --- ÉTAPE 1 : Groupement par Lignes réelles ---
+        # On trie du haut vers le bas par le centre Y
+        raw_objects.sort(key=lambda o: -o.y_center)
+        
+        lines_of_objects = []
+        if raw_objects:
+            current_line = [raw_objects[0]]
+            for i in range(1, len(raw_objects)):
+                obj = raw_objects[i]
+                prev = current_line[-1]
+                
+                # Condition de ligne : deux objets sont sur la même ligne si
+                # l'un est "dans la zone verticale" de l'autre (avec tolérance).
+                # On utilise 50% de la hauteur comme seuil.
+                v_dist = abs(obj.y_center - prev.y_center)
+                if v_dist < (max(obj.height, prev.height, 8.0) * 0.6):
+                    current_line.append(obj)
+                else:
+                    lines_of_objects.append(current_line)
+                    current_line = [obj]
+            lines_of_objects.append(current_line)
 
-        spans: list[Span] = []
-        current_group: list[RawObject] = [sorted_objs[0]]
+        # --- ÉTAPE 2 : Clustering horizontal DANS chaque ligne ---
+        final_spans = []
+        for line_objs in lines_of_objects:
+            # On trie la ligne de gauche à droite
+            line_objs.sort(key=lambda o: o.left)
+            
+            current_group = [line_objs[0]]
+            for i in range(1, len(line_objs)):
+                obj = line_objs[i]
+                prev = current_group[-1]
+                
+                gap_x = obj.left - prev.right
+                # Seuil de gap horizontal (1.2x la police)
+                threshold_x = max(obj.font_size, prev.font_size) * 1.2
+                
+                if gap_x < threshold_x:
+                    # FIX "evolutionBull" : ajout espace si gap suffisant
+                    if gap_x > (obj.font_size * 0.2) and not prev.text.endswith(" "):
+                        prev.text += " "
+                    current_group.append(obj)
+                else:
+                    final_spans.append(Span.from_raw_objects(current_group))
+                    current_group = [obj]
+            final_spans.append(Span.from_raw_objects(current_group))
 
-        for obj in sorted_objs[1:]:
-            prev    = current_group[-1]
-            ref_h   = max(obj.height, prev.height, 8.0)
-
-            # Overlap vertical (positif = chevauchement, négatif = séparation)
-            v_overlap = min(obj.top, prev.top) - max(obj.bottom, prev.bottom)
-            same_line = v_overlap > -2.0
-
-            # Gap horizontal acceptable
-            close_x = (obj.left - prev.right) < (ref_h * self.span_x_gap_factor)
-
-            if same_line and close_x:
-                current_group.append(obj)
-            else:
-                spans.append(Span.from_raw_objects(current_group))
-                current_group = [obj]
-
-        spans.append(Span.from_raw_objects(current_group))
-        return spans
+        return final_spans
 
     # ══════════════════════════════════════════════════════════
     # ÉTAPE 2 : Spans → Lines
@@ -205,6 +227,10 @@ class SpatialClusterer:
             h_overlap = (
                 min(prev.right, line.right) - max(prev.left, line.left)
             )
+            
+            # FIX : Rupture si changement de taille de police (Font-size) > 15%
+            # Cela sépare "1. Introduction" du reste du texte.
+            font_change = abs(prev.font_size - line.font_size) / max(prev.font_size, 1) > 0.04
 
             # Seuil de gap vertical basé sur la hauteur de la ligne courante
             gap_threshold = line.height * self.block_gap_factor
@@ -213,7 +239,7 @@ class SpatialClusterer:
             #   - gap vertical trop grand
             #   - OU pas de chevauchement horizontal du tout (colonnes séparées)
             #     → seuil strict à 0 (pas de tolérance négative)
-            new_block = v_gap > gap_threshold or h_overlap < 0
+            new_block = v_gap > gap_threshold or h_overlap < 0 or font_change 
 
             if new_block:
                 blocks.append(Block.from_lines(current_group, page_number))
@@ -261,6 +287,14 @@ class SpatialClusterer:
                     # ── Règle 1 : même colonne obligatoire ──────────
                     if merged_block.column != b2.column:
                         continue
+
+                    # FIX CRITIQUE : Ne jamais fusionner si les tailles de police diffèrent de > 4%
+                    # (Empêche de recoller un titre à un paragraphe)
+                    fs1 = merged_block.lines[0].font_size
+                    fs2 = b2.lines[0].font_size
+                    if abs(fs1 - fs2) / max(fs1, 1) > 0.04:
+                        continue
+
 
                     # ── Règle 2 : gap vertical faible ───────────────
                     v_dist = max(
@@ -408,9 +442,12 @@ class SpatialClusterer:
 
         while y > y_min:
             y_bot = max(y - _ZONE_BAND_HEIGHT, y_min)
+            
+            # CORRECTION ICI : On utilise le CENTRE de l'objet
+            # Un objet appartient à la bande si son milieu est dedans.
             band_objs = [
                 o for o in raw_objects
-                if o.bottom < y and o.top > y_bot
+                if y_bot <= o.y_center < y
             ]
 
             if band_objs:
@@ -523,8 +560,9 @@ class SpatialClusterer:
             return []
 
         # ── Pré-traitement ────────────────────────────────────────
-        objects = self.merge_accents_and_superscripts(raw_objects)
-
+        # objects = self.merge_accents_and_superscripts(raw_objects)
+        
+        objects = raw_objects  # FIX TEMPORAIRE : désactive la fusion pour diagnostiquer les problèmes d'accents/exposants
         # ── Détection des zones ───────────────────────────────────
         zones = self.detect_page_zones(
             objects, page_width, page_height, forced_gutter

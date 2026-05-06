@@ -1,166 +1,140 @@
-"""
-extract_to_html.py — Validation de l'extraction et de l'ordre de lecture
-Chemin : D:/Projets/RockTranslate/extract_to_html.py
-
-Génère un HTML qui montre exactement ce que le LLM recevra :
-- Paragraphes dans l'ordre de lecture
-- Indication de colonne (gauche/droite/pleine largeur)
-- Indication cross-page
-- Numérotation globale
-
-Lance depuis D:/Projets/RockTranslate/ :
-    python extract_to_html.py
-"""
-
 import sys
 import os
+
+# Ajoute le chemin source
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from core.pdf_extractor import PDFExtractor
 from core.spatial_clusterer import SpatialClusterer
 
-PDF_PATH  = "Nsangou Ngapna et al._ASR_2024.pdf"
-OUT_HTML  = "extraction_validation.html"
-MAX_PAGES = None  # None = tout le document
+PDF_PATH = "Nsangou Ngapna et al._ASR_2024.pdf"
+OUT_HTML = "visual_debugger_2d.html"
 
-
-def col_label(col: int) -> str:
-    return {0: "pleine largeur", 1: "col. gauche", 2: "col. droite"}.get(col, "?")
-
-def col_color(col: int) -> str:
-    return {0: "#e8f4e8", 1: "#e8e8f4", 2: "#f4e8e8"}.get(col, "#fff")
-
-def col_badge(col: int) -> str:
-    colors = {0: "#2a7a2a", 1: "#2a2a9a", 2: "#9a2a2a"}
-    c = colors.get(col, "#333")
-    return f'<span style="background:{c};color:white;padding:2px 7px;border-radius:3px;font-size:11px;font-family:monospace">{col_label(col)}</span>'
-
-
-def main():
-    # ── Extraction ────────────────────────────────────────────────
-    print(f"Extraction : {PDF_PATH}")
+def generate_2d_debugger():
+    print(f"--- Diagnostic 2D : {PDF_PATH} ---")
+    
+    # 1. Extraction brute
     extractor = PDFExtractor(PDF_PATH)
-    document  = extractor.extract()
-
+    document = extractor.extract()
     sc = SpatialClusterer()
 
-    # Gouttière globale
+    # 2. Gouttière globale
     all_raw = [p.raw_objects for p in document.pages]
-    gutter  = sc.find_document_gutter(all_raw, document.pages[0].width)
-    print(f"Gouttière globale : {gutter:.1f} pt")
+    gutter = sc.find_document_gutter(all_raw, document.pages[0].width)
+    
+    html_pages = []
 
-    pages_to_process = (
-        document.pages[:MAX_PAGES] if MAX_PAGES else document.pages
-    )
-
-    # ── Clustering par page ───────────────────────────────────────
-    all_page_blocks = []
-    for page in pages_to_process:
+    for page_idx, page in enumerate(document.pages):
+        # On processe la page pour avoir les blocs
         blocks = sc.process_page(
-            page.raw_objects,
-            page.width,
-            page.number,
+            page.raw_objects, 
+            page.width, 
+            page.number, 
             page.height,
-            forced_gutter=gutter,
+            forced_gutter=gutter
         )
-        all_page_blocks.append(blocks)
-        print(f"  Page {page.number} : {len(blocks)} blocs")
-
-    # ── Cross-page ────────────────────────────────────────────────
-    for i in range(len(all_page_blocks) - 1):
-        all_page_blocks[i], all_page_blocks[i + 1] = sc.merge_cross_page(
-            all_page_blocks[i], all_page_blocks[i + 1]
+        
+        # Style de la page (on respecte le ratio PDF)
+        # On utilise un scale de 1.2 pour que ce soit lisible
+        scale = 1.2
+        page_style = (
+            f"position: relative; width: {page.width*scale}px; "
+            f"height: {page.height*scale}px; background: white; "
+            f"margin: 20px auto; box-shadow: 0 0 10px rgba(0,0,0,0.2); "
+            f"overflow: hidden; border: 1px solid #ccc;"
         )
+        
+        block_elements = []
+        for b in blocks:
+            # Calcul des coordonnées CSS
+            # Le PDF compte de BAS en HAUT, le HTML de HAUT en BAS
+            w = (b.right - b.left) * scale
+            h = (b.top - b.bottom) * scale
+            left = b.left * scale
+            top = (page.height - b.top) * scale
+            
+            # Couleur selon la colonne
+            colors = {0: "rgba(42, 122, 42, 0.15)", 1: "rgba(42, 42, 154, 0.15)", 2: "rgba(154, 42, 42, 0.15)"}
+            border_colors = {0: "#2a7a2a", 1: "#2a2a9a", 2: "#9a2a2a"}
+            bg = colors.get(b.column, "rgba(0,0,0,0.1)")
+            border = border_colors.get(b.column, "#333")
+            
+            # Label de debug
+            label = f"Col {b.column} | Y={b.top:.0f}"
+            
+            block_elements.append(f"""
+                <div class="block" style="
+                    position: absolute;
+                    left: {left}px; top: {top}px; width: {w}px; height: {h}px;
+                    background: {bg}; border: 1px solid {border};
+                    z-index: 10;
+                " title="{label}">
+                    <div class="block-text" style="
+                        font-size: 11px; 
+                        color: black; 
+                        line-height: 1.2;
+                        width: 100%; height: 100%;
+                        overflow: hidden;
+                    ">
+                        <small style="background:{border}; color:white; font-size:9px; display:block; width:fit-content;">{label}</small>
+                        {b.text}
+                    </div>
+                </div>
+            """)
+            
+        # Ligne de la gouttière (visuelle)
+        if gutter > 0:
+            block_elements.append(f"""
+                <div style="position:absolute; left:{gutter*scale}px; top:0; bottom:0; width:1px; border-left:1px dashed red; z-index:100;"></div>
+            """)
 
-    # ── Paragraphes finaux ────────────────────────────────────────
-    flat       = [b for pb in all_page_blocks for b in pb]
-    paragraphs = sc.build_paragraphs(flat)
-    print(f"Total paragraphes : {len(paragraphs)}")
+        html_pages.append(f"""
+            <div class="page-container">
+                <h3 style="text-align:center">PAGE {page_idx + 1}</h3>
+                <div class="page" style="{page_style}">
+                    {''.join(block_elements)}
+                </div>
+            </div>
+        """)
 
-    # ── Génération HTML ───────────────────────────────────────────
-    rows = []
-    for i, para in enumerate(paragraphs):
-        bg      = col_color(para.column)
-        badge   = col_badge(para.column)
-        cross   = ""
-        if para.is_cross_page:
-            cross = ' <span style="background:#e65c00;color:white;padding:2px 7px;border-radius:3px;font-size:11px">⚡ cross-page</span>'
-
-        # Texte nettoyé
-        text = para.text.strip().replace("<", "&lt;").replace(">", "&gt;")
-
-        rows.append(f"""
-        <tr style="background:{bg}">
-          <td style="padding:6px 10px;font-size:12px;color:#666;
-                     text-align:center;vertical-align:top;
-                     border-right:1px solid #ddd;white-space:nowrap">
-            #{i+1}<br>
-            <small>p.{para.page_number}</small>
-          </td>
-          <td style="padding:6px 10px;vertical-align:top;
-                     border-right:1px solid #ddd">
-            {badge}{cross}
-          </td>
-          <td style="padding:8px 12px;font-size:13px;line-height:1.6">
-            {text}
-          </td>
-        </tr>""")
-
-    html = f"""<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <title>RockTranslate — Validation extraction</title>
-  <style>
-    body {{ font-family: Georgia, serif; margin: 0; padding: 20px;
-            background: #f5f5f5; }}
-    h1   {{ font-size: 18px; color: #333; margin-bottom: 4px; }}
-    p.meta {{ font-size: 12px; color: #666; margin-bottom: 16px; }}
-    table {{ width: 100%; border-collapse: collapse;
-             background: white; box-shadow: 0 1px 4px rgba(0,0,0,.1); }}
-    td    {{ border-bottom: 1px solid #e8e8e8; }}
-    tr:hover td {{ filter: brightness(0.97); }}
-    .legend {{ display:flex; gap:16px; margin-bottom:12px;
-               font-size:12px; align-items:center; }}
-  </style>
-</head>
-<body>
-  <h1>RockTranslate — Validation extraction et ordre de lecture</h1>
-  <p class="meta">
-    Document : <b>{PDF_PATH}</b> |
-    Pages : <b>{len(pages_to_process)}</b> |
-    Paragraphes : <b>{len(paragraphs)}</b> |
-    Gouttière : <b>{gutter:.1f} pt</b>
-  </p>
-  <div class="legend">
-    <b>Légende :</b>
-    {col_badge(0)} &nbsp;
-    {col_badge(1)} &nbsp;
-    {col_badge(2)} &nbsp;
-    <span style="background:#e65c00;color:white;padding:2px 7px;
-                 border-radius:3px;font-size:11px">⚡ cross-page</span>
-  </div>
-  <table>
-    <thead>
-      <tr style="background:#333;color:white">
-        <th style="padding:8px 10px;width:60px">#</th>
-        <th style="padding:8px 10px;width:130px">Position</th>
-        <th style="padding:8px 10px;text-align:left">Texte extrait</th>
-      </tr>
-    </thead>
-    <tbody>
-      {''.join(rows)}
-    </tbody>
-  </table>
-</body>
-</html>"""
-
+    # Rendu final
+    full_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>RockTranslate 2D Debugger</title>
+        <style>
+            body {{ background: #444; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; }}
+            .page-container {{ margin-bottom: 50px; }}
+            .page {{ position: relative; background: white; margin: 0 auto; transition: transform 0.2s; }}
+            .block {{ box-sizing: border-box; transition: all 0.1s; }}
+            .block:hover {{ 
+                z-index: 1000 !important; 
+                background: white !important; 
+                transform: scale(1.05);
+                box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+                height: auto !important; /* Permet de voir tout le texte au survol */
+                min-height: {h}px;
+                padding: 10px;
+            }}
+            .block:hover .block-text {{ overflow: visible !important; font-size: 14px !important; }}
+            h3 {{ color: white; text-align: center; text-transform: uppercase; letter-spacing: 2px; }}
+        </style>
+    </head>
+    <body>
+        <h1 style="text-align:center">RockTranslate Visual Layout Debugger</h1>
+        <p style="text-align:center; color: #666;">
+            Vert: Pleine Largeur | Bleu: Col Gauche | Rouge: Col Droite | Pointillé Rouge: Gouttière détectée
+        </p>
+        {''.join(html_pages)}
+    </body>
+    </html>
+    """
+    
     with open(OUT_HTML, "w", encoding="utf-8") as f:
-        f.write(html)
-
-    print(f"HTML généré : {OUT_HTML}")
-    print("Ouvre ce fichier dans ton navigateur pour valider l'ordre.")
-
+        f.write(full_html)
+    print(f"Fichier généré : {OUT_HTML}")
 
 if __name__ == "__main__":
-    main()
+    generate_2d_debugger()
