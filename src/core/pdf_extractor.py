@@ -158,6 +158,29 @@ class PDFExtractor:
         if font_size <= 0 or font_size > 200:
             font_size = abs(T - B)
 
+        if ' ' in text and len(text) < 15:
+            print(f"MOT COUPÉ: '{text}' bbox=({L:.1f},{B:.1f},{R:.1f},{T:.1f})")
+
+        # Filtre les objets dont la hauteur est aberrante
+        # (cellules de tableaux Elsevier encodées avec bbox pleine hauteur)
+        bbox_height = abs(T - B)
+        bbox_width  = abs(R - L)
+
+        # Un objet texte normal : hauteur < 3× sa largeur
+        # Un objet tableau Elsevier : hauteur >> largeur (ratio inversé)
+        if bbox_height > 50 and bbox_height > bbox_width * 3:
+            logger.debug(f"  Objet tableau ignoré: h={bbox_height:.1f} w={bbox_width:.1f} '{text[:20]}'")
+            return None
+
+        # if abs(T - B) > 50:
+        #    print(f"OBJET GÉANT: h={abs(T-B):.1f} text='{text[:30]}' font={font_size:.1f}")
+
+
+        # Filtre les guillemets/apostrophes isolés parasites
+        if text in {'"', "'", "''", '""', '"', '"', ''', '''}:
+            return None
+            
+
         return RawObject(
             text=text,
             left=L, bottom=B, right=R, top=T,

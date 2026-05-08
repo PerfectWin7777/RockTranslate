@@ -17,7 +17,7 @@ Pipeline :
 """
 
 from core.domain import RawObject, Span, Line, Block, Paragraph
-
+import re
 
 # ─────────────────────────────────────────────────────────────
 # Constantes internes (non exposées, dérivées du contenu)
@@ -25,6 +25,18 @@ from core.domain import RawObject, Span, Line, Block, Paragraph
 _MIN_GUTTER_WIDTH  = 15.0   # px minimum pour qu'un vide soit une gouttière
 _ZONE_BAND_HEIGHT  = 40.0   # hauteur d'une bande d'analyse (pt)
 _GUTTER_SEARCH_PCT = 0.35   # on cherche dans les N% centraux du texte réel
+
+_ACCENT_MAP = {
+    'a´':'á','e´':'é','i´':'í','o´':'ó','u´':'ú',
+    'A´':'Á','E´':'É','I´':'Í','O´':'Ó','U´':'Ú',
+    'a`':'à','e`':'è','i`':'ì','o`':'ò','u`':'ù',
+    'A`':'À','E`':'È','I`':'Ì','O`':'Ò','U`':'Ù',
+    'a^':'â','e^':'ê','i^':'î','o^':'ô','u^':'û',
+    'A^':'Â','E^':'Ê','I^':'Î','O^':'Ô','U^':'Û',
+    'a¨':'ä','e¨':'ë','i¨':'ï','o¨':'ö','u¨':'ü',
+    'n˜':'ñ','N˜':'Ñ','n~':'ñ','N~':'Ñ','ı¨':'ï',
+}
+
 
 
 class SpatialClusterer:
@@ -43,6 +55,73 @@ class SpatialClusterer:
     ):
         self.span_x_gap_factor = span_x_gap_factor
         self.block_gap_factor  = block_gap_factor
+    
+
+    def _remove_duplicates(self, raw_objects: list[RawObject]) -> list[RawObject]:
+        if not raw_objects: return []
+        
+        # Tri par position pour comparer les voisins proches
+        raw_objects.sort(key=lambda o: (o.bottom, o.left))
+        
+        unique = []
+        for i, obj in enumerate(raw_objects):
+            is_duplicate = False
+            # On compare l'objet actuel avec ceux déjà acceptés (unique)
+            # On ne regarde que les 10 derniers pour aller vite
+            for other in unique[-15:]:
+                # Calcul de l'intersection (Intersection over Union - IoU)
+                inter_l = max(obj.left, other.left)
+                inter_r = min(obj.right, other.right)
+                inter_b = max(obj.bottom, other.bottom)
+                inter_t = min(obj.top, other.top)
+                
+                if inter_r > inter_l and inter_t > inter_b:
+                    inter_area = (inter_r - inter_l) * (inter_t - inter_b)
+                    obj_area = obj.width * obj.height
+                    # Si plus de 60% de l'objet est déjà couvert par un autre, c'est un doublon
+                    if inter_area / obj_area > 0.60:
+                        is_duplicate = True
+                        break
+            
+            if not is_duplicate:
+                unique.append(obj)
+        return unique
+
+
+    def _clean_text(self, text: str) -> str:
+        """Nettoie le texte : recolle les mots coupés par un tiret et gère les espaces."""
+        # Recolle 'analy- sis' en 'analysis'
+        text = re.sub(r'(\w)-\s+(\w)', r'\1\2', text)
+        # Supprime les doubles espaces et retours à la ligne inutiles
+        text = re.sub(r'\s+', ' ', text)
+        return text.strip()
+    
+
+    def _compute_page_stats(self, raw_objects: list[RawObject]) -> dict:
+        """
+        Calcule les métriques réelles de la page.
+        Remplace toutes les constantes dures — portable sur tout PDF.
+        """
+        import statistics
+        
+        heights = [o.height for o in raw_objects if o.height > 2]
+        if not heights:
+            return {"median_h": 8.0}  # fallback sécurisé
+        
+        median_h = statistics.median(heights)
+        return {"median_h": median_h}
+    
+    def _recolle_accents(self, text: str) -> str:
+        """
+        'Ge`ze' → 'Gèze'
+        'Se´galen' → 'Ségalen'  
+        'Pe´rez' → 'Pérez'
+        """
+        
+        for combo, repl in _ACCENT_MAP.items():
+            text = text.replace(combo, repl)
+        return text
+
 
     # ══════════════════════════════════════════════════════════
     # PRÉ-TRAITEMENT : accents & exposants
@@ -66,7 +145,12 @@ class SpatialClusterer:
         if not raw_objects:
             return []
 
-        sorted_objs = sorted(raw_objects, key=lambda o: o.left)
+        # 1. Dédoublonnage d'abord !
+        objs = self._remove_duplicates(raw_objects)
+       
+        _ACCENT_CHARS = set("´`^¨~˜˚˙")
+
+        sorted_objs = sorted(objs, key=lambda o: o.left)
         merged: list[RawObject] = []
 
         for curr in sorted_objs:
@@ -75,23 +159,38 @@ class SpatialClusterer:
                 continue
 
             prev = merged[-1]
-
-            # Calcul du gap horizontal
             gap_x = curr.left - prev.right
-            
-            # FIX : On augmente la tolérance verticale à 10pt (au lieu de 8) 
-            # et on fusionne si c'est très proche horizontalement (< 3pt)
             v_dist = abs(curr.y_center - prev.y_center)
-            
-            if gap_x < 5.0 and v_dist < 10.0: 
+
+            thresh_v = getattr(self, '_accent_v_dist', 5.0)
+            thresh_x = getattr(self, '_accent_gap_x', 3.0)
+
+            # Cas 1 : curr est un accent → fusionne avec prev (comme avant)
+            if curr.text in _ACCENT_CHARS and gap_x < thresh_x and v_dist < thresh_v:
                 prev.text  += curr.text
-                prev.right  = max(prev.right,  curr.right)
-                prev.top    = max(prev.top,    curr.top)
+                prev.right  = max(prev.right, curr.right)
+                prev.top    = max(prev.top, curr.top)
                 prev.bottom = min(prev.bottom, curr.bottom)
+
+            # Cas 2 : prev se termine par un accent → fusionne curr dans prev
+            elif merged and prev.text and prev.text[-1] in _ACCENT_CHARS and gap_x < thresh_x and v_dist < thresh_v:
+                print(f"CAS2: prev='{prev.text}' curr='{curr.text}' gap_x={gap_x:.2f} v_dist={v_dist:.2f}")
+                prev.text  += curr.text
+                prev.right  = max(prev.right, curr.right)
+                prev.top    = max(prev.top, curr.top)
+                prev.bottom = min(prev.bottom, curr.bottom)
+
             else:
                 merged.append(curr)
+
+        
+
+        for obj in merged:
+           obj.text = self._recolle_accents(obj.text)
+
         return merged
 
+        
     # ══════════════════════════════════════════════════════════
     # ÉTAPE 1 : RawObjects → Spans
     # ══════════════════════════════════════════════════════════
@@ -110,15 +209,20 @@ class SpatialClusterer:
         if not raw_objects:
             return []
 
+        clean_objs = self._remove_duplicates(raw_objects)
+
+        # TRI PAR LIGNE STRICT (Palier de 4pt pour les lignes Elsevier)
+        clean_objs.sort(key=lambda o: (-round(o.y_center / 4) * 4, o.left))
+
         # --- ÉTAPE 1 : Groupement par Lignes réelles ---
         # On trie du haut vers le bas par le centre Y
-        raw_objects.sort(key=lambda o: -o.y_center)
+        clean_objs.sort(key=lambda o: -o.y_center)
         
         lines_of_objects = []
-        if raw_objects:
-            current_line = [raw_objects[0]]
-            for i in range(1, len(raw_objects)):
-                obj = raw_objects[i]
+        if clean_objs:
+            current_line = [clean_objs[0]]
+            for i in range(1, len(clean_objs)):
+                obj = clean_objs[i]
                 prev = current_line[-1]
                 
                 # Condition de ligne : deux objets sont sur la même ligne si
@@ -157,6 +261,26 @@ class SpatialClusterer:
                     current_group = [obj]
             final_spans.append(Span.from_raw_objects(current_group))
 
+        import statistics
+        heights = [o.height for o in raw_objects if o.height > 2]
+        gaps = []
+        sorted_o = sorted(raw_objects, key=lambda o: o.left)
+        for i in range(1, len(sorted_o)):
+            g = sorted_o[i].left - sorted_o[i-1].right
+            if -5 < g < 50:
+                gaps.append(g)
+
+        if heights:
+            print(f"  median height = {statistics.median(heights):.2f}")
+        if gaps:
+            print(f"  median gap_x  = {statistics.median(gaps):.2f}")
+        fonts = [o.font_size for o in raw_objects if o.font_size > 1]
+        if fonts:
+            print(f"  median font   = {statistics.median(fonts):.2f}")
+
+        for span in final_spans:
+            span.text = self._recolle_accents(span.text)
+
         return final_spans
 
     # ══════════════════════════════════════════════════════════
@@ -185,7 +309,14 @@ class SpatialClusterer:
             # Overlap vertical : partagent-ils la même bande Y ?
             overlap  = min(span.top, prev.top) - max(span.bottom, prev.bottom)
             min_h    = min(span.height, prev.height) or 1.0
-            same_row = overlap > (min_h * 0.25)
+            # same_row = overlap > (min_h * 0.25)
+
+           # FIX : On utilise le centre vertical au lieu de l'overlap strict
+            # car les citations bleues sont souvent décalées de 1 ou 2 pixels en Y
+            v_dist = abs(span.y_center - prev.y_center)
+            
+            # Si le décalage vertical est < 50% de la hauteur, c'est la même ligne
+            same_row = v_dist < (max(span.height, prev.height) * 0.5)
 
             # Gap horizontal : colonnes différentes ?
             ref_h        = max(span.height, prev.height, 8.0)
@@ -302,7 +433,7 @@ class SpatialClusterer:
                         b2.bottom - merged_block.top,
                         0.0
                     )
-                    if v_dist >= 8:
+                    if v_dist >= 12:
                         continue
 
                     # ── Règle 3 : chevauchement horizontal réel ─────
@@ -537,6 +668,7 @@ class SpatialClusterer:
 
         gutters.sort()
         return gutters[len(gutters) // 2]
+    
 
     def process_page(
         self,
@@ -560,9 +692,26 @@ class SpatialClusterer:
             return []
 
         # ── Pré-traitement ────────────────────────────────────────
-        # objects = self.merge_accents_and_superscripts(raw_objects)
+        # 1. On enlève les fantômes du PDF
+        # clean_raw = self._remove_duplicates(raw_objects)
+
+        # ── Stats adaptatives ────────────────────────────────────
+        stats = self._compute_page_stats(raw_objects)
+        mh = stats["median_h"]  # ← la seule vérité
+
+        # Remplace les constantes dures par des valeurs dérivées
+        self.span_x_gap_factor = mh * 1.2    # inter-mots
+        self._accent_v_dist    = mh * 0.55   # fusion accents
+        self._accent_gap_x     = mh * 0.35   # idem
+        self._block_gap        = mh * 1.1    # inter-blocs
+        self._band_height      = mh * 5.0    # zones
+
         
-        objects = raw_objects  # FIX TEMPORAIRE : désactive la fusion pour diagnostiquer les problèmes d'accents/exposants
+        # 2. On fusionne les accents avec une tolérance verticale MINIME (3pt)
+        objects = self.merge_accents_and_superscripts(raw_objects)
+
+        
+        # objects = raw_objects 
         # ── Détection des zones ───────────────────────────────────
         zones = self.detect_page_zones(
             objects, page_width, page_height, forced_gutter
@@ -663,16 +812,30 @@ class SpatialClusterer:
         C'est ce que reçoit le LLM pour traduction.
         """
         paragraphs: list[Paragraph] = []
-        pending: list[Block] = []
+        if not blocks: return []
 
-        for block in blocks:
-            pending.append(block)
-            if block.continues_on_next_page:
-                continue
-            paragraphs.append(Paragraph.from_blocks(pending))
-            pending = []
+        current_group = [blocks[0]]
 
-        if pending:
-            paragraphs.append(Paragraph.from_blocks(pending))
+        for i in range(1, len(blocks)):
+            prev = blocks[i-1]
+            curr = blocks[i]
 
+            # LOGIQUE DE LIEN : 
+            # On lie deux blocs si le précédent est marqué "continues_on_next_page"
+            # OU si le texte ne finit pas par une ponctuation (. ! ? :)
+            txt = prev.text.strip()
+            is_linked = prev.continues_on_next_page or (len(txt) > 0 and txt[-1] not in ".?!:")
+
+            if is_linked:
+                current_group.append(curr)
+            else:
+                p = Paragraph.from_blocks(current_group)
+                p.text = self._clean_text(p.text) # Nettoyage ici
+                paragraphs.append(p)
+                current_group = [curr]
+
+        # Dernier groupe
+        p = Paragraph.from_blocks(current_group)
+        p.text = self._clean_text(p.text)
+        paragraphs.append(p)
         return paragraphs

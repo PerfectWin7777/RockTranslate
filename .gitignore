@@ -30,6 +30,7 @@ reconstructor_test.py
 smart_pdf_test_2.py
 smart_pdf_test.py
 
+test_translation.py
 
 src/rocktranslate.egg-info
 
