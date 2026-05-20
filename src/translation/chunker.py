@@ -8,14 +8,16 @@ Stratégie :
   - Respecte les limites par modèle
   - Un paragraphe > max_tokens est passé seul (jamais coupé)
 """
-
+from collections import Counter
 from loguru import logger
 from dataclasses import dataclass
 from core.domain import Paragraph
+from core.domain import Block
 
 # ── Limites par modèle (tokens contexte utilisable pour le texte source) ──────
 MODEL_TOKEN_LIMITS: dict[str, int] = {
     "gemini/gemini-3.1-flash-lite":      800_000,
+    "gemini/gemini-2.5-flash-lite":      800_000,
     "gemini/gemini-2.5-pro":            800_000,
     "gemini/gemini-2.5-flash":          800_000,
     "gemini/gemini-2.0-flash":          800_000,
@@ -32,29 +34,62 @@ MODEL_TOKEN_LIMITS: dict[str, int] = {
 _DEFAULT_LIMIT = 16_000
 
 # Fraction de la fenêtre réservée au texte source (le reste = réponse + prompt)
-_SOURCE_FRACTION = 0.40
+_SOURCE_FRACTION = 0.10
 
 
-def is_content(para) -> bool:
+def _dominant_color(block: Block) -> tuple[int, int, int]:
+    """
+    Retourne la couleur dominante du bloc (vote par nombre de caractères).
+    Couleur en RGB 0-255.
+    """
+    counts: Counter = Counter()
+    for line in block.lines:
+        for span in line.spans:
+            for obj in span.raw_objects:
+                # obj.color est en float (0.0-1.0) depuis pdf_extractor
+                # On convertit en int 0-255 pour la comparaison
+                c = tuple(int(v * 255) for v in obj.color)
+                counts[c] += len(obj.text)
+    if not counts:
+        return (0, 0, 0)
+    return counts.most_common(1)[0][0]
+
+
+def should_translate(para) -> bool:
+    """
+    Décision unique : ce paragraphe doit-il être traduit ?
+    Appelée UNE FOIS avant le LLM. Si False → ni traduit, ni écrasé.
+    """
     t = para.text.strip()
     
-    # 1. Trop court pour être du contenu
-    if len(t) < 40:
+    # 1. Trop court
+    if len(t) < 5:
         return False
     
-    # 2. Ratio URL trop élevé (headers web, DOI, liens)
-    url_chars = sum(len(w) for w in t.split() if '://' in w or w.startswith('www.'))
-    if url_chars / len(t) > 0.3:
+    # 2. URL / DOI / email
+    tl = t.lower()
+    if any(x in tl for x in ["http", "doi.org", "www.", "@"]):
         return False
     
-    # 3. Pas assez de mots réels (headers = peu de mots, beaucoup de symboles)
+    # 3. Pas assez de vrais mots
     words = [w for w in t.split() if w.isalpha() and len(w) > 2]
-    if len(words) < 5:
+    if len(words) < 4:
         return False
     
-    # 4. Trop de chiffres isolés (numéros de page, références isolées)
+    # 4. Trop de chiffres isolés (tableaux, formules)
     digit_tokens = sum(1 for w in t.split() if w.isdigit())
-    if digit_tokens / max(len(t.split()), 1) > 0.4:
+    if digit_tokens / max(len(t.split()), 1) > 0.3:
+        return False
+    
+    # 5. Couleur dominante non-noire (liens, citations bleues)
+    # On accède au block via para.blocks[0]
+    block = para.blocks[0]
+    r, g, b = _dominant_color(block)
+    if not (r < 30 and g < 30 and b < 30):
+        return False
+
+    # Références et sections marquées
+    if getattr(para, 'skip_translation', False):
         return False
     
     return True
@@ -152,7 +187,7 @@ def build_batches(
 
 def filter_noise(paragraphs: list[Paragraph]) -> list[Paragraph]:
     """Filtre les paragraphes non-traductibles par analyse structurelle."""
-    kept = [p for p in paragraphs if is_content(p)]
+    kept = [p for p in paragraphs if should_translate(p)]
     logger.debug(f"Filtrage : {len(paragraphs)} → {len(kept)} paragraphes")
     return kept
 

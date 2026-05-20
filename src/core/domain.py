@@ -23,7 +23,12 @@ class RawObject:
     right: float
     top: float
     font_size: float
+    color: tuple[int, int, int]  # (r, g, b)
     matrix: tuple[float, float, float, float, float, float]  # (a,b,c,d,e,f)
+    font_name: str = "Serif"
+    font_weight: int = 400
+    is_italic: bool = False
+    bg_color: tuple[int, int, int] = (255, 255, 255)
 
     @property
     def x_center(self) -> float:
@@ -58,6 +63,7 @@ class Span:
     right: float
     top: float
     font_size: float
+    color: tuple = (0, 0, 0)
     raw_objects: list[RawObject] = field(default_factory=list)
     
     @property
@@ -85,10 +91,12 @@ class Span:
         right  = max(o.right  for o in objects)
         top    = max(o.top    for o in objects)
         font_size = max(o.font_size for o in objects)
+        color = objects[0].color if objects else (0, 0, 0) 
         return cls(
             text=text,
             left=left, bottom=bottom, right=right, top=top,
             font_size=font_size,
+            color=color,
             raw_objects=objects
         )
 
@@ -127,6 +135,13 @@ class Line:
             return 10.0
         return max(s.font_size for s in self.spans)
 
+    @property
+    def color(self) -> tuple:
+        if not self.spans:
+            return (0, 0, 0)
+        return self.spans[0].color   
+
+
     @classmethod
     def from_spans(cls, spans: list[Span]) -> "Line":
         """Construit une Line à partir d'une liste de Spans (triés par X)."""
@@ -161,6 +176,10 @@ class Block:
     is_title: bool = False
     continues_on_next_page: bool = False   # ← phrase coupée cross-page
     continued_from_prev_page: bool = False
+    
+    line_height_ratio: float = 1.2  # Mesuré géométriquement
+    bg_color: tuple[int, int, int] = (255, 255, 255) # Détecté via les Paths
+    alignment: str = "left" # Détecté via la largeur et position
 
     @property
     def text(self) -> str:
@@ -173,6 +192,22 @@ class Block:
     @property
     def y_center(self) -> float:
         return (self.bottom + self.top) / 2
+
+    @property
+    def color(self) -> tuple:
+        if not self.lines:
+            return (0, 0, 0)
+        # Vote par nombre de caractères par couleur
+        from collections import Counter
+        char_counts: Counter = Counter()
+        for line in self.lines:
+            for span in line.spans:
+                for obj in span.raw_objects:
+                    char_counts[obj.color] += len(obj.text)
+        if not char_counts:
+            return (0, 0, 0)
+        return char_counts.most_common(1)[0][0]
+
 
     @property
     def last_line_text(self) -> str:
@@ -222,6 +257,7 @@ class Paragraph:
     page_number: int = 0
     translated_text: Optional[str] = None     # ← rempli après LLM
     is_cross_page: bool = False               # ← vrai si span sur 2 pages
+    skip_translation: bool = False
 
     @property
     def bbox(self) -> tuple[float, float, float, float]:

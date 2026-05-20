@@ -21,6 +21,13 @@ from typing import Callable
 
 from loguru import logger
 
+try:
+    import litellm
+    litellm.suppress_debug_info = True
+except ImportError:
+    litellm = None
+
+
 from core.domain import Paragraph
 from translation.chunker import Batch, build_batches, batches_summary
 from translation.prompts import (
@@ -58,7 +65,7 @@ class LLMClient:
 
     def __init__(
         self,
-        model: str = "gemini/gemini-3.1-flash-lite",
+        model: str = "gemini/gemini-2.5-flash-lite",
         api_key: str | None = None,
         target_lang: str = DEFAULT_LANG_NAME,
         max_tokens: int | None = None,
@@ -70,18 +77,9 @@ class LLMClient:
         self.max_tokens  = max_tokens
         self.on_progress = on_progress
 
-        # Import ici pour ne pas crasher si litellm n'est pas installé
-        try:
-            import litellm
-            self._litellm = litellm
-            # Silence les logs verbeux de litellm
-            litellm.suppress_debug_info = True
-        except ImportError:
-            raise ImportError(
-                "litellm n'est pas installé.\n"
-                "Lance : pip install litellm"
-            )
+        self._litellm = litellm
 
+       
         logger.info(
             f"LLMClient initialisé — modèle: {model} | "
             f"langue: {target_lang}"

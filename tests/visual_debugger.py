@@ -47,10 +47,10 @@ def generate_visual_diagnostic(pdf_path, output_path):
             forced_gutter=gutter   # ← nouveau paramètre
         )
         
-        # for block in blocks:
+        for block in blocks:
             # Rectangle BLEU pour le bloc final (Paragraphe)
-            # draw_rect(page.raw, (block.left, block.bottom, block.right, block.top), 
-            #           color=(0, 0, 255), thickness=2)
+            draw_rect(page.raw, (block.left, block.bottom, block.right, block.top), 
+                      color=(0, 0, 255), thickness=2)
             # print(f"col={block.column}  x={block.left:.1f}-{block.right:.1f}  y={block.bottom:.1f}-{block.top:.1f}  gutter_x={block.gutter_x:.1f}")
             
         # --- DESSIN DES RAW OBJECTS (ROUGE) ---

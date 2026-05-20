@@ -19,6 +19,8 @@ Pipeline :
 from core.domain import RawObject, Span, Line, Block, Paragraph
 import re
 
+from collections import Counter
+
 # ─────────────────────────────────────────────────────────────
 # Constantes internes (non exposées, dérivées du contenu)
 # ─────────────────────────────────────────────────────────────
@@ -174,7 +176,7 @@ class SpatialClusterer:
 
             # Cas 2 : prev se termine par un accent → fusionne curr dans prev
             elif merged and prev.text and prev.text[-1] in _ACCENT_CHARS and gap_x < thresh_x and v_dist < thresh_v:
-                print(f"CAS2: prev='{prev.text}' curr='{curr.text}' gap_x={gap_x:.2f} v_dist={v_dist:.2f}")
+                # print(f"CAS2: prev='{prev.text}' curr='{curr.text}' gap_x={gap_x:.2f} v_dist={v_dist:.2f}")
                 prev.text  += curr.text
                 prev.right  = max(prev.right, curr.right)
                 prev.top    = max(prev.top, curr.top)
@@ -270,13 +272,14 @@ class SpatialClusterer:
             if -5 < g < 50:
                 gaps.append(g)
 
-        if heights:
-            print(f"  median height = {statistics.median(heights):.2f}")
-        if gaps:
-            print(f"  median gap_x  = {statistics.median(gaps):.2f}")
-        fonts = [o.font_size for o in raw_objects if o.font_size > 1]
-        if fonts:
-            print(f"  median font   = {statistics.median(fonts):.2f}")
+        # if heights:
+        #     print(f"  median height = {statistics.median(heights):.2f}")
+        # if gaps:
+        #     print(f"  median gap_x  = {statistics.median(gaps):.2f}")
+        # fonts = [o.font_size for o in raw_objects if o.font_size > 1]
+        # if fonts:
+        #     print(f"  median font   = {statistics.median(fonts):.2f}")
+
 
         for span in final_spans:
             span.text = self._recolle_accents(span.text)
@@ -321,7 +324,11 @@ class SpatialClusterer:
             # Gap horizontal : colonnes différentes ?
             ref_h        = max(span.height, prev.height, 8.0)
             x_gap        = span.left - prev.right
-            diff_column  = x_gap > (ref_h * 2.5)
+
+            if span.font_size > 12 : 
+                diff_column = x_gap > (ref_h * 5.0) 
+            else:
+                diff_column = x_gap > (ref_h * 2.5)
 
             if same_row and not diff_column:
                 current_line.append(span)
@@ -381,7 +388,36 @@ class SpatialClusterer:
         blocks.append(Block.from_lines(current_group, page_number))
 
         # Post-processing : recolle les blocs trop fragmentés
-        return self._merge_touching_blocks(blocks, page_number)
+        final_blocks = self._merge_touching_blocks(blocks, page_number)
+
+        for b in final_blocks:
+            # A. Mesure de l'interligne réel (line-height)
+            if len(b.lines) > 1:
+                # On mesure l'écart entre le haut de la ligne 1 et le haut de la ligne 2
+                delta_y = abs(b.lines[0].top - b.lines[1].top)
+                # On calcule le ratio pour le CSS (ex: 1.1 ou 1.2)
+                b.line_height_ratio = delta_y / max(b.lines[0].font_size, 1.0)
+            else:
+                b.line_height_ratio = 1.15 # Valeur par défaut pour une seule ligne
+
+            # B. Détection de la couleur de fond dominante (Gris Elsevier, etc.)
+            # On regarde la couleur de fond "bg_color" de chaque petit objet dans le bloc
+            bg_colors = []
+            for line in b.lines:
+                for span in line.spans:
+                    for ro in span.raw_objects:
+                        bg_colors.append(ro.bg_color)
+            
+            if bg_colors:
+                # On prend la couleur la plus fréquente (Vote majoritaire)
+                b.bg_color = Counter(bg_colors).most_common(1)[0][0]
+            else:
+                b.bg_color = (255, 255, 255) # Blanc par défaut
+
+        # On retourne les blocs enrichis de leurs mesures réelles
+        return final_blocks
+
+
 
     def _merge_touching_blocks(
         self, blocks: list[Block], page_number: int
