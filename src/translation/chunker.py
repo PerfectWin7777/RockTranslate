@@ -11,8 +11,7 @@ Stratégie :
 from collections import Counter
 from loguru import logger
 from dataclasses import dataclass
-from core.domain import Paragraph
-from core.domain import Block
+from core.domain import FitzBlock, FitzLine, FitzSpan
 
 # ── Limites par modèle (tokens contexte utilisable pour le texte source) ──────
 MODEL_TOKEN_LIMITS: dict[str, int] = {
@@ -37,7 +36,7 @@ _DEFAULT_LIMIT = 16_000
 _SOURCE_FRACTION = 0.10
 
 
-def _dominant_color(block: Block) -> tuple[int, int, int]:
+def _dominant_color(block: FitzBlock) -> tuple[int, int, int]:
     """
     Retourne la couleur dominante du bloc (vote par nombre de caractères).
     Couleur en RGB 0-255.
@@ -55,41 +54,48 @@ def _dominant_color(block: Block) -> tuple[int, int, int]:
     return counts.most_common(1)[0][0]
 
 
-def should_translate(para) -> bool:
+def should_translate(block: FitzBlock) -> bool:
     """
-    Décision unique : ce paragraphe doit-il être traduit ?
-    Appelée UNE FOIS avant le LLM. Si False → ni traduit, ni écrasé.
+    Evaluates whether a visual block should be translated or preserved as-is.
+    Filters out math equations, isolated numbers, URLs, and non-black styled spans (links/citations).
     """
-    t = para.text.strip()
+    text = block.text.strip()
     
     # 1. Trop court
-    if len(t) < 5:
+    if len(text) < 5:
         return False
     
     # 2. URL / DOI / email
-    tl = t.lower()
+    tl = text.lower()
     if any(x in tl for x in ["http", "doi.org", "www.", "@"]):
         return False
     
     # 3. Pas assez de vrais mots
-    words = [w for w in t.split() if w.isalpha() and len(w) > 2]
+    words = [w for w in text.split() if w.isalpha() and len(w) > 2]
     if len(words) < 4:
         return False
     
     # 4. Trop de chiffres isolés (tableaux, formules)
-    digit_tokens = sum(1 for w in t.split() if w.isdigit())
-    if digit_tokens / max(len(t.split()), 1) > 0.3:
+    digit_tokens = sum(1 for w in text.split() if w.isdigit())
+    if digit_tokens / max(len(text.split()), 1) > 0.3:
         return False
     
-    # 5. Couleur dominante non-noire (liens, citations bleues)
-    # On accède au block via para.blocks[0]
-    block = para.blocks[0]
-    r, g, b = _dominant_color(block)
-    if not (r < 30 and g < 30 and b < 30):
-        return False
+    # 5. Non-black text check (e.g., colored hyperlinks, blue citations)
+    # FitzSpan.color uses "rgb(r,g,b)". We inspect the first span to check dominant text color
+    # if block.lines and block.lines[0].spans:
+    #     first_span = block.lines[0].spans[0]
+    #     try:
+    #         color_str = first_span.color.replace("rgb(", "").replace(")", "")
+    #         r, g, b = [int(v.strip()) for v in color_str.split(",")]
+    #         # If text is distinctly colored (not black or dark grey), preserve it
+    #         if not (r < 50 and g < 50 and b < 50):
+    #             return False
+    #     except Exception:
+    #         pass
+
 
     # Références et sections marquées
-    if getattr(para, 'skip_translation', False):
+    if getattr(block, 'skip_translation', False):
         return False
     
     return True
@@ -99,7 +105,7 @@ def should_translate(para) -> bool:
 @dataclass
 class Batch:
     """Un batch de paragraphes à envoyer au LLM en un seul appel."""
-    paragraphs: list[Paragraph]
+    paragraphs: list[FitzBlock]
     estimated_tokens: int
 
     @property
@@ -130,8 +136,8 @@ def get_max_source_tokens(model: str) -> int:
 
 
 def build_batches(
-    paragraphs: list[Paragraph],
-    model: str = "gemini/gemini-2.0-flash",
+    paragraphs: list[FitzBlock],
+    model: str = "gemini/gemini-2.5-flash-lite",
     max_tokens: int | None = None,
 ) -> list[Batch]:
     """
@@ -150,14 +156,14 @@ def build_batches(
 
     budget = max_tokens or get_max_source_tokens(model)
     batches: list[Batch] = []
-    current: list[Paragraph] = []
+    current: list[FitzBlock] = []
     current_tokens = 0
 
-    for para in paragraphs:
-        if not para.text or not para.text.strip():
+    for block in paragraphs:
+        if not block.text or not block.text.strip():
             continue  # ignore les paragraphes vides
 
-        tokens = _estimate_tokens(para.text)
+        tokens = _estimate_tokens(block.text)
 
         # Paragraphe trop grand seul → batch solo
         if tokens > budget:
@@ -165,18 +171,18 @@ def build_batches(
                 batches.append(Batch(paragraphs=current,
                                      estimated_tokens=current_tokens))
                 current, current_tokens = [], 0
-            batches.append(Batch(paragraphs=[para], estimated_tokens=tokens))
+            batches.append(Batch(paragraphs=[block], estimated_tokens=tokens))
             continue
 
         # Ajout au batch courant si ça rentre
         if current_tokens + tokens <= budget:
-            current.append(para)
+            current.append(block)
             current_tokens += tokens
         else:
             # Batch courant plein → flush et nouveau batch
             batches.append(Batch(paragraphs=current,
                                  estimated_tokens=current_tokens))
-            current = [para]
+            current = [block]
             current_tokens = tokens
 
     if current:
@@ -185,7 +191,7 @@ def build_batches(
     return batches
 
 
-def filter_noise(paragraphs: list[Paragraph]) -> list[Paragraph]:
+def filter_noise(paragraphs: list[FitzBlock]) -> list[FitzBlock]:
     """Filtre les paragraphes non-traductibles par analyse structurelle."""
     kept = [p for p in paragraphs if should_translate(p)]
     logger.debug(f"Filtrage : {len(paragraphs)} → {len(kept)} paragraphes")

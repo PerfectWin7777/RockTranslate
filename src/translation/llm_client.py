@@ -28,7 +28,7 @@ except ImportError:
     litellm = None
 
 
-from core.domain import Paragraph
+from core.domain import FitzBlock
 from translation.chunker import Batch, build_batches, batches_summary
 from translation.prompts import (
     get_system_prompt,
@@ -39,13 +39,13 @@ from translation.prompts import (
 
 # ── Retry config ───────────────────────────────────────────────────────────────
 _MAX_RETRIES   = 3
-_RETRY_DELAYS  = [2.0, 5.0, 15.0]   # backoff exponentiel (secondes)
+_RETRY_DELAYS  = [2.0, 3.0, 6.0]   # backoff exponentiel (secondes)
 
 
 @dataclass
 class TranslationResult:
     """Résultat d'une traduction complète."""
-    paragraphs: list[Paragraph]   # avec .translated_text rempli
+    paragraphs: list[FitzBlock]   # avec .translated_text rempli
     total_batches: int
     total_tokens_estimated: int
     failed_paragraphs: list[int]  # indices des paras échoués
@@ -91,7 +91,7 @@ class LLMClient:
 
     def translate_document(
         self,
-        paragraphs: list[Paragraph],
+        paragraphs: list[FitzBlock],
     ) -> TranslationResult:
         """
         Traduit tous les paragraphes du document.
