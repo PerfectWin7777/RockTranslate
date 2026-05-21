@@ -32,7 +32,7 @@ smart_pdf_test.py
 
 test_translation.py
 surgeon_test.py 
-
+test_conversion.py
 
 src/rocktranslate.egg-info
 
