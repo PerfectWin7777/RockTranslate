@@ -60,8 +60,14 @@ class FitzExtractor:
         # 2. Generate high-resolution background PNG
         png_b64 = self._generate_page_image_b64(page)
 
+        # ← NOUVEAU : détecte les zones de tableaux et d'images
+        table_rects = self._extract_table_rects(page)
+        image_rects = self._extract_image_rects(page)
+        skip_rects  = table_rects + image_rects  # zones à ne pas couvrir
+
+
         # 3. Extract text blocks
-        blocks = self._extract_text_blocks(page, page_number, paths)
+        blocks = self._extract_text_blocks(page, page_number, paths, skip_rects )
 
         return FitzPage(
             number=page_number,
@@ -125,7 +131,7 @@ class FitzExtractor:
         img_data = pix.tobytes("png")
         return base64.b64encode(img_data).decode("utf-8")
 
-    def _extract_text_blocks(self, page: fitz.Page, page_number: int, paths: List[FitzPath]) -> List[FitzBlock]:
+    def _extract_text_blocks(self, page: fitz.Page, page_number: int, paths: List[FitzPath], skip_rects=[]) -> List[FitzBlock]:
         """
         Extracts structural text layouts and maps background colors.
         """
@@ -200,7 +206,8 @@ class FitzExtractor:
             # Determine if this block sits on top of a non-white vector background (e.g., Abstract grey boxes)
             bg_color = self._detect_background_color(x0, y0, x1, y1, paths)
 
-            blocks.append(FitzBlock(
+            is_over_image = self._is_over_image(x0, y0, x1, y1, skip_rects)
+            block = FitzBlock(
                 block_id=block_id_counter,
                 lines=lines,
                 left=x0,
@@ -210,10 +217,101 @@ class FitzExtractor:
                 page_number=page_number,
                 bg_color=bg_color,
                 line_height_ratio=line_height_ratio
-            ))
+            )
+
+            if is_over_image:
+                block.bg_color = "transparent"  # ne cache pas l'image
+
+            if self._is_in_skip_zone(x0, y0, x1, y1, skip_rects):
+               continue  # ignore ce bloc — le PNG montre le tableau/image original
+    
+
+            blocks.append(block)
             block_id_counter += 1
 
         return blocks
+    
+    def _is_over_image(self, x0, y0, x1, y1, image_rects) -> bool:
+        """Vérifie si ce bloc texte intersecte (chevauche) une zone d'image."""
+        for ix0, iy0, ix1, iy1 in image_rects:
+            # Calcul du chevauchement horizontal et vertical
+            h_overlap = max(0, min(x1, ix1) - max(x0, ix0))
+            v_overlap = max(0, min(y1, iy1) - max(y0, iy0))
+            if h_overlap > 2 and v_overlap > 2:
+                return True
+        return False
+    
+    def _is_in_skip_zone(self, x0, y0, x1, y1, skip_rects) -> bool:
+        """
+        Retourne True si ce bloc de texte intersecte une zone de tableau ou d'image.
+        Si intersecté, le texte ne sera pas dessiné pour laisser l'original propre.
+        """
+        for rx0, ry0, rx1, ry1 in skip_rects:
+            # Vérification géométrique stricte d'intersection de deux bboxes
+            h_overlap = max(0, min(x1, rx1) - max(x0, rx0))
+            v_overlap = max(0, min(y1, ry1) - max(y0, ry0))
+            # Si la surface de collision est réelle (> 2 points), il y a chevauchement
+            if h_overlap > 2 and v_overlap > 2:
+                return True
+        return False
+
+
+    def _extract_image_rects(self, page: fitz.Page) -> list:
+        """
+        Retourne les bboxes de toutes les images physiques de la page via l'API native.
+        Ignore les images de fond décoratives (filigranes) de grande taille.
+        """
+        rects = []
+        page_w = page.rect.width
+        page_h = page.rect.height
+
+        try:
+            # get_image_info() renvoie une liste de dicts contenant la clé 'bbox' pour chaque image
+            for img_info in page.get_image_info(hashes=True, xrefs=True):
+                bbox = img_info.get("bbox")
+                if not bbox:
+                    continue
+                
+                # Conversion du tuple de coordonnées (x0, y0, x1, y1)
+                x0, y0, x1, y1 = bbox
+                w = x1 - x0
+                h = y1 - y0
+                
+                # Optionnel : ignore les arrière-plans décoratifs plein écran (>95%)
+                # if w > page_w * 0.95 or h > page_h * 0.95:
+                #     continue
+                
+                rects.append((x0, y0, x1, y1))
+        except Exception as e:
+            logger.warning(f"Erreur lors de la détection des images : {e}")
+       
+        return rects
+    
+    def _extract_table_rects(self, page: fitz.Page) -> list:
+        """
+        Détecte les zones de tableaux via PyMuPDF.
+        Combine la stratégie par lignes et la stratégie par alignement de texte 
+        pour capturer les tableaux académiques sans bordures verticales.
+        """
+        rects = []
+        try:
+            # 1. Capture les tableaux classiques (avec bordures/lignes réelles)
+            tables_lines = page.find_tables(strategy="lines")
+            for table in tables_lines.tables:
+                rects.append(table.bbox)  # (x0, y0, x1, y1)
+
+            # 2. Capture les tableaux académiques (sans bordures verticales, par alignement de mots)
+            tables_text = page.find_tables(strategy="text")
+            for table in tables_text.tables:
+                # Évite d'ajouter des bboxes en double
+                if table.bbox not in rects:
+                    rects.append(table.bbox)
+
+        except Exception as e:
+            logger.warning(f"Erreur lors de la détection des tableaux : {e}")
+            
+        return rects
+
 
     def _detect_font_style(self, font_name: str, flags: int) -> Tuple[bool, bool]:
         """

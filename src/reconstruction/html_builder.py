@@ -17,8 +17,8 @@ class HTMLBuilder:
         display_h = int(page.height)
 
         paths_html = ""
-        for p in page.paths:
-            paths_html += HTMLBuilder._generate_path_element(p)
+        # for p in page.paths:
+        #     paths_html += HTMLBuilder._generate_path_element(p)
 
         blocks_html = ""
         for block in page.blocks:
@@ -104,8 +104,8 @@ class HTMLBuilder:
 
             # 1. Build background vector paths (fills, shapes, borders)
             paths_html = ""
-            for p in page.paths:
-                paths_html += HTMLBuilder._generate_path_element(p)
+            # for p in page.paths:
+            #     paths_html += HTMLBuilder._generate_path_element(p)
 
             # 2. Build text blocks (either original spans or translated text flow)
             blocks_html = ""
@@ -298,6 +298,7 @@ class HTMLBuilder:
                         f'font-size: {size:.1f}px; '
                         f'vertical-align: {valign}; '
                         f'background: {bg_css};'
+                        # f'background: transparent;'
                         f'">{span.text}</span> '
                     )
 
@@ -311,6 +312,7 @@ class HTMLBuilder:
             f'font-size: {block.fs_dominant:.1f}px; '
             f'line-height: {block.line_height_ratio:.3f}; '
             f'background: {block.bg_color}; '
+            # f'background: transparent;'
             f'text-align: {align};">'
             f'{content_html}</div>\n'
         )
