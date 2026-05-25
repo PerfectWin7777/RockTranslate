@@ -85,7 +85,13 @@ class ReadingOrderSorter:
             abs(block.x_center - page_mid) < self.alignment_mid_tolerance 
             and block_width < (page_width * 0.8)
         )
-        should_justify = len(block.lines) > 1 or block_width > (page_width * 0.4)
+        # --- SÉCURITÉ DYNAMIQUE POUR LES TABLEAUX ---
+        # Si le bloc posséde des lignes physiques (FitzBlock), on évalue la justification.
+        # S'il n'en possède pas (FitzTableBlock), on désactive la justification.
+        if hasattr(block, "lines"):
+            should_justify = len(block.lines) > 1 or block_width > (page_width * 0.4)
+        else:
+            should_justify = False
 
         if is_centered:
             block.alignment = "center"
