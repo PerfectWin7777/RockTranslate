@@ -61,7 +61,7 @@ class FitzExtractor:
         png_b64 = self._generate_page_image_b64(page)
 
         # ← NOUVEAU : détecte les zones de tableaux et d'images
-        table_blocks  = self._extract_table_rects(page)
+        table_blocks  = self._extract_tables(page)
         image_rects = self._extract_image_rects(page)
         skip_rects = [(tb.left, tb.top, tb.right, tb.bottom) for tb in table_blocks] + image_rects  # zones à ne pas couvrir
 
@@ -297,132 +297,178 @@ class FitzExtractor:
        
         return rects
     
-    def _extract_table_rects(self, page: fitz.Page) -> list:
+
+    def _extract_tables(self, page: fitz.Page) -> list:
         """
-        Extrait les tableaux en convertissant la page courante en fichier Word temporaire,
-        en la lisant avec python-docx (OpenXML) et en la mappant géométriquement sur le PDF 
-        à l'aide d'une recherche textuelle native (search_for).
+        Pipeline v5 :
+        A. pdfplumber extract_words(x_tolerance=1) → mots avec bbox précises
+        B. fitz get_text("dict") → styles par span (font_size, bold, italic, color)
+        C. pdf2docx → détection zones tableau (is_real_table filter)
+        D. Croiser cellules docx × mots pdfplumber → zone bbox globale
+        E. Filtrer mots dans zone + enrichir avec styles fitz
         """
+        import tempfile
+        import pdfplumber
+        from pdf2docx import Converter
+        from docx import Document
+        from core.domain import FitzTableBlock
+
         table_blocks = []
-        temp_docx_path = None
+        tmp_path = None
+
         try:
-            import tempfile
-            from pdf2docx import Converter
-            from docx import Document
-            import mammoth
-            import io
-            from core.domain import FitzTableBlock
+            # A. pdfplumber → mots avec bbox précises (gère la rotation)
+            with pdfplumber.open(self.pdf_path) as pdf:
+                p = pdf.pages[page.number]
+                all_words = p.extract_words(x_tolerance=1, y_tolerance=3)
 
-            # 1. Génération d'un fichier Word temporaire unique pour la page courante
+            # B. fitz → index des styles par position
+            # Construit un dict {(x0_arrondi, top_arrondi): style}
+            style_index = {}
+            text_dict = page.get_text("dict", flags=fitz.TEXT_PRESERVE_WHITESPACE)
+            for b in text_dict.get("blocks", []):
+                if b.get("type") != 0:
+                    continue
+                for line in b.get("lines", []):
+                    for span in line.get("spans", []):
+                        sx0, sy0, sx1, sy1 = span["bbox"]
+                        font  = span.get("font", "")
+                        size  = span.get("size", 8.5)
+                        flags = span.get("flags", 0)
+                        color_int = span.get("color", 0)
+                        r = (color_int >> 16) & 0xFF
+                        g = (color_int >> 8)  & 0xFF
+                        b_val = color_int & 0xFF
+                        is_bold, is_italic = self._detect_font_style(font, flags)
+                        # Clé arrondie pour tolérance de matching
+                        key = (round(sx0), round(sy0))
+                        style_index[key] = {
+                            "font_size": size,
+                            "is_bold":   is_bold,
+                            "is_italic": is_italic,
+                            "color":     f"rgb({r},{g},{b_val})",
+                        }
+
+            # C. pdf2docx → détection tableaux
             with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
-                temp_docx_path = tmp.name
-
-            page_idx = page.number
+                tmp_path = tmp.name
             cv = Converter(self.pdf_path)
-            cv.convert(temp_docx_path, pages=[page_idx])
+            cv.convert(tmp_path, pages=[page.number])
             cv.close()
+            doc = Document(tmp_path)
+            self._cleanup_temp_file(tmp_path)
 
-            # 2. Ouverture et parsing avec la bibliothèque standard python-docx (OpenXML)
-            doc = Document(temp_docx_path)
-            
-            # S'il n'y a aucun tableau physique dans le Word généré, on quitte proprement
-            if not doc.tables:
-                self._cleanup_temp_file(temp_docx_path)
-                return table_blocks
+            block_id = 10000
+            seen_zones = []  # évite les doublons de zones
 
-            block_id_counter = 10000
-
-            # 3. Traitement de chaque tableau détecté par l'OpenXML de Word
             for table in doc.tables:
-                # Extraction sémantique de la matrice de cellules
-                matrix = []
-                for row in table.rows:
-                    row_cells = [cell.text.strip() for cell in row.cells]
-                    matrix.append(row_cells)
-
-                # Évite de traiter des tableaux vides accidentels
-                if not any(any(cell for cell in row) for row in matrix):
+                if not self._is_real_table(table):
                     continue
 
-                # Recherche textuelle sur la page PDF pour caler géométriquement le tableau
-                first_text = ""
-                for row in matrix:
-                    for cell in row:
-                        if cell.strip() and len(cell.strip()) > 3:
-                            first_text = cell.strip()
+                # D. Textes cellules → matcher avec mots pdfplumber
+                cell_texts = []
+                for row in table.rows:
+                    for cell in row.cells:
+                        t = cell.text.strip().split("\n")[0].strip()
+                        if t and len(t) >= 3:
+                            cell_texts.append(t.replace(" ", "").lower())
+
+                matched = []
+                for word in all_words:
+                    wclean = word["text"].replace(" ", "").lower()
+                    for ct in cell_texts:
+                        if wclean and (wclean in ct or ct[:10] in wclean) and len(wclean) >= 3:
+                            matched.append(word)
                             break
-                    if first_text:
-                        break
 
-                last_text = ""
-                for row in reversed(matrix):
-                    for cell in reversed(row):
-                        if cell.strip() and len(cell.strip()) > 3:
-                            last_text = cell.strip()
-                            break
-                    if last_text:
-                        break
+                if not matched:
+                    continue
 
-                # Coordonnées géométriques par défaut (fallback de sécurité)
-                tx0, ty0, tx1, ty1 = 50.0, 100.0, page.rect.width - 50, page.rect.height - 100
+                zone = {
+                    "x0":     min(w["x0"]     for w in matched) - 5,
+                    "top":    min(w["top"]    for w in matched) - 5,
+                    "x1":     max(w["x1"]     for w in matched) + 5,
+                    "bottom": max(w["bottom"] for w in matched) + 5,
+                }
 
-                # Calage précis de la boîte haute du tableau
-                if first_text:
-                    rects_top = page.search_for(first_text)
-                    if rects_top:
-                        ty0 = rects_top[0].y0 - 20  # Légère marge haute pour englober la légende
-                        tx0 = rects_top[0].x0 - 10
+                # Dédoublonnage : ignore si zone trop similaire à une déjà vue
+                is_duplicate = any(
+                    abs(zone["x0"] - z["x0"]) < 10 and
+                    abs(zone["top"] - z["top"]) < 10 and
+                    abs(zone["x1"] - z["x1"]) < 10 and
+                    abs(zone["bottom"] - z["bottom"]) < 10
+                    for z in seen_zones
+                )
+                if is_duplicate:
+                    continue
+                seen_zones.append(zone)
 
-                # Calage précis de la boîte basse du tableau
-                if last_text:
-                    rects_bottom = page.search_for(last_text)
-                    if rects_bottom:
-                        ty1 = rects_bottom[0].y1 + 15
-                        tx1 = max(rects_bottom[0].x1 + 10, tx0 + 100)
+                # E. Filtrer mots dans la zone + enrichir avec styles fitz
+                table_words = []
+                for w in all_words:
+                    if not (w["x0"] >= zone["x0"] and w["x1"] <= zone["x1"] and
+                            w["top"] >= zone["top"] and w["bottom"] <= zone["bottom"]):
+                        continue
 
-                # Sécurité géométrique pour éviter des coordonnées inversées ou aberrantes
-                if ty1 <= ty0 or tx1 <= tx0:
-                    ty1 = ty0 + len(table.rows) * 22 + 30
-                    tx1 = page.rect.width - tx0
+                    # Cherche le style fitz le plus proche par position
+                    key = (round(w["x0"]), round(w["top"]))
+                    style = style_index.get(key)
+                    if not style:
+                        # Tolérance ±3px
+                        for dx in range(-3, 4):
+                            for dy in range(-3, 4):
+                                style = style_index.get((key[0]+dx, key[1]+dy))
+                                if style:
+                                    break
+                            if style:
+                                break
 
-                # 4. Reconstruction du tableau isolé en mémoire vive pour conversion Mammoth
-                table_doc = Document()
-                new_table = table_doc.add_table(rows=len(table.rows), cols=len(table.columns))
-                for r_idx, row in enumerate(table.rows):
-                    for c_idx, cell in enumerate(row.cells):
-                        new_table.cell(r_idx, c_idx).text = cell.text
+                    table_words.append({
+                        "text":      w["text"],
+                        "x0":        w["x0"],
+                        "top":       w["top"],
+                        "x1":        w["x1"],
+                        "bottom":    w["bottom"],
+                        "font_size": style["font_size"] if style else 8.5,
+                        "is_bold":   style["is_bold"]   if style else False,
+                        "is_italic": style["is_italic"] if style else False,
+                        "color":     style["color"]     if style else "rgb(0,0,0)",
+                    })
 
-                docx_stream = io.BytesIO()
-                table_doc.save(docx_stream)
-                docx_stream.seek(0)
+                if not table_words:
+                    continue
 
-                # Conversion du flux Word en HTML pur via Mammoth
-                result = mammoth.convert_to_html(docx_stream)
-                html_content = result.value
-                docx_stream.close()
-
-                # Ajout de l'objet de tableau structuré
                 table_blocks.append(FitzTableBlock(
-                    block_id=block_id_counter,
-                    left=tx0,
-                    top=ty0,
-                    right=tx1,
-                    bottom=ty1,
-                    page_number=page_idx + 1,
-                    html_content=html_content
+                    block_id=block_id,
+                    left=zone["x0"],
+                    top=zone["top"],
+                    right=zone["x1"],
+                    bottom=zone["bottom"],
+                    page_number=page.number + 1,
+                    words=table_words,
                 ))
-                block_id_counter += 1
+                block_id += 1
+                logger.info(f"  Table {block_id-10000}: {len(table_words)} mots, zone top={zone['top']:.0f}")
 
-            self._cleanup_temp_file(temp_docx_path)
-            print(f"✅ OpenXML + Mammoth extracted {len(table_blocks)} structured tables on Page {page.number + 1}")
+            logger.info(f"Page {page.number+1} → {len(table_blocks)} tableau(x)")
 
         except Exception as e:
-            self._cleanup_temp_file(temp_docx_path)
-            import traceback
-            traceback.print_exc()
-            logger.warning(f"Échec de la détection de tableaux via OpenXML : {e}")
+            self._cleanup_temp_file(tmp_path)
+            import traceback; traceback.print_exc()
+            logger.warning(f"Table extraction failed p{page.number+1}: {e}")
 
         return table_blocks
+
+
+    def _is_real_table(self, table) -> bool:
+        """Filtre les faux positifs : texte en colonnes détecté comme tableau."""
+        if len(table.rows) < 2 or len(table.columns) < 2:
+            return False
+        first_row_texts = [c.text.strip() for c in table.rows[0].cells]
+        long_cells = sum(1 for t in first_row_texts if len(t) > 80)
+        if long_cells >= len(table.columns) - 1:
+            return False
+        return True
 
     def _cleanup_temp_file(self, path: Optional[str]):
         """Supprime proprement les fichiers temporaires pour éviter les fuites de ressources."""
