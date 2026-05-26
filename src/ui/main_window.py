@@ -93,12 +93,14 @@ class ExtractionWorker(QThread):
             for page_num in range(total_pages):
                 # 1. Extract raw blocks, paths, and generate base64 PNG
                 page = pdf[page_num]
-                fitz_page = extractor._extract_page(page, page_num + 1, extract_tables=False)
+
+                # fitz_page = extractor._extract_page(page, page_num + 1, extract_tables=False)
                 
-                # 2. Sort the reading order on the fly in the background
-                fitz_page.blocks = sorter.process_page_layout(fitz_page.blocks, fitz_page.width)
+                # # 2. Sort the reading order on the fly in the background
+                # fitz_page.blocks = sorter.process_page_layout(fitz_page.blocks, fitz_page.width)
                 
-                doc.pages.append(fitz_page)
+                # doc.pages.append(fitz_page)
+                
                 self.progress.emit(page_num + 1, total_pages)
 
             pdf.close()
@@ -151,7 +153,9 @@ class TranslationWorker(QThread):
                 model=self.model,
                 api_key=self.api_key,
                 target_lang=self.target_lang,
-                on_progress=lambda c, t: self.batch_progress.emit(c, t)
+                on_progress=lambda c, t: self.batch_progress.emit(c, t),
+                 # Connexion du callback de statut du client LLM au signal Qt
+                on_status=lambda msg: self.status_update.emit(msg) 
             )
             
             # Traitement page par page

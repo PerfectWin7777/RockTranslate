@@ -134,7 +134,7 @@ class TranslationViewer(QWidget):
         )
 
         # Écrit sur disque — pas de limite de taille
-        if hasattr(self, '_tmp_html_path') and os.path.exists(self._tmp_html_path):
+        if self._tmp_html_path and os.path.exists(self._tmp_html_path):
             try:
                 os.unlink(self._tmp_html_path)
             except PermissionError:

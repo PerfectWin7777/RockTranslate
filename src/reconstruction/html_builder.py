@@ -261,16 +261,16 @@ class HTMLBuilder:
 
     <script>
         // Fonction globale d'injection chirurgicale
-        function updateBlock(pageIdx, blockId, translatedText, bgCss) {
-            var el = document.getElementById("block-" + pageIdx + "-" + blockId);  # type: ignore
-            if (el) {
+        function updateBlock(pageIdx, blockId, translatedText, bgCss) {{
+            var el = document.getElementById("block-" + pageIdx + "-" + blockId); 
+            if (el)  {{
                 el.innerHTML = translatedText;
-                if (bgCss) {
+                if (bgCss)  {{
                     el.style.backgroundColor = bgCss;
-                }
+                }}
                 el.style.opacity = "1"; // Révèle le bloc traduit en fondu
-            }
-        }
+            }}
+       }}
     </script>
     
 </head>
