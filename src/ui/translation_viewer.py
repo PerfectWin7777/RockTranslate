@@ -33,9 +33,12 @@ class TranslationViewer(QWidget):
         self.is_translation_started: bool = False
         self.zoom_factor: float = 1.0
 
-        self._refresh_timer = QTimer(self)
-        self._refresh_timer.setSingleShot(True)  # S'exécute une seule fois
-        self._refresh_timer.timeout.connect(self.refresh_view)
+        self._document_ref = None
+        self._tmp_html_path = None
+
+        # self._refresh_timer = QTimer(self)
+        # self._refresh_timer.setSingleShot(True)  # S'exécute une seule fois
+        # self._refresh_timer.timeout.connect(self.refresh_view)
 
         self._build_ui()
 
@@ -98,31 +101,25 @@ class TranslationViewer(QWidget):
             for block in page.blocks:
                 if block.block_id == block_idx:
                     block.translated_text = translated_text
+                    bg_css = block.bg_color
                     break
             
-            # Si l'utilisateur regarde cette page, on planifie un rafraîchissement
-            if page_idx == self.current_page_idx:
-                # Si le timer tourne déjà, il est réinitialisé à 150ms.
-                # Cela regroupe (batch) toutes les mises à jour en un seul rendu.
-                self._refresh_timer.start(150)
+            # Échappement JSON ultra-sécurisé pour éviter de casser la chaîne de caractères JS
+            # (gère les sauts de ligne, les guillemets et les caractères d'échappement)
+            import json
+            safe_text = json.dumps(translated_text)
+            
+            # Appel chirurgical asynchrone dans Chromium
+            js_code = f"updateBlock({page_idx}, {block_idx}, {safe_text}, '{bg_css}');"
+            self.web_view.page().runJavaScript(js_code)
 
 
-    def refresh_viewSSSSS(self):
-        """
-        Triggers HTML rebuilding and reloads the QWebEngineView with the updated page DOM.
-        """
-        if not self._document_ref:
-            self.web_view.load(QUrl("about:blank"))
-            return
-        
-        # We show the blurred glassmorphism card ONLY if translation hasn't started yet
-        show_overlay = not self.is_translation_started
-        
-        # Build raw HTML string from data objects
-        html_content = HTMLBuilder.build_document(self._document_ref, show_blurred_overlay=show_overlay)
-        
-        # Inject HTML straight into Chromium's rendering engine (ultra-fast in-memory swap)
-        self.web_view.setHtml(html_content)
+            # # Si l'utilisateur regarde cette page, on planifie un rafraîchissement
+            # if page_idx == self.current_page_idx:
+            #     # Si le timer tourne déjà, il est réinitialisé à 150ms.
+            #     # Cela regroupe (batch) toutes les mises à jour en un seul rendu.
+            #     self._refresh_timer.start(150)
+
 
 
     def refresh_view(self):

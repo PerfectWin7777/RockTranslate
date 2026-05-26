@@ -98,7 +98,7 @@ class HTMLBuilder:
         """
         pages_html = ""
         
-        for page in document.pages:
+        for  page_idx, page in enumerate(document.pages):
             display_w = int(page.width)
             display_h = int(page.height)
 
@@ -112,10 +112,21 @@ class HTMLBuilder:
             for block in page.blocks:
                 if block.skip_translation or not block.text.strip():
                     continue
+
+                # On détermine l'identifiant unique global du bloc
+                block_id_str = f"block-{page_idx}-{block.block_id}"
+
+                # if isinstance(block, FitzTableBlock):
+                #     blocks_html += HTMLBuilder._generate_table_element(block)
+                # else:
+                #     blocks_html += HTMLBuilder._generate_block_element(block)
+
+
                 if isinstance(block, FitzTableBlock):
-                    blocks_html += HTMLBuilder._generate_table_element(block)
+                    blocks_html += HTMLBuilder._generate_table_placeholder(block, block_id_str)
                 else:
-                    blocks_html += HTMLBuilder._generate_block_element(block)
+                    # Paragraphes normaux
+                    blocks_html += HTMLBuilder._generate_block_placeholder(block, block_id_str)
 
             # 3. Append the individual page wrapper container to the cumulative document list.
             # We apply inline width, height, and background-image so that pages can have different sizes.
@@ -185,6 +196,8 @@ class HTMLBuilder:
             white-space: normal;
             word-wrap: break-word;
             -webkit-font-smoothing: antialiased;
+            opacity: 0; /* Caché au départ pour masquer le doublon d'anglais */
+            transition: opacity 0.4s ease-in-out; /* Effet de fondu enchaîné */
         }}
         .text-span {{
             display: inline;
@@ -245,6 +258,21 @@ class HTMLBuilder:
        }}
 
     </style>
+
+    <script>
+        // Fonction globale d'injection chirurgicale
+        function updateBlock(pageIdx, blockId, translatedText, bgCss) {
+            var el = document.getElementById("block-" + pageIdx + "-" + blockId);  # type: ignore
+            if (el) {
+                el.innerHTML = translatedText;
+                if (bgCss) {
+                    el.style.backgroundColor = bgCss;
+                }
+                el.style.opacity = "1"; // Révèle le bloc traduit en fondu
+            }
+        }
+    </script>
+    
 </head>
 <body>
     {pages_html}
@@ -374,3 +402,38 @@ class HTMLBuilder:
                 f'{txt}</div>\n'
             )   # white-space: normal;
         return words_html
+
+    
+
+
+
+    @staticmethod
+    def _generate_block_placeholder(block: FitzBlock, element_id: str) -> str:
+        """Génère le conteneur vide et invisible pour un paragraphe."""
+        align = block.alignment
+        return (
+            f'<div id="{element_id}" class="block-element" style="'
+            f'left: {block.left - 1.0:.1f}px; '
+            f'top: {block.top:.1f}px; '
+            f'width: {block.width + 4.0:.1f}px; '
+            f'min-height: {block.height:.1f}px; '
+            f'font-size: {block.fs_dominant:.1f}px; '
+            f'line-height: {block.line_height_ratio:.3f}; '
+            f'text-align: {align};"></div>\n'
+        )
+
+    @staticmethod
+    def _generate_table_placeholder(block, element_id: str) -> str:
+        """Génère le conteneur vide et invisible pour un tableau."""
+        return f"""
+        <div id="{element_id}" class="block-element" style="
+            left: {block.left - 5:.1f}px;
+            top: {block.top - 15:.1f}px;
+            width: {block.width + 10:.1f}px;
+            height: {block.height + 20:.1f}px;
+            z-index: 5;
+            padding: 5px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            overflow: visible;
+        "></div>\n
+        """
