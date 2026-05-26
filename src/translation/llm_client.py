@@ -38,7 +38,7 @@ from translation.prompts import (
 
 
 # ── Retry config ───────────────────────────────────────────────────────────────
-_MAX_RETRIES   = 3
+_MAX_RETRIES   = 4
 _RETRY_DELAYS  = [2.0, 3.0, 6.0]   # backoff exponentiel (secondes)
 
 
@@ -70,12 +70,14 @@ class LLMClient:
         target_lang: str = DEFAULT_LANG_NAME,
         max_tokens: int | None = None,
         on_progress: Callable[[int, int], None] | None = None,
+        on_status: Callable[[str], None] | None = None, # Callback vers l'UI (Barre d'état)
     ):
         self.model       = model
         self.api_key     = api_key or self._get_api_key_from_env(model)
         self.target_lang = target_lang
         self.max_tokens  = max_tokens
         self.on_progress = on_progress
+        self.on_status   = on_status
 
         self._litellm = litellm
 
@@ -84,6 +86,13 @@ class LLMClient:
             f"LLMClient initialisé — modèle: {model} | "
             f"langue: {target_lang}"
         )
+    
+
+    def _log_status(self, message: str):
+        """Envoie des retours d'informations à l'UI et aux logs simultanément."""
+        logger.info(message)
+        if self.on_status:
+            self.on_status(message)
 
     # ══════════════════════════════════════════════════════════
     # API PUBLIQUE
@@ -174,16 +183,32 @@ class LLMClient:
             {"id": i, "text": para.text}
             for i, para in enumerate(batch.paragraphs)
         ]
+        
+        current_model = self.model
 
         for attempt in range(_MAX_RETRIES):
             try:
-                if attempt > 0:
-                    delay = _RETRY_DELAYS[min(attempt - 1, len(_RETRY_DELAYS) - 1)]
-                    logger.warning(
-                        f"  Tentative {attempt + 1}/{_MAX_RETRIES} "
-                        f"(attente {delay}s...)"
-                    )
-                    time.sleep(delay)
+                # if attempt > 0:
+                #     delay = _RETRY_DELAYS[min(attempt - 1, len(_RETRY_DELAYS) - 1)]
+                #     logger.warning(
+                #         f"  Tentative {attempt + 1}/{_MAX_RETRIES} "
+                #         f"(attente {delay}s...)"
+                #     )
+                #     time.sleep(delay)
+
+                # Si le modèle principal échoue plus de 2 fois, basculer sur un modèle alternatif disponible
+                if attempt >= 2:
+                    fallback_model = self._get_fallback_model(current_model)
+                    if fallback_model and fallback_model != current_model:
+                        fallback_key = self._get_api_key_from_env(fallback_model)
+                        if fallback_key:
+                            self._log_status(
+                                f"🔄 Modèle {current_model} saturé ou indisponible. "
+                                f"Basculement automatique sur le modèle de secours {fallback_model}..."
+                            )
+                            current_model = fallback_model
+                            self.api_key = fallback_key
+
 
                 results = self._call_llm(batch_data)
 
@@ -204,6 +229,8 @@ class LLMClient:
                 )
                 if all_translated:
                     return True
+                
+                self._log_status(f"⚠️ Traduction incomplète. Tentative {attempt + 1}/{_MAX_RETRIES}...")
 
                 logger.warning(
                     f"  Traductions incomplètes "
@@ -212,10 +239,63 @@ class LLMClient:
                 )
 
             except Exception as e:
-                logger.warning(f"  Erreur tentative {attempt + 1}: {e}")
+                err_msg = str(e).lower()
+                
+                # Détection des erreurs de quota ou de serveurs surchargés (ex: Anthropic Overloaded ou Gemini 429)
+                is_rate_limit = any(
+                    x in err_msg for x in [
+                        "rate_limit", "rate limit", "429", "overloaded", 
+                        "resource_exhausted", "resource exhausted", "quota"
+                    ]
+                )
+                
+                wait_time = 6 * (attempt + 1) # Progression : 6s, 12s, 18s...
+
+                if is_rate_limit:
+                    # Décompte interactif affiché seconde par seconde dans la barre d'état
+                    for remaining in range(wait_time, 0, -1):
+                        self._log_status(
+                            f"⏳ Limite de taux API atteinte ou modèle surchargé. "
+                            f"Pause de sécurité... nouvelle tentative dans {remaining}s"
+                        )
+                        time.sleep(1)
+                else:
+                    self._log_status(f"❌ Erreur réseau temporaire : {e}. Pause de {wait_time}s...")
+                    time.sleep(wait_time)
 
         return False
+    
 
+    def _get_fallback_model(self, current_model: str) -> str | None:
+        """
+        Recherche une alternative parmi une liste de modèles stables
+        en vérifiant que la clé d'environnement correspondante est disponible.
+        """
+        fallback_chain = [
+            "gemini/gemini-2.5-flash-lite",
+            "gemini/gemini-3.1-flash-lite",
+            "gemini/gemini-2.5-flash",
+            "gemini/gemini-2.0-flash",
+            "gpt-4o-mini",
+            "gemini/gemini-1.5-pro",
+            "gpt-4o"
+        ]
+
+        try:
+            current_idx = fallback_chain.index(current_model)
+            # Priorise les modèles après le modèle actuel, puis boucle
+            candidates = fallback_chain[current_idx + 1:] + fallback_chain[:current_idx]
+        except ValueError:
+            candidates = fallback_chain
+
+        for candidate in candidates:
+            # Vérifie la présence de la clé API pour ce candidat
+            key = self._get_api_key_from_env(candidate)
+            if key:
+                return candidate
+
+        return None
+    
     # ══════════════════════════════════════════════════════════
     # APPEL LLM
     # ══════════════════════════════════════════════════════════
