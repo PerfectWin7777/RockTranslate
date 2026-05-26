@@ -17,9 +17,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Core & Layout Imports
-from core.fitz_extractor import FitzExtractor
+from core.fitz_extractor import FitzExtractor, page_has_table_lines 
 from core.reading_order import ReadingOrderSorter
 from core.domain import FitzDocument
+from core.reading_order import ReadingOrderSorter
 
 # UI Imports
 from ui.pdf_viewer import PDFViewer
@@ -92,7 +93,7 @@ class ExtractionWorker(QThread):
             for page_num in range(total_pages):
                 # 1. Extract raw blocks, paths, and generate base64 PNG
                 page = pdf[page_num]
-                fitz_page = extractor._extract_page(page, page_num + 1)
+                fitz_page = extractor._extract_page(page, page_num + 1, extract_tables=False)
                 
                 # 2. Sort the reading order on the fly in the background
                 fitz_page.blocks = sorter.process_page_layout(fitz_page.blocks, fitz_page.width)
@@ -116,11 +117,18 @@ class TranslationWorker(QThread):
     block_done = pyqtSignal(int, int, str)  # page_idx, block_idx, translated_text
     batch_progress = pyqtSignal(int, int)   # batches_done, total_batches
     finished = pyqtSignal()
+    status_update = pyqtSignal(str)   # Informative feedback for status bar
     error = pyqtSignal(str)
 
-    def __init__(self, blocks_to_translate, model: str, api_key: str, target_lang: str):
+    def __init__(self, blocks_to_translate,
+                       document: FitzDocument, 
+                       extractor: FitzExtractor, 
+                       model: str, api_key: str, target_lang: str
+                ):
         super().__init__()
         self.blocks = blocks_to_translate
+        self.document = document
+        self.extractor = extractor
         self.model = model
         self.api_key = api_key
         self.target_lang = target_lang
@@ -134,6 +142,10 @@ class TranslationWorker(QThread):
             # Map valid blocks to sequential tasks for the API
             tasks = [{"id": idx, "text": b.text, "block_ref": b} for idx, b in enumerate(valid_blocks)]
 
+            # Open PDF in background thread
+            pdf = fitz.open(self.document.path)
+            total_pages = len(self.document.pages)
+
            
             client = LLMClient(
                 model=self.model,
@@ -141,6 +153,43 @@ class TranslationWorker(QThread):
                 target_lang=self.target_lang,
                 on_progress=lambda c, t: self.batch_progress.emit(c, t)
             )
+            
+            # Traitement page par page
+            for page_idx in range(len(self.document.pages)):
+                if self._stop:
+                    break
+
+                page_num = page_idx + 1
+                page_obj = pdf[page_idx]
+
+                # 1. Vérification rapide : y a-t-il un tableau potentiel sur cette page ?
+                has_tables = page_has_table_lines(page_obj)
+
+                if has_tables:
+                    self.status_update.emit(f"Page {page_num}/{total_pages} : Extraction de la structure des tableaux...")
+                    # On relance l'extraction en activant l'extracteur lourd uniquement sur cette page !
+                    fitz_page = self.extractor._extract_page(page_obj, page_num, extract_tables=True)
+                    
+                    # On ré-applique l'ordre de lecture
+                    
+                    sorter = ReadingOrderSorter()
+                    fitz_page.blocks = sorter.process_page_layout(fitz_page.blocks, fitz_page.width)
+                    
+                    # On remplace la page d'origine par la page enrichie de ses tableaux
+                    self.document.pages[page_idx] = fitz_page
+                else:
+                    self.status_update.emit(f"Page {page_num}/{total_pages} : Analyse du texte...")
+                    fitz_page = self.document.pages[page_idx]
+
+                # 2. Collecte des blocs à traduire de cette page
+                page_blocks = [b for b in fitz_page.blocks if should_translate(b)]
+                if not page_blocks:
+                    continue
+
+                # 3. Traduction de la page
+                self.status_update.emit(f"Page {page_num}/{total_pages} : Traduction des paragraphes...")
+                batches = build_batches(page_blocks, self.model)
+
 
             # Build batches using our token estimation model
             batches = build_batches(valid_blocks, self.model)
@@ -148,6 +197,9 @@ class TranslationWorker(QThread):
             for i, batch in enumerate(batches):
                 if self._stop:
                     break
+
+                # Emission de la progression de batch de l'UI
+                self.batch_progress.emit(i + 1, len(batches))
 
                 # Prepare payload
                 batch_data = []
@@ -170,7 +222,8 @@ class TranslationWorker(QThread):
                         block = block_map[idx]
                         page_idx = block.page_number - 1
                         self.block_done.emit(page_idx, block.block_id, translated)
-
+            
+            pdf.close()
             self.finished.emit()
         except Exception as e:
             self.error.emit(str(e))
@@ -452,7 +505,7 @@ class MainWindow(QMainWindow):
 
 
     def _sync_page(self, ok):
-        # Pour l'instant goto page 0 — on affinera la sync scroll plus tard
+        # todo : Pour l'instant goto page 0 — on affinera la sync scroll plus tard
         self.trans_panel.goto_page(0)
 
     def _on_extraction_error(self, err_msg: str):
@@ -500,8 +553,13 @@ class MainWindow(QMainWindow):
         # Remove the blurred frosted-glass card to show real-time stream overlays
         self.trans_panel.set_translation_started(True)
 
+        # Instantiate a dedicated extractor for lazy translation parsing
+        extractor = FitzExtractor(self._pdf_path)
+
         self._worker = TranslationWorker(
             blocks_to_translate,
+            self._document,
+            extractor,
             self._current_model,
             api_key,
             self._current_lang
@@ -510,6 +568,7 @@ class MainWindow(QMainWindow):
         self._worker.batch_progress.connect(self.progress_panel.set_batches)
         self._worker.finished.connect(self._on_translation_finished)
         self._worker.error.connect(self._on_translation_error)
+        self._worker.status_update.connect(self.status.showMessage) # Dynamic feedback mapped to status bar
         
         self.a_start.setText("⏹  Arrêter la traduction")
         self._worker.start()

@@ -15,23 +15,28 @@ from core.domain import FitzBlock, FitzLine, FitzSpan
 
 # ── Limites par modèle (tokens contexte utilisable pour le texte source) ──────
 MODEL_TOKEN_LIMITS: dict[str, int] = {
-    "gemini/gemini-3.1-flash-lite":      5000,
-    "gemini/gemini-2.5-flash-lite":      5000,
-    "gemini/gemini-2.5-pro":            5000,
-    "gemini/gemini-2.5-flash":          5000,
-    "gemini/gemini-2.0-flash":          5000,
-    "gemini/gemini-1.5-pro":            5000,
-    "gpt-4o":                            3000,
-    "gpt-4o-mini":                       3000,
-    "claude-sonnet-4-20250514":          3000,
-    "claude-haiku-4-5-20251001":         3000,
-    "ollama/mistral":                     1500,
-    "ollama/llama3":                      1500,
+    # Modèles Lite / Mini (max 1000 tokens ≈ 4000 caractères, idéal pour éviter les boucles)
+    "gemini/gemini-3.1-flash-lite":      1000,
+    "gemini/gemini-2.5-flash-lite":      1000,
+    "gpt-4o-mini":                       1000,
+    "claude-haiku-4-5-20251001":         1000,
+    
+    # Modèles standard Flash (max 1500 tokens)
+    "gemini/gemini-2.5-flash":          1500,
+    "gemini/gemini-2.0-flash":          1500,
+    "ollama/mistral":                     800,
+    "ollama/llama3":                      800,
+
+    # Modèles Pro / Large (max 2500 tokens, car ils raisonnent mieux sur les longues listes)
+    "gemini/gemini-2.5-pro":            2500,
+    "gemini/gemini-1.5-pro":            2500,
+    "gpt-4o":                            2500,
+    "claude-sonnet-4-20250514":          2500,
 }
 
 # Limite par défaut si le modèle n'est pas listé
 # Par — budget basé sur la réponse max, pas le contexte
-_DEFAULT_LIMIT = 5000  # tokens source par batch → réponse ~7500 tokens
+_DEFAULT_LIMIT = 1000  # tokens source par batch → réponse ~7500 tokens
 
 # Fraction de la fenêtre réservée au texte source (le reste = réponse + prompt)
 _SOURCE_FRACTION = 0.10

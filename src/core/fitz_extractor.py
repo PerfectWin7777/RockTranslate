@@ -18,6 +18,33 @@ from .formula_detector import FormulaDetector
 from core.cid_normalizer import build_cid_maps, normalize_cids
 
 
+def page_has_table_lines(page: fitz.Page) -> bool:
+    """
+    Analyse instantanément (<1ms) les tracés vectoriels de la page.
+    Retourne True si la page possède au moins 3 lignes horizontales fines et larges,
+    ce qui est la signature physique obligatoire d'un tableau scientifique.
+    """
+    try:
+        drawings = page.get_drawings()
+        horizontal_lines = 0
+        for draw in drawings:
+            rect = draw.get("rect")
+            if not rect:
+                continue
+            x0, y0, x1, y1 = rect
+            w = x1 - x0
+            h = y1 - y0
+            
+            # Une ligne de tableau est large (ex: > 100 pt) et très fine (ex: < 3 pt)
+            if w > 100 and h < 3:
+                horizontal_lines += 1
+                if horizontal_lines >= 3:
+                    return True
+    except Exception:
+        pass
+    return False
+
+    
 class FitzExtractor:
     """
     Handles PDF data extraction using PyMuPDF (fitz).
@@ -44,14 +71,15 @@ class FitzExtractor:
 
         for page_num in range(len(doc)):
             page = doc[page_num]
-            fitz_page = self._extract_page(page, page_num + 1)
+            #  extract_tables=False pour un affichage instantané
+            fitz_page = self._extract_page(page, page_num + 1, extract_tables=False)
             fitz_doc.pages.append(fitz_page)
             logger.info(f"Successfully extracted Page {page_num + 1}/{len(doc)}")
 
         doc.close()
         return fitz_doc
 
-    def _extract_page(self, page: fitz.Page, page_number: int) -> FitzPage:
+    def _extract_page(self, page: fitz.Page, page_number: int, extract_tables: bool = False) -> FitzPage:
         """
         Extracts structural text blocks, vector paths, and the background image of a page.
         """
@@ -72,8 +100,11 @@ class FitzExtractor:
         # 2. Generate high-resolution background PNG
         png_b64 = self._generate_page_image_b64(page)
 
-        # ← NOUVEAU : détecte les zones de tableaux et d'images
-        table_blocks  = self._extract_tables(page)
+        # ← détecte les zones de tableaux et d'images
+        table_blocks = []
+        if extract_tables:
+            table_blocks  = self._extract_tables(page)
+
         image_rects = self._extract_image_rects(page)
         skip_rects = [(tb.left, tb.top, tb.right, tb.bottom) for tb in table_blocks] + image_rects  # zones à ne pas couvrir
 
