@@ -308,10 +308,14 @@ class HTMLBuilder:
                     if span.is_sup:
                         valign = "super"
                         size *= 0.7  # Scale down superscripts (citations, formulas)
+                    
+                    text_color = span.color
+                    if "cid:" in span.text:
+                        text_color = "transparent"
 
                     content_html += (
                         f'<span class="text-span" style="'
-                        f'color: {span.color}; '
+                        f'color: {text_color}; '
                         f'font-weight: {weight}; '
                         f'font-style: {style}; '
                         f'font-size: {size:.1f}px; '
@@ -348,19 +352,25 @@ class HTMLBuilder:
             weight  = "bold"   if w.get("is_bold")   else "normal"
             fstyle  = "italic" if w.get("is_italic") else "normal"
             color   = w.get("color", "rgb(0,0,0)")
+            text_color = color
+            if "cid:" in w["text"]:
+                text_color = "transparent"
             left    = w["x0"] - 1
             top     = w["top"]
             width   = (w["x1"] - w["x0"]) + 2
             height  = (w["bottom"] - w["top"]) + 1
             txt     = w.get("text", "").replace("<","&lt;").replace(">","&gt;")
+            background = "white"
+            if "cid:" in w["text"]:
+                background = "transparent"
 
             words_html += (
                 f'<div style="position:absolute;'
                 f'left:{left:.1f}px;top:{top:.1f}px;'
                 f'width:{width:.1f}px;height:{height:.1f}px;'
-                f'background:white;overflow:hidden;white-space:nowrap;'
+                f'background:{background};overflow:hidden;white-space:nowrap;'
                 f'font-size:{size:.1f}px;font-weight:{weight};'
-                f'font-style:{fstyle};color:{color};">'
+                f'font-style:{fstyle};color:{text_color};">'
                 f'{txt}</div>\n'
-            )
+            )   # white-space: normal;
         return words_html

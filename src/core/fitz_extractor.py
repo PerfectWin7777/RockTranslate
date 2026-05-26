@@ -14,6 +14,8 @@ from core.domain import (
     FitzDocument
 )
 
+from .formula_detector import FormulaDetector
+from core.cid_normalizer import normalize_cids
 
 class FitzExtractor:
     """
@@ -70,6 +72,20 @@ class FitzExtractor:
         blocks = self._extract_text_blocks(page, page_number, paths, skip_rects )
 
         all_blocks = blocks + table_blocks
+
+        # try:
+        #     import pdfplumber
+        #     with pdfplumber.open(self.pdf_path) as pdf:
+        #         plumb_page = pdf.pages[page.number]
+        #         plumb_words = plumb_page.extract_words(x_tolerance=1, y_tolerance=3)
+        # except Exception:
+        #     plumb_words = []
+
+        # if plumb_words:
+        #     detector = FormulaDetector(page_w, page_h, plumb_words)
+        #     for block in blocks:
+        #         if detector.is_formula(block):
+        #             block.skip_translation = True
 
         return FitzPage(
             number=page_number,
@@ -156,6 +172,7 @@ class FitzExtractor:
             raw_text = " ".join(s.get("text", "") for line in b_dict.get("lines", []) for s in line.get("spans", ""))
             if self._is_math_block(raw_text):
                 continue  # On ignore la formule, elle reste propre sur le PNG d'origine !
+            
 
 
             lines: List[FitzLine] = []
@@ -166,7 +183,8 @@ class FitzExtractor:
 
                 for s_dict in l_dict.get("spans", []):
                     sx0, sy0, sx1, sy1 = s_dict["bbox"]
-                    text = s_dict.get("text", "")
+                    raw_text = s_dict.get("text", "")
+                    text = normalize_cids(raw_text)
 
                     # Extract styling
                     font = s_dict.get("font", "")
@@ -424,7 +442,7 @@ class FitzExtractor:
                                 break
 
                     table_words.append({
-                        "text":      w["text"],
+                        "text":      normalize_cids(w["text"]),
                         "x0":        w["x0"],
                         "top":       w["top"],
                         "x1":        w["x1"],
