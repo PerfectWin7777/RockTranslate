@@ -15,7 +15,8 @@ from core.domain import (
 )
 
 from .formula_detector import FormulaDetector
-from core.cid_normalizer import normalize_cids
+from core.cid_normalizer import build_cid_maps, normalize_cids
+
 
 class FitzExtractor:
     """
@@ -31,6 +32,7 @@ class FitzExtractor:
         """
         self.pdf_path = pdf_path
         self.dpi = dpi
+        # self.cid_maps = None
 
     def extract_document(self) -> FitzDocument:
         """
@@ -53,6 +55,14 @@ class FitzExtractor:
         """
         Extracts structural text blocks, vector paths, and the background image of a page.
         """
+
+        # Initialisation paresseuse (lazy-loading) :
+        # On lit le document parent de la page à la volée. Cela évite d'ouvrir le PDF deux fois
+        # et empêche l'AttributeError si cette méthode est appelée seule (comme dans poc_render.py).
+        if not hasattr(self, "cid_maps") or not self.cid_maps:
+            # page.parent est l'objet fitz.Document d'origine du PDF !
+            self.cid_maps = build_cid_maps(page.parent)
+
         page_w = page.rect.width
         page_h = page.rect.height
 
@@ -184,7 +194,7 @@ class FitzExtractor:
                 for s_dict in l_dict.get("spans", []):
                     sx0, sy0, sx1, sy1 = s_dict["bbox"]
                     raw_text = s_dict.get("text", "")
-                    text = normalize_cids(raw_text)
+                     
 
                     # Extract styling
                     font = s_dict.get("font", "")
@@ -201,6 +211,8 @@ class FitzExtractor:
                     # Detect Bold, Italic, Superscript
                     is_bold, is_italic = self._detect_font_style(font, flags)
                     is_sup = bool(flags & 1)  # Bit 0 indicates superscript
+                    
+                    text = normalize_cids(raw_text, font, self.cid_maps)
 
                     spans.append(FitzSpan(
                         text=text,
@@ -362,6 +374,7 @@ class FitzExtractor:
                         key = (round(sx0), round(sy0))
                         style_index[key] = {
                             "font_size": size,
+                            "font_name": font,
                             "is_bold":   is_bold,
                             "is_italic": is_italic,
                             "color":     f"rgb({r},{g},{b_val})",
@@ -441,8 +454,10 @@ class FitzExtractor:
                             if style:
                                 break
 
+                    font_for_resolve = style["font_name"] if style else "Unknown"
+                    cleaned_text = normalize_cids(w["text"], font_for_resolve, self.cid_maps)
                     table_words.append({
-                        "text":      normalize_cids(w["text"]),
+                        "text":      cleaned_text,
                         "x0":        w["x0"],
                         "top":       w["top"],
                         "x1":        w["x1"],

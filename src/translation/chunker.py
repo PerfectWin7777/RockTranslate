@@ -15,22 +15,23 @@ from core.domain import FitzBlock, FitzLine, FitzSpan
 
 # ── Limites par modèle (tokens contexte utilisable pour le texte source) ──────
 MODEL_TOKEN_LIMITS: dict[str, int] = {
-    "gemini/gemini-3.1-flash-lite":      800_000,
-    "gemini/gemini-2.5-flash-lite":      800_000,
-    "gemini/gemini-2.5-pro":            800_000,
-    "gemini/gemini-2.5-flash":          800_000,
-    "gemini/gemini-2.0-flash":          800_000,
-    "gemini/gemini-1.5-pro":            800_000,
-    "gpt-4o":                            16_000,
-    "gpt-4o-mini":                       16_000,
-    "claude-sonnet-4-20250514":          80_000,
-    "claude-haiku-4-5-20251001":         80_000,
-    "ollama/mistral":                     6_000,
-    "ollama/llama3":                      6_000,
+    "gemini/gemini-3.1-flash-lite":      5000,
+    "gemini/gemini-2.5-flash-lite":      5000,
+    "gemini/gemini-2.5-pro":            5000,
+    "gemini/gemini-2.5-flash":          5000,
+    "gemini/gemini-2.0-flash":          5000,
+    "gemini/gemini-1.5-pro":            5000,
+    "gpt-4o":                            3000,
+    "gpt-4o-mini":                       3000,
+    "claude-sonnet-4-20250514":          3000,
+    "claude-haiku-4-5-20251001":         3000,
+    "ollama/mistral":                     1500,
+    "ollama/llama3":                      1500,
 }
 
 # Limite par défaut si le modèle n'est pas listé
-_DEFAULT_LIMIT = 16_000
+# Par — budget basé sur la réponse max, pas le contexte
+_DEFAULT_LIMIT = 5000  # tokens source par batch → réponse ~7500 tokens
 
 # Fraction de la fenêtre réservée au texte source (le reste = réponse + prompt)
 _SOURCE_FRACTION = 0.10
@@ -131,8 +132,7 @@ def _estimate_tokens(text: str) -> int:
 
 def get_max_source_tokens(model: str) -> int:
     """Retourne le budget tokens source pour un modèle donné."""
-    limit = MODEL_TOKEN_LIMITS.get(model, _DEFAULT_LIMIT)
-    return int(limit * _SOURCE_FRACTION)
+    return MODEL_TOKEN_LIMITS.get(model, 4000)
 
 
 def build_batches(

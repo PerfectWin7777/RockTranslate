@@ -40,7 +40,17 @@ _BFRANGE_RE = re.compile(r"<([0-9A-Fa-f]+)>\s+<([0-9A-Fa-f]+)>\s+<([0-9A-Fa-f]+)
 _CID_RE     = re.compile(r"\(cid:(\d+)\)")
 
 
-def build_cid_map(doc: fitz.Document) -> dict[int, str]:
+def clean_font_name(font_name: str) -> str:
+    """Nettoie le nom de la police en retirant le préfixe de sous-ensemble (ex: 'AAAAAA+')."""
+    if not font_name:
+        return "UNKNOWN"
+    if "+" in font_name:
+        return font_name.split("+", 1)[1].upper()
+    return font_name.upper()
+
+
+
+def build_cid_maps(doc: fitz.Document) -> dict[int, str]:
     """
     Construit la table CID→Unicode en lisant les ToUnicode de toutes les polices
     embarquées dans le document.
@@ -48,12 +58,14 @@ def build_cid_map(doc: fitz.Document) -> dict[int, str]:
     Retourne un dict {cid_int: unicode_char}.
     Si une police n'a pas de ToUnicode, on ignore (fallback appliqué à normalize()).
     """
-    cid_map: dict[int, str] = {}
+    # cid_maps: { font_name_nettoye: { cid: caractere } }
+    cid_maps: dict[str, dict[int, str]] = {}
     seen_xrefs: set[int] = set()
 
     for page in doc:
         for font_info in page.get_fonts(full=True):
             xref = font_info[0]
+            font_name = font_info[3] # Le nom brut de la police (ex: 'AAAAAA+CMSY10')
             if xref in seen_xrefs or xref == 0:
                 continue
             seen_xrefs.add(xref)
@@ -75,16 +87,19 @@ def build_cid_map(doc: fitz.Document) -> dict[int, str]:
                     continue
 
                 parsed = _parse_cmap_stream(cmap_stream)
-                cid_map.update(parsed)
                 if parsed:
-                    logger.debug(f"  Font xref={xref} → {len(parsed)} mappings ToUnicode")
+                    font_key = clean_font_name(font_name)
+                    if font_key not in cid_maps:
+                        cid_maps[font_key] = {}
+                    cid_maps[font_key].update(parsed)
+                    logger.debug(f"  Font '{font_key}' xref={xref} → {len(parsed)} mappings ToUnicode")
 
             except Exception as e:
                 logger.debug(f"  Font xref={xref} ToUnicode failed: {e}")
                 continue
 
-    logger.info(f"CID map built: {len(cid_map)} entrées depuis ToUnicode embarqué")
-    return cid_map
+    # logger.info(f"CID map built: {len(cid_maps)} entrées depuis ToUnicode embarqué")
+    return cid_maps
 
 
 def _parse_cmap_stream(cmap: str) -> dict[int, str]:
@@ -141,7 +156,7 @@ def _parse_cmap_stream(cmap: str) -> dict[int, str]:
     return result
 
 
-def normalize_cids(text: str, cid_map: dict[int, str]) -> str:
+def normalize_cids(text: str, font_name: str, cid_maps: dict[int, str]) -> str:
     """
     Remplace tous les (cid:X) dans le texte par leur vrai caractère Unicode.
 
@@ -153,15 +168,23 @@ def normalize_cids(text: str, cid_map: dict[int, str]) -> str:
     if not text or "cid" not in text:
         return text
 
+    # Récupération de la table spécifique à cette police
+    font_key = clean_font_name(font_name)
+    font_specific_map = cid_maps.get(font_key, {})
+
+
     def replace(m: re.Match) -> str:
         cid_val = int(m.group(1))
-        # 1. ToUnicode embarqué
-        if cid_val in cid_map:
-            return cid_map[cid_val]
-        # 2. Fallback heuristique
+        
+        # 1. ToUnicode embarqué de la police spécifique (sans collision avec les autres polices)
+        if cid_val in font_specific_map:
+            return font_specific_map[cid_val]
+            
+        # 2. Fallback heuristique global si ToUnicode est absent
         if cid_val in _FALLBACK_CID_MAP:
             return _FALLBACK_CID_MAP[cid_val]
-        # 3. Inconnu → conserve
+            
+        # 3. Conserve tel quel
         return m.group(0)
 
     return _CID_RE.sub(replace, text)
@@ -169,5 +192,5 @@ def normalize_cids(text: str, cid_map: dict[int, str]) -> str:
 
 def build_and_normalize(doc: fitz.Document, text: str) -> str:
     """Helper one-shot pour les tests."""
-    cid_map = build_cid_map(doc)
-    return normalize_cids(text, cid_map)
+    cid_maps = build_cid_maps(doc)
+    return normalize_cids(text, "", cid_maps)
