@@ -4,6 +4,10 @@ import base64, os
 import fitz  # PyMuPDF
 from typing import List, Tuple, Optional
 from loguru import logger
+import tempfile
+import pdfplumber
+from pdf2docx import Converter
+from docx import Document
 
 from core.domain import (
     FitzSpan,
@@ -11,10 +15,11 @@ from core.domain import (
     FitzBlock,
     FitzPath,
     FitzPage,
-    FitzDocument
+    FitzDocument,
+    FitzTableBlock
 )
 
-from .formula_detector import FormulaDetector
+# from .formula_detector import FormulaDetector
 from core.cid_normalizer import build_cid_maps, normalize_cids
 
 
@@ -44,7 +49,7 @@ def page_has_table_lines(page: fitz.Page) -> bool:
         pass
     return False
 
-    
+
 class FitzExtractor:
     """
     Handles PDF data extraction using PyMuPDF (fitz).
@@ -368,11 +373,7 @@ class FitzExtractor:
         D. Croiser cellules docx × mots pdfplumber → zone bbox globale
         E. Filtrer mots dans zone + enrichir avec styles fitz
         """
-        import tempfile
-        import pdfplumber
-        from pdf2docx import Converter
-        from docx import Document
-        from core.domain import FitzTableBlock
+        
 
         table_blocks = []
         tmp_path = None

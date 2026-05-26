@@ -167,6 +167,8 @@ class FitzTableBlock:
     skip_translation: bool = False
     translated_text: Optional[str] = None
 
+    bg_color: str = "white"
+
     # Mots du tableau : [{text, x0, top, x1, bottom, font_size, is_bold, is_italic, color}]
     words: list = field(default_factory=list)
 

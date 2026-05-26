@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Core & Layout Imports
-from core.fitz_extractor import FitzExtractor, page_has_table_lines 
+from core.fitz_extractor import FitzExtractor, page_has_table_lines
 from core.reading_order import ReadingOrderSorter
 from core.domain import FitzDocument, FitzPage
 from core.reading_order import ReadingOrderSorter
@@ -63,11 +63,13 @@ LANGUAGES = [
     ("Русский", "Russian"),
 ]
 
+# Nombre de paragraphes traduits conservés comme contexte glissant inter-pages
+_SLIDING_CONTEXT_SIZE = 4
 
 
 class ExtractionWorker(QThread):
     """
-    Extracts, renders, and sorts PDF pages in a background thread 
+    Extracts, renders, and sorts PDF pages in a background thread
     to keep the main window perfectly smooth and eliminate flickering.
     """
     progress = pyqtSignal(int, int)  # current_page, total_pages
@@ -81,29 +83,26 @@ class ExtractionWorker(QThread):
     def run(self):
         try:
             extractor = FitzExtractor(self.path)
-            
-            # Ouvre le PDF
+
             pdf = fitz.open(self.path)
             total_pages = len(pdf)
-            
+
             doc = FitzDocument(path=self.path)
 
             for page_num in range(total_pages):
                 page = pdf[page_num]
 
-                # Génère UNIQUEMENT l'image de fond (extrêmement rapide)
                 png_b64 = extractor._generate_page_image_b64(page)
-                
-                # Crée la coquille de la page sans aucun bloc de texte
+
                 fitz_page = FitzPage(
                     number=page_num + 1,
                     width=page.rect.width,
                     height=page.rect.height,
-                    blocks=[],  # Vide au départ
+                    blocks=[],
                     paths=[],
                     png_b64=png_b64
                 )
-                
+
                 doc.pages.append(fitz_page)
                 self.progress.emit(page_num + 1, total_pages)
 
@@ -113,132 +112,167 @@ class ExtractionWorker(QThread):
             self.error.emit(str(e))
 
 
-
 # ── Translation Thread Worker ───────────────────────────────────────────────
 class TranslationWorker(QThread):
     """
-    Handles API translation calls in the background to keep the UI perfectly responsive.
-    Emits granular real-time block updates.
+    Handles API translation calls in the background.
+    - Une seule passe page par page (extraction + traduction)
+    - Contexte glissant : les N derniers paragraphes traduits sont passés
+      au LLM pour assurer la cohérence terminologique inter-pages
+    - Les erreurs rate-limit sont gérées silencieusement dans LLMClient ;
+      seules les erreurs vraiment fatales remontent via error.emit()
     """
-    block_done = pyqtSignal(int, int, str)  # page_idx, block_idx, translated_text
-    batch_progress = pyqtSignal(int, int)   # batches_done, total_batches
-    finished = pyqtSignal()
-    status_update = pyqtSignal(str)   # Informative feedback for status bar
-    page_done = pyqtSignal()               #  Signal émis quand une page est finie
-    error = pyqtSignal(str)
+    block_done     = pyqtSignal(int, int, str)  # page_idx, block_id, translated_text
+    batch_progress = pyqtSignal(int, int)        # batches_done, total_batches
+    page_done      = pyqtSignal()               # une page entièrement traitée
+    finished       = pyqtSignal()
+    status_update  = pyqtSignal(str)
+    error          = pyqtSignal(str)
 
-    def __init__(self, blocks_to_translate,
-                       document: FitzDocument, 
-                       extractor: FitzExtractor, 
-                       model: str, api_key: str, target_lang: str
-                ):
+    def __init__(
+        self,
+        blocks_to_translate,
+        document: FitzDocument,
+        extractor: FitzExtractor,
+        model: str,
+        api_key: str,
+        target_lang: str,
+    ):
         super().__init__()
-        self.blocks = blocks_to_translate
-        self.document = document
-        self.extractor = extractor
-        self.model = model
-        self.api_key = api_key
-        self.target_lang = target_lang
-        self._stop = False
+        self.blocks        = blocks_to_translate
+        self.document      = document
+        self.extractor     = extractor
+        self.model         = model
+        self.api_key       = api_key
+        self.target_lang   = target_lang
+        self._stop         = False
 
     def run(self):
         try:
-            # We filter out noise (formulas, URLs, empty blocks) using our chunker logic
-            valid_blocks = [b for b in self.blocks if should_translate(b)]
-            
-            # Map valid blocks to sequential tasks for the API
-            tasks = [{"id": idx, "text": b.text, "block_ref": b} for idx, b in enumerate(valid_blocks)]
+            pdf          = fitz.open(self.document.path)
+            total_pages  = len(self.document.pages)
+            sorter       = ReadingOrderSorter()
 
-            # Open PDF in background thread
-            pdf = fitz.open(self.document.path)
-            total_pages = len(self.document.pages)
-
-           
             client = LLMClient(
                 model=self.model,
                 api_key=self.api_key,
                 target_lang=self.target_lang,
                 on_progress=lambda c, t: self.batch_progress.emit(c, t),
-                 # Connexion du callback de statut du client LLM au signal Qt
-                on_status=lambda msg: self.status_update.emit(msg) 
+                on_status=lambda msg: self.status_update.emit(msg),
             )
-            
-            # Traitement page par page
-            for page_idx in range(len(self.document.pages)):
+
+            # ── Contexte glissant : derniers paragraphes traduits ─────────
+            # On conserve les _SLIDING_CONTEXT_SIZE dernières traductions
+            # pour les injecter dans le prochain batch et assurer la
+            # cohérence terminologique et stylistique inter-pages.
+            sliding_context: list[str] = []
+
+            # ── Une seule passe : page par page ──────────────────────────
+            for page_idx in range(total_pages):
                 if self._stop:
                     break
 
                 page_num = page_idx + 1
                 page_obj = pdf[page_idx]
 
-                # 1. Vérification rapide : y a-t-il un tableau potentiel sur cette page ?
+                # 1. Détection et extraction tableau si nécessaire
                 has_tables = page_has_table_lines(page_obj)
-
                 if has_tables:
-                    self.status_update.emit(f"Page {page_num}/{total_pages} : Extraction de la structure des tableaux...")
-                    # On relance l'extraction en activant l'extracteur lourd uniquement sur cette page !
-                    fitz_page = self.extractor._extract_page(page_obj, page_num, extract_tables=True)
-                    
-                    # On ré-applique l'ordre de lecture
-                    
-                    sorter = ReadingOrderSorter()
-                    fitz_page.blocks = sorter.process_page_layout(fitz_page.blocks, fitz_page.width)
-                    
-                    # On remplace la page d'origine par la page enrichie de ses tableaux
+                    self.status_update.emit(
+                        f"Page {page_num}/{total_pages} : extraction des tableaux..."
+                    )
+                    fitz_page = self.extractor._extract_page(
+                        page_obj, page_num, extract_tables=True
+                    )
+                    fitz_page.blocks = sorter.process_page_layout(
+                        fitz_page.blocks, fitz_page.width
+                    )
                     self.document.pages[page_idx] = fitz_page
                 else:
-                    self.status_update.emit(f"Page {page_num}/{total_pages} : Analyse du texte...")
                     fitz_page = self.document.pages[page_idx]
 
-                # 2. Collecte des blocs à traduire de cette page
+                # 2. Collecte des blocs traduisibles de cette page
                 page_blocks = [b for b in fitz_page.blocks if should_translate(b)]
                 if not page_blocks:
+                    self.page_done.emit()
                     continue
 
-                # 3. Traduction de la page
-                self.status_update.emit(f"Page {page_num}/{total_pages} : Traduction des paragraphes...")
+                # 3. Construction du contexte glissant à injecter
+                context_str: str | None = None
+                if sliding_context:
+                    context_str = "\n".join(sliding_context)
+
+                # 4. Traduction par batches avec contexte
+                self.status_update.emit(
+                    f"Page {page_num}/{total_pages} : traduction en cours..."
+                )
                 batches = build_batches(page_blocks, self.model)
 
+                for batch_idx, batch in enumerate(batches):
+                    if self._stop:
+                        break
 
-            # Build batches using our token estimation model
-            batches = build_batches(valid_blocks, self.model)
+                    self.batch_progress.emit(batch_idx + 1, len(batches))
 
-            for i, batch in enumerate(batches):
-                if self._stop:
-                    break
+                    # Prépare les données du batch
+                    batch_data = [
+                        {"id": idx, "text": block.text}
+                        for idx, block in enumerate(batch.paragraphs)
+                    ]
+                    block_map = {
+                        idx: block
+                        for idx, block in enumerate(batch.paragraphs)
+                    }
 
-                # Emission de la progression de batch de l'UI
-                self.batch_progress.emit(i + 1, len(batches))
+                    # Appel LLM avec contexte glissant
+                    # Le contexte est passé uniquement au premier batch de la page
+                    # (les suivants partagent déjà la même fenêtre de tokens)
+                    ctx = context_str if batch_idx == 0 else None
+                    results = client._call_llm(batch_data, context=ctx)
 
-                # Prepare payload
-                batch_data = []
-                # Map batch blocks back to our task references
-                block_map = {}
-                for idx, block in enumerate(batch.paragraphs):
-                    batch_data.append({"id": idx, "text": block.text})
-                    block_map[idx] = block
+                    if not results:
+                        continue
 
-                # Translate batch using the client
-                results = client._call_llm(batch_data)
-                if not results:
-                    raise Exception(f"Failed to translate batch {i+1}")
+                    # 5. Dispatch des traductions + mise à jour du contexte glissant
+                    for res in results:
+                        idx        = res.get("id")
+                        translated = res.get("translated", "").strip()
+                        if idx in block_map and translated:
+                            block = block_map[idx]
+                            block.translated_text = translated
 
-                # Dispatch translations back to the UI in real-time
-                for res in results:
-                    idx = res.get("id")
-                    translated = res.get("translated", "").strip()
-                    if idx in block_map and translated:
-                        block = block_map[idx]
-                        page_idx = block.page_number - 1
-                        self.block_done.emit(page_idx, block.block_id, translated)
+                            # Émission vers l'UI (injection JS dans Chromium)
+                            self.block_done.emit(
+                                page_idx, block.block_id, translated
+                            )
 
-                # ← NOUVEAU : Une fois tous les batches de la page traduits et envoyés à l'UI
+                            # Mise à jour du contexte glissant
+                            sliding_context.append(translated)
+
+                    # On ne garde que les N dernières traductions
+                    if len(sliding_context) > _SLIDING_CONTEXT_SIZE:
+                        sliding_context = sliding_context[-_SLIDING_CONTEXT_SIZE:]
+
+                # 6. Une seule émission par page → comptage propre dans ProgressPanel
                 self.page_done.emit()
-            
+
             pdf.close()
             self.finished.emit()
+
         except Exception as e:
-            self.error.emit(str(e))
+            err_msg = str(e).lower()
+            is_rate_limit = any(x in err_msg for x in [
+                "rate_limit", "rate limit", "429", "overloaded",
+                "resource_exhausted", "resource exhausted", "quota"
+            ])
+            if is_rate_limit:
+                # Ne remonte pas en QMessageBox — déjà géré dans LLMClient
+                self.status_update.emit(
+                    "⏳ Limite API atteinte — la traduction reprendra automatiquement."
+                )
+            else:
+                # Erreur vraiment fatale → QMessageBox dans MainWindow
+                self.error.emit(str(e))
 
     def stop(self):
         self._stop = True
@@ -247,7 +281,7 @@ class TranslationWorker(QThread):
 # ── Welcome Dashboard (Drag & Drop Frame) ────────────────────────────────────
 class WelcomeDashboard(QFrame):
     """
-    Elegant landing screen displayed on startup. Handles PDF drops and basic language settings.
+    Elegant landing screen displayed on startup.
     """
     file_dropped = pyqtSignal(str)
 
@@ -279,7 +313,6 @@ class WelcomeDashboard(QFrame):
         subtitle.setStyleSheet("color: #a0aec0;")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # Status Dot (Zero-Config verification)
         self.lbl_status = QLabel(self)
         self.lbl_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._check_api_keys()
@@ -318,51 +351,45 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("RockTranslate")
         self.resize(1440, 900)
 
-        self._pdf_path = None
-        self._document = None
-        self._worker = None
-        
-        # Default options
-        self._current_model = SUPPORTED_MODELS["Google Gemini"][1]
-        self._current_lang = "French"
-        self._zoom = 1.0
+        self._pdf_path       = None
+        self._document       = None
+        self._worker         = None
+        self._current_model  = SUPPORTED_MODELS["Google Gemini"][1]
+        self._current_lang   = "French"
+        self._zoom           = 1.0
 
         self._build_menu()
         self._build_ui()
 
     def _build_ui(self):
-        # We use a Stacked Widget to support Page 0 (Dashboard) and Page 1 (Workspace)
         self.stacked_widget = QStackedWidget()
         self.setCentralWidget(self.stacked_widget)
 
-        # Page 0: Welcome dashboard
+        # Page 0 : écran d'accueil
         self.welcome_screen = WelcomeDashboard(self)
         self.welcome_screen.file_dropped.connect(self._open_pdf_by_path)
         self.stacked_widget.addWidget(self.welcome_screen)
 
-        # Page 1: Main workspace
-        workspace = QWidget()
+        # Page 1 : espace de travail
+        workspace   = QWidget()
         work_layout = QVBoxLayout(workspace)
         work_layout.setContentsMargins(0, 0, 0, 0)
         work_layout.setSpacing(0)
 
-        # Splitter Left (Original Chromium PDF) / Right (HTML Translation layer)
-        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter   = QSplitter(Qt.Orientation.Horizontal)
         self.pdf_viewer = PDFViewer()
         self.trans_panel = TranslationViewer()
-        
+
         self.splitter.addWidget(self.pdf_viewer)
         self.splitter.addWidget(self.trans_panel)
         self.splitter.setSizes([720, 720])
         work_layout.addWidget(self.splitter, 1)
 
-        # Real-time progress tracker panel
         self.progress_panel = ProgressPanel()
         work_layout.addWidget(self.progress_panel)
 
         self.stacked_widget.addWidget(workspace)
 
-        # Status Bar
         self.status = QStatusBar()
         self.setStatusBar(self.status)
         self.status.showMessage("Ready. Drop a PDF to begin.")
@@ -372,11 +399,11 @@ class MainWindow(QMainWindow):
 
         # ── Fichier ──
         m_file = mb.addMenu("Fichier")
-        
-        a_open = QAction("Ouvrir PDF…", self)
-        a_open.setShortcut(QKeySequence("Ctrl+O"))
-        a_open.triggered.connect(self._open_pdf_dialog)
-        m_file.addAction(a_open)
+
+        self.a_open = QAction("Ouvrir PDF…", self)
+        self.a_open.setShortcut(QKeySequence("Ctrl+O"))
+        self.a_open.triggered.connect(self._open_pdf_dialog)
+        m_file.addAction(self.a_open)
 
         self.a_close = QAction("Fermer le document", self)
         self.a_close.setEnabled(False)
@@ -384,7 +411,7 @@ class MainWindow(QMainWindow):
         m_file.addAction(self.a_close)
 
         m_file.addSeparator()
-        
+
         a_quit = QAction("Quitter", self)
         a_quit.triggered.connect(self.close)
         m_file.addAction(a_quit)
@@ -400,7 +427,6 @@ class MainWindow(QMainWindow):
 
         m_trans.addSeparator()
 
-        # Target Language Menu
         m_lang = m_trans.addMenu("Langue cible")
         self._lang_actions = {}
         for display, code in LANGUAGES:
@@ -412,7 +438,6 @@ class MainWindow(QMainWindow):
             m_lang.addAction(a)
             self._lang_actions[code] = a
 
-        # LLM Model Menu
         m_model = m_trans.addMenu("Modèle LLM")
         self._model_actions = {}
         first = True
@@ -432,37 +457,32 @@ class MainWindow(QMainWindow):
                     a.setChecked(True)
                 m_model.addAction(a)
                 self._model_actions[model] = a
-    
-    # ── Affichage ─────────────────────────────────────────
+
+        # ── Affichage ──
         m_view = mb.addMenu("Affichage")
 
         a_zoom_in = QAction("Zoom +", self)
         a_zoom_in.setShortcut(QKeySequence("Ctrl+="))
-        # a_zoom_in.triggered.connect(self._zoom_in)
         m_view.addAction(a_zoom_in)
 
         a_zoom_out = QAction("Zoom −", self)
         a_zoom_out.setShortcut(QKeySequence("Ctrl+-"))
-        # a_zoom_out.triggered.connect(self._zoom_out)
         m_view.addAction(a_zoom_out)
 
         a_zoom_reset = QAction("Zoom 100%", self)
         a_zoom_reset.setShortcut(QKeySequence("Ctrl+0"))
-        # a_zoom_reset.triggered.connect(self._zoom_reset)
         m_view.addAction(a_zoom_reset)
 
         m_view.addSeparator()
 
         a_fullscreen = QAction("Plein écran", self, checkable=True)
         a_fullscreen.setShortcut(QKeySequence("F11"))
-        # a_fullscreen.triggered.connect(self._toggle_fullscreen)
         m_view.addAction(a_fullscreen)
 
-        # ── Aide ──────────────────────────────────────────────
+        # ── Aide ──
         m_help = mb.addMenu("Aide")
 
         a_about = QAction("À propos de RockTranslate", self)
-        # a_about.triggered.connect(self._show_about)
         m_help.addAction(a_about)
 
         a_github = QAction("GitHub →", self)
@@ -483,54 +503,52 @@ class MainWindow(QMainWindow):
     def _open_pdf_by_path(self, path: str):
         self.status.showMessage("Analyse du document et extraction en cours...")
         self._pdf_path = path
+        self.a_open.setEnabled(False)
 
-        # Disable main thread actions during transition
-        self.a_open.setEnabled(False) if hasattr(self, 'a_open') else None
-
-        # Start background extraction thread
         self._ext_worker = ExtractionWorker(path)
         self._ext_worker.progress.connect(self._on_extraction_progress)
         self._ext_worker.finished.connect(self._on_extraction_finished)
         self._ext_worker.error.connect(self._on_extraction_error)
         self._ext_worker.start()
-    
+
     def _on_extraction_progress(self, current: int, total: int):
-        self.status.showMessage(f"Analyse en cours : extraction de la page {current}/{total}...")
+        self.status.showMessage(
+            f"Analyse en cours : extraction de la page {current}/{total}..."
+        )
 
     def _on_extraction_finished(self, document):
         self._document = document
-        
-        # 1. On affiche d'abord l'espace de travail (les widgets prennent leurs dimensions réelles)
+
         self.stacked_widget.setCurrentIndex(1)
         self.a_close.setEnabled(True)
         self.a_start.setEnabled(True)
 
-        # 2. On charge ensuite les documents (Chromium effectue le rendu instantanément !)
         self.pdf_viewer.load_pdf(self._pdf_path)
         self.trans_panel.init_pages(self._document.pages, self._document)
         self.pdf_viewer.view.loadFinished.connect(self._sync_page)
 
-        self.status.showMessage(f"Chargement terminé : {os.path.basename(self._pdf_path)} ({len(self._document.pages)} pages)")
-        
-        # Re-enable standard menu controls
-        self.a_open.setEnabled(True) if hasattr(self, 'a_open') else None
-
+        self.status.showMessage(
+            f"Chargement terminé : {os.path.basename(self._pdf_path)} "
+            f"({len(self._document.pages)} pages)"
+        )
+        self.a_open.setEnabled(True)
 
     def _sync_page(self, ok):
-        # todo : Pour l'instant goto page 0 — on affinera la sync scroll plus tard
         self.trans_panel.goto_page(0)
 
     def _on_extraction_error(self, err_msg: str):
-        QMessageBox.critical(self, "Erreur d'extraction", f"Impossible d'analyser le document :\n{err_msg}")
+        QMessageBox.critical(
+            self, "Erreur d'extraction",
+            f"Impossible d'analyser le document :\n{err_msg}"
+        )
         self._close_document()
-        self.a_open.setEnabled(True) if hasattr(self, 'a_open') else None
-
+        self.a_open.setEnabled(True)
 
     def _close_document(self):
         self.pdf_viewer.clear()
         self.trans_panel.clear()
-        self._pdf_path = None
-        self._document = None
+        self._pdf_path  = None
+        self._document  = None
         self.a_close.setEnabled(False)
         self.a_start.setEnabled(False)
         self.stacked_widget.setCurrentIndex(0)
@@ -548,26 +566,27 @@ class MainWindow(QMainWindow):
         if not self._document:
             return
 
-        api_key = os.getenv("GEMINI_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
+        api_key = (
+            os.getenv("GEMINI_API_KEY")
+            or os.getenv("OPENAI_API_KEY")
+            or ""
+        )
         if not api_key and "ollama" not in self._current_model:
-            QMessageBox.warning(self, "Configuration requise", "Clé API manquante dans votre environnement ou fichier .env")
+            QMessageBox.warning(
+                self, "Configuration requise",
+                "Clé API manquante dans votre environnement ou fichier .env"
+            )
             return
 
-        # Prepare a flat list of blocks to translate across all pages
-        blocks_to_translate = []
-        for page in self._document.pages:
-            for block in page.blocks:
-                blocks_to_translate.append(block)
+        blocks_to_translate = [
+            b for page in self._document.pages for b in page.blocks
+        ]
 
-        # valid_blocks = [b for b in blocks_to_translate if should_translate(b)]
-        # self.progress_panel.reset(len(valid_blocks))
-
+        # Reset de la barre sur le nombre de pages
         self.progress_panel.reset(len(self._document.pages))
-        
-        # Remove the blurred frosted-glass card to show real-time stream overlays
+
         self.trans_panel.set_translation_started(True)
 
-        # Instantiate a dedicated extractor for lazy translation parsing
         extractor = FitzExtractor(self._pdf_path)
 
         self._worker = TranslationWorker(
@@ -576,29 +595,27 @@ class MainWindow(QMainWindow):
             extractor,
             self._current_model,
             api_key,
-            self._current_lang
+            self._current_lang,
         )
         self._worker.block_done.connect(self._on_block_translated)
         self._worker.batch_progress.connect(self.progress_panel.set_batches)
         self._worker.finished.connect(self._on_translation_finished)
         self._worker.error.connect(self._on_translation_error)
         self._worker.page_done.connect(self.progress_panel.increment)
-        self._worker.status_update.connect(self.status.showMessage) # Dynamic feedback mapped to status bar
-        
+        self._worker.status_update.connect(self.status.showMessage)
+
         self.a_start.setText("⏹  Arrêter la traduction")
         self._worker.start()
 
     def _on_block_translated(self, page_idx: int, block_idx: int, translated_text: str):
-        # Update both local data model and the Chromium rendering panel dynamically
         if self._document and page_idx < len(self._document.pages):
             page = self._document.pages[page_idx]
             for b in page.blocks:
                 if b.block_id == block_idx:
                     b.translated_text = translated_text
                     break
-        
+
         self.trans_panel.update_block_translation(page_idx, block_idx, translated_text)
-        self.progress_panel.increment()
 
     def _on_translation_finished(self):
         self.a_start.setText("▶  Démarrer la traduction")
@@ -607,7 +624,10 @@ class MainWindow(QMainWindow):
 
     def _on_translation_error(self, err_msg: str):
         self.a_start.setText("▶  Démarrer la traduction")
-        QMessageBox.critical(self, "Erreur API", f"La traduction a échoué :\n{err_msg}")
+        QMessageBox.critical(
+            self, "Erreur",
+            f"La traduction a été interrompue :\n{err_msg}"
+        )
 
     def _on_lang_selected(self):
         a = self.sender()

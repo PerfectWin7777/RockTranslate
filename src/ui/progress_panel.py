@@ -31,22 +31,18 @@ class ProgressPanel(QWidget):
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 4, 12, 4)
-        layout.setSpacing(2)
+        layout.setSpacing(3)
 
-        # Ligne stats
+        # ── Ligne stats ──────────────────────────────────────────
         stats_row = QHBoxLayout()
-
-        self.lbl_done    = QLabel("0 / 0 paragraphes")
-        self.lbl_batches = QLabel("0 / 0 batches")
+        self.lbl_done    = QLabel("0 / 0 pages")
+        self.lbl_batches = QLabel("")
         self.lbl_eta     = QLabel("")
         self.lbl_pct     = QLabel("0 %")
         self.lbl_pct.setAlignment(Qt.AlignmentFlag.AlignRight)
-
         for lbl in [self.lbl_done, self.lbl_batches, self.lbl_eta]:
             lbl.setStyleSheet("font-size: 11px; color: gray;")
-
         self.lbl_pct.setStyleSheet("font-size: 11px; font-weight: bold;")
-
         stats_row.addWidget(self.lbl_done)
         stats_row.addWidget(QLabel("·", styleSheet="color:gray;font-size:11px;"))
         stats_row.addWidget(self.lbl_batches)
@@ -56,23 +52,27 @@ class ProgressPanel(QWidget):
         stats_row.addWidget(self.lbl_pct)
         layout.addLayout(stats_row)
 
-        # Barre de progression
+        # ── Barre pages (bleue) ──────────────────────────────────
         self.bar = QProgressBar()
         self.bar.setFixedHeight(6)
         self.bar.setTextVisible(False)
         self.bar.setValue(0)
         self.bar.setStyleSheet("""
-            QProgressBar {
-                border: none;
-                background: #2a2d3e;
-                border-radius: 3px;
-            }
-            QProgressBar::chunk {
-                background: #4f8ef7;
-                border-radius: 3px;
-            }
+            QProgressBar { border:none; background:#2a2d3e; border-radius:3px; }
+            QProgressBar::chunk { background:#4f8ef7; border-radius:3px; }
         """)
         layout.addWidget(self.bar)
+
+        # ── Barre batches (verte, fine) ──────────────────────────
+        self.bar_batch = QProgressBar()
+        self.bar_batch.setFixedHeight(5)
+        self.bar_batch.setTextVisible(False)
+        self.bar_batch.setValue(0)
+        self.bar_batch.setStyleSheet("""
+            QProgressBar { border:none; background:#1e2130; border-radius:2px; }
+            QProgressBar::chunk { background:#48bb78; border-radius:2px; }
+        """)
+        layout.addWidget(self.bar_batch)
 
     def reset(self, total: int):
         self._total          = total
@@ -89,6 +89,9 @@ class ProgressPanel(QWidget):
         self.lbl_pct.setText("0 %")
         self._timer.start()
 
+        self.bar_batch.setMaximum(1)
+        self.bar_batch.setValue(0)
+
     def increment(self):
         self._done += 1
         self.bar.setValue(self._done)
@@ -104,6 +107,8 @@ class ProgressPanel(QWidget):
         self._batches_done  = done
         self._batches_total = total
         self.lbl_batches.setText(f"batch {done}/{total}")
+        self.bar_batch.setMaximum(max(total, 1))
+        self.bar_batch.setValue(done)
 
     def _update_eta(self):
         if not self._start_time or self._done == 0:

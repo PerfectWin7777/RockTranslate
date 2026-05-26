@@ -70,7 +70,7 @@ class LLMClient:
         target_lang: str = DEFAULT_LANG_NAME,
         max_tokens: int | None = None,
         on_progress: Callable[[int, int], None] | None = None,
-        on_status: Callable[[str], None] | None = None, # Callback vers l'UI (Barre d'état)
+        on_status: Callable[[str], None] | None = None,
     ):
         self.model       = model
         self.api_key     = api_key or self._get_api_key_from_env(model)
@@ -81,12 +81,10 @@ class LLMClient:
 
         self._litellm = litellm
 
-       
         logger.info(
             f"LLMClient initialisé — modèle: {model} | "
             f"langue: {target_lang}"
         )
-    
 
     def _log_status(self, message: str):
         """Envoie des retours d'informations à l'UI et aux logs simultanément."""
@@ -105,10 +103,7 @@ class LLMClient:
         """
         Traduit tous les paragraphes du document.
         Remplit para.translated_text sur chaque Paragraph.
-
-        Retourne un TranslationResult avec les statistiques.
         """
-        # ── Découpage en batches ──────────────────────────────
         batches = build_batches(paragraphs, self.model, self.max_tokens)
 
         if not batches:
@@ -125,7 +120,6 @@ class LLMClient:
         failed: list[int] = []
         total_tokens = sum(b.estimated_tokens for b in batches)
 
-        # ── Traduction batch par batch ────────────────────────
         for i, batch in enumerate(batches):
             logger.info(
                 f"Batch {i+1}/{len(batches)} — "
@@ -135,7 +129,6 @@ class LLMClient:
             success = self._translate_batch_with_retry(batch)
 
             if not success:
-                # Marque les paragraphes échoués
                 for para in batch.paragraphs:
                     para.translated_text = f"[TRANSLATION FAILED] {para.text}"
                     failed.append(id(para))
@@ -143,7 +136,6 @@ class LLMClient:
                     f"Batch {i+1} échoué après {_MAX_RETRIES} tentatives."
                 )
 
-            # Callback de progression (pour la barre de progression UI)
             if self.on_progress:
                 self.on_progress(i + 1, len(batches))
 
@@ -160,10 +152,7 @@ class LLMClient:
         )
 
     def translate_single(self, text: str) -> str:
-        """
-        Traduit un texte brut (hors pipeline).
-        Utile pour tester la connexion ou traduire une chaîne isolée.
-        """
+        """Traduit un texte brut (hors pipeline)."""
         batch_data = [{"id": 0, "text": text}]
         result = self._call_llm(batch_data)
         if result and result[0].get("translated"):
@@ -174,48 +163,43 @@ class LLMClient:
     # RETRY LOGIC
     # ══════════════════════════════════════════════════════════
 
-    def _translate_batch_with_retry(self, batch: Batch) -> bool:
+    def _translate_batch_with_retry(
+        self,
+        batch: Batch,
+        context: str | None = None,
+    ) -> bool:
         """
         Tente de traduire un batch avec jusqu'à _MAX_RETRIES tentatives.
         Retourne True si succès, False si toutes les tentatives échouent.
+        Ne lève jamais d'exception — les erreurs rate-limit sont gérées ici
+        silencieusement avec décompte dans la status bar.
         """
         batch_data = [
             {"id": i, "text": para.text}
             for i, para in enumerate(batch.paragraphs)
         ]
-        
+
         current_model = self.model
 
         for attempt in range(_MAX_RETRIES):
             try:
-                # if attempt > 0:
-                #     delay = _RETRY_DELAYS[min(attempt - 1, len(_RETRY_DELAYS) - 1)]
-                #     logger.warning(
-                #         f"  Tentative {attempt + 1}/{_MAX_RETRIES} "
-                #         f"(attente {delay}s...)"
-                #     )
-                #     time.sleep(delay)
-
-                # Si le modèle principal échoue plus de 2 fois, basculer sur un modèle alternatif disponible
                 if attempt >= 2:
                     fallback_model = self._get_fallback_model(current_model)
                     if fallback_model and fallback_model != current_model:
                         fallback_key = self._get_api_key_from_env(fallback_model)
                         if fallback_key:
                             self._log_status(
-                                f"🔄 Modèle {current_model} saturé ou indisponible. "
-                                f"Basculement automatique sur le modèle de secours {fallback_model}..."
+                                f"🔄 Modèle {current_model} saturé. "
+                                f"Basculement sur {fallback_model}..."
                             )
                             current_model = fallback_model
                             self.api_key = fallback_key
 
-
-                results = self._call_llm(batch_data)
+                results = self._call_llm(batch_data, context=context)
 
                 if results is None:
                     continue
 
-                # ── Injecte les traductions dans les Paragraphs ──
                 id_to_para = {i: p for i, p in enumerate(batch.paragraphs)}
                 for item in results:
                     idx = item.get("id")
@@ -223,54 +207,44 @@ class LLMClient:
                     if idx in id_to_para and translated:
                         id_to_para[idx].translated_text = translated
 
-                # Vérifie que tous les paragraphes ont été traduits
                 all_translated = all(
                     p.translated_text for p in batch.paragraphs
                 )
                 if all_translated:
                     return True
-                
-                self._log_status(f"⚠️ Traduction incomplète. Tentative {attempt + 1}/{_MAX_RETRIES}...")
 
-                logger.warning(
-                    f"  Traductions incomplètes "
-                    f"({sum(1 for p in batch.paragraphs if p.translated_text)}"
-                    f"/{len(batch.paragraphs)})"
+                self._log_status(
+                    f"⚠️ Traduction incomplète. Tentative {attempt + 1}/{_MAX_RETRIES}..."
                 )
 
             except Exception as e:
                 err_msg = str(e).lower()
-                
-                # Détection des erreurs de quota ou de serveurs surchargés (ex: Anthropic Overloaded ou Gemini 429)
+
                 is_rate_limit = any(
                     x in err_msg for x in [
-                        "rate_limit", "rate limit", "429", "overloaded", 
+                        "rate_limit", "rate limit", "429", "overloaded",
                         "resource_exhausted", "resource exhausted", "quota"
                     ]
                 )
-                
-                wait_time = 6 * (attempt + 1) # Progression : 6s, 12s, 18s...
+
+                wait_time = 6 * (attempt + 1)  # 6s, 12s, 18s...
 
                 if is_rate_limit:
-                    # Décompte interactif affiché seconde par seconde dans la barre d'état
+                    # Décompte interactif dans la status bar — pas de QMessageBox
                     for remaining in range(wait_time, 0, -1):
                         self._log_status(
-                            f"⏳ Limite de taux API atteinte ou modèle surchargé. "
-                            f"Pause de sécurité... nouvelle tentative dans {remaining}s"
+                            f"⏳ Limite API atteinte — reprise dans {remaining}s..."
                         )
                         time.sleep(1)
                 else:
-                    self._log_status(f"❌ Erreur réseau temporaire : {e}. Pause de {wait_time}s...")
+                    self._log_status(
+                        f"❌ Erreur réseau ({type(e).__name__}) — pause {wait_time}s..."
+                    )
                     time.sleep(wait_time)
 
         return False
-    
 
     def _get_fallback_model(self, current_model: str) -> str | None:
-        """
-        Recherche une alternative parmi une liste de modèles stables
-        en vérifiant que la clé d'environnement correspondante est disponible.
-        """
         fallback_chain = [
             "gemini/gemini-2.5-flash-lite",
             "gemini/gemini-3.1-flash-lite",
@@ -280,33 +254,33 @@ class LLMClient:
             "gemini/gemini-1.5-pro",
             "gpt-4o"
         ]
-
         try:
             current_idx = fallback_chain.index(current_model)
-            # Priorise les modèles après le modèle actuel, puis boucle
             candidates = fallback_chain[current_idx + 1:] + fallback_chain[:current_idx]
         except ValueError:
             candidates = fallback_chain
 
         for candidate in candidates:
-            # Vérifie la présence de la clé API pour ce candidat
             key = self._get_api_key_from_env(candidate)
             if key:
                 return candidate
-
         return None
-    
+
     # ══════════════════════════════════════════════════════════
     # APPEL LLM
     # ══════════════════════════════════════════════════════════
 
-    def _call_llm(self, batch_data: list[dict]) -> list[dict] | None:
+    def _call_llm(
+        self,
+        batch_data: list[dict],
+        context: str | None = None,
+    ) -> list[dict] | None:
         """
         Appel LiteLLM et parsing de la réponse JSON.
-        Retourne la liste des traductions ou None si erreur.
+        context : texte de contexte glissant injecté avant le batch.
         """
         system_prompt = get_system_prompt(self.target_lang)
-        user_message  = get_user_message(batch_data)
+        user_message  = get_user_message(batch_data, context=context)
 
         kwargs = {
             "model":    self.model,
@@ -314,11 +288,10 @@ class LLMClient:
                 {"role": "system",  "content": system_prompt},
                 {"role": "user",    "content": user_message},
             ],
-            "temperature": 0.1,     # faible pour la cohérence scientifique
-            "max_tokens":  65536,    # réponse max par appel
+            "temperature": 0.1,
+            "max_tokens":  65536,
         }
 
-        # Ajoute la clé API si fournie
         if self.api_key:
             kwargs["api_key"] = self.api_key
 
@@ -327,15 +300,9 @@ class LLMClient:
 
         logger.debug(f"  Réponse brute ({len(raw_text)} chars) : {raw_text[:120]}…")
 
-        # ── Parsing JSON robuste ──────────────────────────────
         return self._parse_json_response(raw_text)
 
     def _parse_json_response(self, raw: str) -> list[dict] | None:
-        """
-        Parse la réponse JSON du LLM.
-        Gère les cas où le LLM enveloppe le JSON dans des backticks.
-        """
-        # Nettoie les fences markdown ```json ... ```
         cleaned = raw
         if "```" in cleaned:
             lines = cleaned.split("\n")
@@ -343,7 +310,6 @@ class LLMClient:
                 l for l in lines
                 if not l.strip().startswith("```")
             )
-
         cleaned = cleaned.strip()
 
         try:
@@ -352,12 +318,10 @@ class LLMClient:
                 return data
             logger.warning(f"JSON valide mais pas une liste : {type(data)}")
             return None
-
         except json.JSONDecodeError as e:
             logger.warning(f"JSON invalide : {e}")
             logger.debug(f"Texte brut : {cleaned[:300]}")
 
-            # Tentative de récupération : cherche [ ... ] dans la réponse
             start = cleaned.find("[")
             end   = cleaned.rfind("]")
             if start != -1 and end != -1 and end > start:
@@ -365,7 +329,6 @@ class LLMClient:
                     return json.loads(cleaned[start:end + 1])
                 except json.JSONDecodeError:
                     pass
-
             return None
 
     # ══════════════════════════════════════════════════════════
@@ -374,7 +337,6 @@ class LLMClient:
 
     @staticmethod
     def _get_api_key_from_env(model: str) -> str | None:
-        """Déduit la variable d'env à partir du provider."""
         model_lower = model.lower()
         if "gemini" in model_lower:
             return os.getenv("GEMINI_API_KEY")
@@ -382,5 +344,4 @@ class LLMClient:
             return os.getenv("OPENAI_API_KEY")
         if "claude" in model_lower or "anthropic" in model_lower:
             return os.getenv("ANTHROPIC_API_KEY")
-        # Ollama local : pas de clé
         return None
