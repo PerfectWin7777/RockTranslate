@@ -19,7 +19,7 @@ load_dotenv()
 # Core & Layout Imports
 from core.fitz_extractor import FitzExtractor, page_has_table_lines 
 from core.reading_order import ReadingOrderSorter
-from core.domain import FitzDocument
+from core.domain import FitzDocument, FitzPage
 from core.reading_order import ReadingOrderSorter
 
 # UI Imports
@@ -80,27 +80,31 @@ class ExtractionWorker(QThread):
 
     def run(self):
         try:
-            # Initialize Extractor and Sorter
             extractor = FitzExtractor(self.path)
-            sorter = ReadingOrderSorter()
             
-            # Open PDF in background thread
+            # Ouvre le PDF
             pdf = fitz.open(self.path)
             total_pages = len(pdf)
             
             doc = FitzDocument(path=self.path)
 
             for page_num in range(total_pages):
-                # 1. Extract raw blocks, paths, and generate base64 PNG
                 page = pdf[page_num]
 
-                # fitz_page = extractor._extract_page(page, page_num + 1, extract_tables=False)
+                # Génère UNIQUEMENT l'image de fond (extrêmement rapide)
+                png_b64 = extractor._generate_page_image_b64(page)
                 
-                # # 2. Sort the reading order on the fly in the background
-                # fitz_page.blocks = sorter.process_page_layout(fitz_page.blocks, fitz_page.width)
+                # Crée la coquille de la page sans aucun bloc de texte
+                fitz_page = FitzPage(
+                    number=page_num + 1,
+                    width=page.rect.width,
+                    height=page.rect.height,
+                    blocks=[],  # Vide au départ
+                    paths=[],
+                    png_b64=png_b64
+                )
                 
-                # doc.pages.append(fitz_page)
-                
+                doc.pages.append(fitz_page)
                 self.progress.emit(page_num + 1, total_pages)
 
             pdf.close()
@@ -120,6 +124,7 @@ class TranslationWorker(QThread):
     batch_progress = pyqtSignal(int, int)   # batches_done, total_batches
     finished = pyqtSignal()
     status_update = pyqtSignal(str)   # Informative feedback for status bar
+    page_done = pyqtSignal()               #  Signal émis quand une page est finie
     error = pyqtSignal(str)
 
     def __init__(self, blocks_to_translate,
@@ -226,6 +231,9 @@ class TranslationWorker(QThread):
                         block = block_map[idx]
                         page_idx = block.page_number - 1
                         self.block_done.emit(page_idx, block.block_id, translated)
+
+                # ← NOUVEAU : Une fois tous les batches de la page traduits et envoyés à l'UI
+                self.page_done.emit()
             
             pdf.close()
             self.finished.emit()
@@ -551,8 +559,10 @@ class MainWindow(QMainWindow):
             for block in page.blocks:
                 blocks_to_translate.append(block)
 
-        valid_blocks = [b for b in blocks_to_translate if should_translate(b)]
-        self.progress_panel.reset(len(valid_blocks))
+        # valid_blocks = [b for b in blocks_to_translate if should_translate(b)]
+        # self.progress_panel.reset(len(valid_blocks))
+
+        self.progress_panel.reset(len(self._document.pages))
         
         # Remove the blurred frosted-glass card to show real-time stream overlays
         self.trans_panel.set_translation_started(True)
@@ -572,6 +582,7 @@ class MainWindow(QMainWindow):
         self._worker.batch_progress.connect(self.progress_panel.set_batches)
         self._worker.finished.connect(self._on_translation_finished)
         self._worker.error.connect(self._on_translation_error)
+        self._worker.page_done.connect(self.progress_panel.increment)
         self._worker.status_update.connect(self.status.showMessage) # Dynamic feedback mapped to status bar
         
         self.a_start.setText("⏹  Arrêter la traduction")

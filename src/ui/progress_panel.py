@@ -83,7 +83,7 @@ class ProgressPanel(QWidget):
 
         self.bar.setMaximum(total)
         self.bar.setValue(0)
-        self.lbl_done.setText(f"0 / {total} paragraphes")
+        self.lbl_done.setText(f"0 / {total} pages")
         self.lbl_batches.setText("batches : -")
         self.lbl_eta.setText("calcul...")
         self.lbl_pct.setText("0 %")
@@ -93,7 +93,7 @@ class ProgressPanel(QWidget):
         self._done += 1
         self.bar.setValue(self._done)
         pct = int(self._done / max(self._total, 1) * 100)
-        self.lbl_done.setText(f"{self._done} / {self._total} paragraphes")
+        self.lbl_done.setText(f"{self._done} / {self._total} pages")
         self.lbl_pct.setText(f"{pct} %")
 
         if self._done >= self._total:
