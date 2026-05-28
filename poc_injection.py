@@ -13,7 +13,7 @@ from reconstruction.html_builder import HTMLBuilder
 from core.domain import FitzDocument, FitzTableBlock
 
 PDF_PATH = "Nsangou Ngapna et al._ASR_2024.pdf"  # Adaptez le nom de votre PDF
-TARGET_PAGE = 5  # Nous ciblons uniquement la page 5 (contenant le grand tableau)
+TARGET_PAGE = 5 # Nous ciblons uniquement la page 5 (contenant le grand tableau)
 
 def mock_translate_table_by_cells(block: FitzTableBlock):
     """
@@ -67,7 +67,7 @@ def mock_translate_table_by_cells(block: FitzTableBlock):
         original_text = " ".join(w["text"] for w in cell_words if w.get("text"))
         
         # Fausse traduction de la cellule entière
-        translated_text = f"[TR {original_text}]"
+        translated_text = f"{original_text}"
         
         first = cell_words[0]
         new_words.append({
@@ -76,7 +76,7 @@ def mock_translate_table_by_cells(block: FitzTableBlock):
             "top": top,
             "x1": right,
             "bottom": bottom,
-            "font_size": first.get("font_size", 8.5),
+            "font_size":  6.5,
             "is_bold": first.get("is_bold", False),
             "is_italic": first.get("is_italic", False),
             "color": first.get("color", "rgb(0,0,0)")
@@ -122,7 +122,7 @@ def main():
             total_tables += 1
         else:
             # Si c'est un paragraphe normal, on lui applique la traduction classique
-            block.translated_text = f"[TRADUIT] {block.text}"
+            block.translated_text = f"{block.text}"
             total_blocks += 1
 
     print(f"Simulés : {total_blocks} paragraphes et {total_tables} tableau(x).")

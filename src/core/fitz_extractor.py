@@ -142,11 +142,11 @@ class FitzExtractor:
             table_blocks  = self._extract_tables(page)
 
         image_rects = self._extract_image_rects(page)
-        skip_rects = [(tb.left, tb.top, tb.right, tb.bottom) for tb in table_blocks] + image_rects  # zones à ne pas couvrir
+        table_rects = [(tb.left, tb.top, tb.right, tb.bottom) for tb in table_blocks]  # zones à ne pas couvrir
 
 
         # 3. Extract text blocks
-        blocks = self._extract_text_blocks(page, page_number, paths, skip_rects )
+        blocks = self._extract_text_blocks(page, page_number, paths, table_rects, image_rects )
 
         all_blocks = blocks + table_blocks
 
@@ -226,7 +226,9 @@ class FitzExtractor:
         img_data = pix.tobytes("png")
         return base64.b64encode(img_data).decode("utf-8")
 
-    def _extract_text_blocks(self, page: fitz.Page, page_number: int, paths: List[FitzPath], skip_rects=[]) -> List[FitzBlock]:
+    def _extract_text_blocks(self, page: fitz.Page, page_number: int, 
+                     paths: List[FitzPath], table_rects: List[tuple], image_rects: List[tuple]
+    ) -> List[FitzBlock]:
         """
         Extracts structural text layouts and maps background colors.
         """
@@ -313,7 +315,7 @@ class FitzExtractor:
             # Determine if this block sits on top of a non-white vector background (e.g., Abstract grey boxes)
             bg_color = self._detect_background_color(x0, y0, x1, y1, paths)
 
-            is_over_image = self._is_over_image(x0, y0, x1, y1, skip_rects)
+            is_over_image = self._is_over_image(x0, y0, x1, y1, image_rects)
             block = FitzBlock(
                 block_id=block_id_counter,
                 lines=lines,
@@ -329,7 +331,7 @@ class FitzExtractor:
             if is_over_image:
                 block.bg_color = "transparent"  # ne cache pas l'image
 
-            if self._is_in_skip_zone(x0, y0, x1, y1, skip_rects):
+            if self._is_in_skip_zone(x0, y0, x1, y1, table_rects):
                continue  # ignore ce bloc — le PNG montre le tableau/image original
     
 
@@ -560,10 +562,27 @@ class FitzExtractor:
         """Filtre les faux positifs : texte en colonnes détecté comme tableau."""
         if len(table.rows) < 2 or len(table.columns) < 2:
             return False
+
+        # 1. Récupère l'intégralité du texte consolidé du tableau
+        all_text = "".join(cell.text for row in table.rows for cell in row.cells).strip()
+        if not all_text:
+            return False
+
+        # 2. Calcul du ratio de caractères numériques (chiffres 0-9)
+        digit_count = sum(1 for c in all_text if c.isdigit())
+        digit_ratio = digit_count / len(all_text)
+
+        # Un vrai tableau scientifique possède une forte densité de chiffres (>= 5%).
+        # Un tableau fantôme de mise en page (ex: abstract/titre) n'en contient presque aucun.
+        if digit_ratio < 0.05:
+            return False
+
+        # 3. Filtre classique sur la longueur de la première ligne
         first_row_texts = [c.text.strip() for c in table.rows[0].cells]
         long_cells = sum(1 for t in first_row_texts if len(t) > 80)
         if long_cells >= len(table.columns) - 1:
             return False
+            
         return True
 
     def _cleanup_temp_file(self, path: Optional[str]):

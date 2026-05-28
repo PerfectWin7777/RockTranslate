@@ -261,55 +261,17 @@ class HTMLBuilder:
     </style>
 
     <script>
-        // Fonction d'ajustement dynamique de la taille de police (Shrink-to-Fit)
-        function autoScaleElement(el) {{
-            let maxW = el.offsetWidth;
-            if (!maxW || maxW <= 0) return;
-            
-            let style = window.getComputedStyle(el);
-            let originalSize = parseFloat(style.fontSize);
-            if (!originalSize) return;
-            
-            let size = originalSize;
-            let minSize = originalSize * 0.6; // Limite de réduction à 60% max (ex: de 8.5px à 5.1px)
-            
-            // On force temporairement le non-retour à la ligne pour mesurer le débordement réel
-            let originalWhiteSpace = el.style.whiteSpace;
-            el.style.whiteSpace = 'nowrap';
-            
-            // Réduction progressive par paliers de 0.5px
-            while (el.scrollWidth > maxW && size > minSize) {{
-                size -= 0.5;
-                el.style.fontSize = size + 'px';
-            }}
-            
-            // On rétablit le comportement de retour à la ligne d'origine
-            el.style.whiteSpace = originalWhiteSpace;
-        }}
-
-        // Mise à jour de la fonction globale d'injection
+        // Fonction globale d'injection chirurgicale
         function updateBlock(pageIdx, blockId, blockHtml) {{
             var el = document.getElementById("block-" + pageIdx + "-" + blockId); 
-            if (el) {{
+            if (el)  {{
+                // Si le bloc existe déjà, on remplace son HTML par le nouveau
                 el.outerHTML = blockHtml;
-                
-                // On récupère le bloc fraîchement injecté pour ajuster ses textes
-                let newEl = document.getElementById("block-" + pageIdx + "-" + blockId);
-                if (newEl) {{
-                    // Ajuste le bloc lui-même et toutes les sous-cellules de tableau à l'intérieur
-                    autoScaleElement(newEl);
-                    newEl.querySelectorAll('div').forEach(autoScaleElement);
-                }}
-            }} else {{
+             }} else {{
+                // S'il n'existe pas, on le crée en l'injectant dans sa page correspondante
                 var pageContainer = document.getElementById("page-container-" + pageIdx);
                 if (pageContainer) {{
                     pageContainer.insertAdjacentHTML('beforeend', blockHtml);
-                    
-                    let newEl = document.getElementById("block-" + pageIdx + "-" + blockId);
-                    if (newEl) {{
-                        autoScaleElement(newEl);
-                        newEl.querySelectorAll('div').forEach(autoScaleElement);
-                    }}
                 }}
             }}
         }}

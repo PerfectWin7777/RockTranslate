@@ -136,8 +136,19 @@ class TableDetector:
 
         score = self._compute_score(features)
 
+        # --- FILTRE SÉMANTIQUE DE SÉCURITÉ AVANT CONVERSION ---
+        # Un vrai tableau de données doit posséder au moins une signature sémantique
+        # (soit des motifs numériques, soit du texte fragmenté typique de cellules courtes).
+        # Si la page a un score élevé de mise en page mais n'a aucun de ces deux indices,
+        # c'est un faux positif (ex: abstract multi-colonnes). On le rejette immédiatement
+        # pour éviter de lancer la conversion Word lente (pdf2docx) inutilement.
+        has_table = score >= 9
+        if has_table:
+            if not features["numeric_pattern"] and not features["fragmented_text"]:
+                has_table = False
+
         return {
-            "has_table": score >= 7,
+            "has_table": has_table,
             "score": score,
             "features": features
         }
@@ -431,22 +442,22 @@ class TableDetector:
             score += 3
 
         if f["aligned_columns"]:
-            score += 4
+            score += 2
 
         if f["regular_rows"]:
-            score += 3
+            score += 1
 
         if f["high_density"]:
-            score += 2
+            score += 4
 
         if f["fragmented_text"]:
             score += 2
 
         if f["numeric_pattern"]:
-            score += 2
+            score += 4
 
         if f["grid_structure"]:
-            score += 3
+            score += 5
 
         return score
 
