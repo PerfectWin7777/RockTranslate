@@ -67,7 +67,7 @@ class TranslationViewer(QWidget):
 
     def _on_load_started(self):
         self._page_loading = True
-        self._pending_js.clear()  # La page repart de zéro, on vide l'ancienne file
+        # self._pending_js.clear()  # La page repart de zéro, on vide l'ancienne file
 
     def _on_load_finished(self, ok: bool):
         self._page_loading = False
@@ -81,6 +81,8 @@ class TranslationViewer(QWidget):
         Exécute du JS immédiatement si Chromium est prêt,
         sinon le met en file d'attente.
         """
+        # print(f"[RUN_JS] loading={self._page_loading} js={js[:60]}")
+
         if self._page_loading:
             self._pending_js.append(js)
         else:
@@ -104,7 +106,13 @@ class TranslationViewer(QWidget):
         Retire l'overlay flou et rend les blocs traduits visibles au fur et à mesure.
         """
         self.is_translation_started = started
-        self.refresh_view()
+        if started:
+            self._run_js(
+                "document.querySelectorAll('.glass-overlay').forEach(e=>e.remove());"
+                "document.querySelectorAll('.blurred-layout').forEach(e=>e.classList.remove('blurred-layout'));"
+            )
+        else:
+            self.refresh_view()
 
     def goto_page(self, page_index: int):
         if 0 <= page_index < len(self.pages):
@@ -115,13 +123,15 @@ class TranslationViewer(QWidget):
         self.zoom_factor = zoom_factor
         self.web_view.setZoomFactor(zoom_factor)
 
-    def update_block_translation(
+    def update_block_translationSSSS(
         self, page_idx: int, block_idx: int, translated_text: str
     ):
         """
         Injection chirurgicale d'un bloc traduit dans Chromium via JS.
         Utilise la file d'attente si la page est encore en chargement.
         """
+        # print(f"[INJECT] page={page_idx} block={block_idx} text={translated_text[:40]}")
+
         # Mise à jour du modèle local (pour les refresh_view() ultérieurs)
         bg_css = "white"
         if 0 <= page_idx < len(self.pages):
@@ -135,7 +145,80 @@ class TranslationViewer(QWidget):
         js_code = (
             f"updateBlock({page_idx}, {block_idx}, {safe_text}, '{bg_css}');"
         )
+
+        # print(f"[JS] {js_code[:80]}")
         self._run_js(js_code)
+    
+    def update_block_translation(self, page_idx: int, block_idx: int, translated_text: str):
+        if not (0 <= page_idx < len(self.pages)):
+            return
+
+       # Si l'ID est supérieur ou égal à 10000, c'est une cellule de tableau
+        if block_idx >= 10000:
+            # Décodage de la formule mathématique anticollision
+            parent_table_id = (block_idx // 10000) - 1
+            cell_index = (block_idx % 10000) - 1
+
+            target_table = None
+            for block in self.pages[page_idx].blocks:
+                if block.block_id == parent_table_id:
+                    target_table = block
+                    break
+
+            if target_table:
+                # Récupère l'ensemble des cellules via notre méthode centralisée
+                cells = target_table.get_cells()
+                if 0 <= cell_index < len(cells):
+                    cell_words = cells[cell_index]
+                    
+                    left = min(w["x0"] for w in cell_words)
+                    top = min(w["top"] for w in cell_words)
+                    right = max(w["x1"] for w in cell_words)
+                    bottom = max(w["bottom"] for w in cell_words)
+                    first = cell_words[0]
+
+                    # Crée le mot virtuel traduit pour cette cellule spécifique
+                    translated_cell_word = {
+                        "text": translated_text,
+                        "x0": left,
+                        "top": top,
+                        "x1": right,
+                        "bottom": bottom,
+                        "font_size": first.get("font_size", 8.5),
+                        "is_bold": first.get("is_bold", False),
+                        "is_italic": first.get("is_italic", False),
+                        "color": first.get("color", "rgb(0,0,0)")
+                    }
+
+                    # Supprime les anciens mots physiques et insère le mot traduit
+                    target_table.words = [w for w in target_table.words if w not in cell_words]
+                    target_table.words.append(translated_cell_word)
+
+            # Régénère le code HTML complet du tableau mis à jour
+            block_id_str = f"block-{page_idx}-{parent_table_id}"
+            block_html = HTMLBuilder._generate_table_element(target_table, block_id_str)
+            
+            # Injection propre dans Chromium
+            safe_html = json.dumps(block_html)
+            js_code = f"updateBlock({page_idx}, {parent_table_id}, {safe_html});"
+            self._run_js(js_code)
+
+        else:
+            # Bloc de texte classique classique
+            target_block = None
+            for block in self.pages[page_idx].blocks:
+                if block.block_id == block_idx:
+                    block.translated_text = translated_text
+                    target_block = block
+                    break
+
+            if target_block:
+                block_id_str = f"block-{page_idx}-{block_idx}"
+                block_html = HTMLBuilder._generate_block_element(target_block, block_id_str)
+                safe_html = json.dumps(block_html)
+                js_code = f"updateBlock({page_idx}, {block_idx}, {safe_html});"
+                self._run_js(js_code)
+
 
     def refresh_view(self):
         if not self._document_ref:

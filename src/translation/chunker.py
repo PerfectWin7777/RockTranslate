@@ -65,6 +65,11 @@ def should_translate(block: FitzBlock) -> bool:
     Evaluates whether a visual block should be translated or preserved as-is.
     Filters out math equations, isolated numbers, URLs, and non-black styled spans (links/citations).
     """
+
+    # --- FORCE LA TRADUCTION DES TABLEAUX ---
+    if type(block).__name__ == "FitzTableBlock":
+        return True
+    
     text = block.text.strip()
     
     # 1. Trop court

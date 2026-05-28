@@ -166,11 +166,60 @@ class FitzTableBlock:
     page_number: int
     skip_translation: bool = False
     translated_text: Optional[str] = None
-
     bg_color: str = "white"
-
-    # Mots du tableau : [{text, x0, top, x1, bottom, font_size, is_bold, is_italic, color}]
     words: list = field(default_factory=list)
+
+    def get_cells(self) -> list[list[dict]]:
+        """
+        Regroupe spatialement les mots du tableau en cellules physiques (lignes x colonnes).
+        Retourne une liste de cellules, où chaque cellule est une liste de mots d'origine.
+        """
+        if not self.words:
+            return []
+        
+        # 1. Tri vertical par ligne (top) puis horizontal (x0)
+        sorted_words = sorted(self.words, key=lambda w: (w["top"], w["x0"]))
+        
+        # 2. Regroupement par lignes physiques (tolérance verticale de 4.0 px)
+        lines = []
+        current_line = []
+        for w in sorted_words:
+            if not current_line:
+                current_line.append(w)
+            else:
+                if abs(w["top"] - current_line[-1]["top"]) < 4.0:
+                    current_line.append(w)
+                else:
+                    lines.append(current_line)
+                    current_line = [w]
+        if current_line:
+            lines.append(current_line)
+            
+        # 3. Regroupement horizontal en cellules (tolérance d'écart de 15.0 px)
+        cells = []
+        for line in lines:
+            line_sorted = sorted(line, key=lambda w: w["x0"])
+            current_cell = []
+            for w in line_sorted:
+                if not current_cell:
+                    current_cell.append(w)
+                else:
+                    gap = w["x0"] - current_cell[-1]["x1"]
+                    if gap < 15.0:
+                        current_cell.append(w)
+                    else:
+                        cells.append(current_cell)
+                        current_cell = [w]
+            if current_cell:
+                cells.append(current_cell)
+        return cells
+
+    @property
+    def text(self) -> str:
+        """Retourne le texte complet du tableau découpé pour des besoins d'indexation."""
+        cells = self.get_cells()
+        phrases = [" ".join(w["text"] for w in cell if w.get("text")) for cell in cells]
+        return " | ".join(p for p in phrases if p.strip())
 
     @property
     def width(self): return self.right - self.left
@@ -180,8 +229,6 @@ class FitzTableBlock:
     def x_center(self): return (self.left + self.right) / 2.0
     @property
     def y_center(self): return (self.top + self.bottom) / 2.0
-    @property
-    def text(self): return " ".join(w["text"] for w in self.words if w.get("text"))
     @property
     def fs_dominant(self): return 8.5
     

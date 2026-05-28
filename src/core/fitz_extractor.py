@@ -66,20 +66,51 @@ class FitzExtractor:
         self.dpi = dpi
         # self.cid_maps = None
 
-    def extract_document(self) -> FitzDocument:
+    def extract_document(
+        self,
+        page_number: int = None,
+        max_pages: int = None
+    ) -> FitzDocument:
         """
-        Parses the entire PDF and returns a structured FitzDocument.
+        Parses the PDF and returns a structured FitzDocument.
+
+        - If page_number is provided: extracts only that page.
+        - If max_pages is provided: limits extraction to that number of pages.
+        - If both are None: extracts the full document.
         """
         logger.info(f"Opening document: {self.pdf_path}")
         doc = fitz.open(self.pdf_path)
         fitz_doc = FitzDocument(path=self.pdf_path)
 
-        for page_num in range(len(doc)):
+        total_pages = len(doc)
+
+        if page_number is not None:
+            # 1 page spécifique
+            start = max(0, page_number - 1)
+            end = min(start + 1, total_pages)
+
+        else:
+            # extraction batch (limit optionnelle)
+            start = 0
+
+            if max_pages is None:
+                end = total_pages
+            else:
+                end = min(max_pages, total_pages)
+
+        page_range = range(start, end)
+
+        for page_num in page_range:
             page = doc[page_num]
-            #  extract_tables=False pour un affichage instantané
-            fitz_page = self._extract_page(page, page_num + 1, extract_tables=False)
+
+            fitz_page = self._extract_page(
+                page,
+                page_num + 1,
+                extract_tables=False
+            )
+
             fitz_doc.pages.append(fitz_page)
-            logger.info(f"Successfully extracted Page {page_num + 1}/{len(doc)}")
+            logger.info(f"Successfully extracted Page {page_num + 1}/{total_pages}")
 
         doc.close()
         return fitz_doc

@@ -176,24 +176,76 @@ class TranslationWorker(QThread):
                 page_num = page_idx + 1
                 page_obj = pdf[page_idx]
 
-                # 1. Détection et extraction tableau si nécessaire
+                # 1. Détermination de la présence de tableaux
                 has_tables = page_has_table(page_obj)
-                if has_tables:
-                    self.status_update.emit(
-                        f"Page {page_num}/{total_pages} : extraction des tableaux..."
-                    )
-                    fitz_page = self.extractor._extract_page(
-                        page_obj, page_num, extract_tables=True
-                    )
-                    fitz_page.blocks = sorter.process_page_layout(
-                        fitz_page.blocks, fitz_page.width
-                    )
-                    self.document.pages[page_idx] = fitz_page
-                else:
-                    fitz_page = self.document.pages[page_idx]
+                
+                txt = "extraction du texte..." if has_tables else "extraction du tableau..."
+                self.status_update.emit(
+                    f"Page {page_num}/{total_pages} : {txt}"
+                )
+
+                # On extrait toujours les blocs de texte (extract_tables=True uniquement s'il y a des tableaux)
+                fitz_page = self.extractor._extract_page(
+                    page_obj, page_num, extract_tables=has_tables
+                )
+
+                # Réorganisation dans l'ordre de lecture humain
+                fitz_page.blocks = sorter.process_page_layout(
+                    fitz_page.blocks, fitz_page.width
+                )
+
+                # Mise à jour du document en mémoire
+                self.document.pages[page_idx] = fitz_page
 
                 # 2. Collecte des blocs traduisibles de cette page
-                page_blocks = [b for b in fitz_page.blocks if should_translate(b)]
+                # page_blocks = [b for b in fitz_page.blocks if should_translate(b)]
+
+                # 2. Collecte des blocs traduisibles de cette page
+                page_blocks = []
+                for b in fitz_page.blocks:
+                    if type(b).__name__ == "FitzTableBlock":
+                        # On récupère les cellules physiques regroupées
+                        cells = b.get_cells()
+                        
+                        # On génère un pseudo-bloc indépendant pour chaque cellule
+                        for idx, cell_words in enumerate(cells):
+                            combined_text = " ".join(w["text"] for w in cell_words if w.get("text")).strip()
+                            if combined_text:
+                                # Formule mathématique anticollision : toujours supérieur ou égal à 10001
+                                cell_id = (b.block_id + 1) * 10000 + idx + 1
+                                
+                                c_left = min(w["x0"] for w in cell_words)
+                                c_top = min(w["top"] for w in cell_words)
+                                c_right = max(w["x1"] for w in cell_words)
+                                c_bottom = max(w["bottom"] for w in cell_words)
+                                
+                                # Injection pour que .text fonctionne nativement vers le LLM
+                                from core.domain import FitzBlock, FitzLine, FitzSpan
+                                dummy_span = FitzSpan(
+                                    text=combined_text,
+                                    left=c_left, top=c_top, right=c_right, bottom=c_bottom,
+                                    font_name="", font_size=8.5, color=""
+                                )
+                                dummy_line = FitzLine(
+                                    spans=[dummy_span],
+                                    left=c_left, top=c_top, right=c_right, bottom=c_bottom
+                                )
+                                pseudo_block = FitzBlock(
+                                    block_id=cell_id,
+                                    lines=[dummy_line],
+                                    left=c_left,
+                                    top=c_top,
+                                    right=c_right,
+                                    bottom=c_bottom,
+                                    page_number=page_num
+                                )
+                                page_blocks.append(pseudo_block)
+                    else:
+                        # Bloc de texte classique
+                        if should_translate(b):
+                            page_blocks.append(b)
+
+
                 if not page_blocks:
                     self.page_done.emit()
                     continue
@@ -611,6 +663,7 @@ class MainWindow(QMainWindow):
         self._worker.start()
 
     def _on_block_translated(self, page_idx: int, block_idx: int, translated_text: str):
+        print(f"[MAIN] page={page_idx} block={block_idx}")
         if self._document and page_idx < len(self._document.pages):
             page = self._document.pages[page_idx]
             for b in page.blocks:

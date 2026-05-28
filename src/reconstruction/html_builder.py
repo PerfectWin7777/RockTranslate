@@ -115,24 +115,25 @@ class HTMLBuilder:
 
                 # On détermine l'identifiant unique global du bloc
                 block_id_str = f"block-{page_idx}-{block.block_id}"
-
-                # if isinstance(block, FitzTableBlock):
-                #     blocks_html += HTMLBuilder._generate_table_element(block)
-                # else:
-                #     blocks_html += HTMLBuilder._generate_block_element(block)
-
+                # print(f"[HTML] Génère id={block_id_str}") 
 
                 if isinstance(block, FitzTableBlock):
-                    blocks_html += HTMLBuilder._generate_table_placeholder(block, block_id_str)
+                    blocks_html += HTMLBuilder._generate_table_element(block, block_id_str)
                 else:
-                    # Paragraphes normaux
-                    blocks_html += HTMLBuilder._generate_block_placeholder(block, block_id_str)
+                    blocks_html += HTMLBuilder._generate_block_element(block, block_id_str)
+
+
+                # if isinstance(block, FitzTableBlock):
+                #     blocks_html += HTMLBuilder._generate_table_placeholder(block, block_id_str)
+                # else:
+                #     # Paragraphes normaux
+                #     blocks_html += HTMLBuilder._generate_block_placeholder(block, block_id_str)
 
             # 3. Append the individual page wrapper container to the cumulative document list.
             # We apply inline width, height, and background-image so that pages can have different sizes.
             blur_class = 'blurred-layout' if show_blurred_overlay else ''
             pages_html += f"""
-            <div class="page-container {blur_class}" style="
+            <div id="page-container-{page_idx}" class="page-container {blur_class}" style="
                 width: {display_w}px; 
                 height: {display_h}px; 
                 background-image: url('data:image/png;base64,{page.png_b64}'); 
@@ -196,8 +197,8 @@ class HTMLBuilder:
             white-space: normal;
             word-wrap: break-word;
             -webkit-font-smoothing: antialiased;
-            opacity: 0; /* Caché au départ pour masquer le doublon d'anglais */
-            transition: opacity 0.4s ease-in-out; /* Effet de fondu enchaîné */
+            /* opacity: 0; Caché au départ pour masquer le doublon d'anglais */
+            /* transition: opacity 0.4s ease-in-out;  Effet de fondu enchaîné */
         }}
         .text-span {{
             display: inline;
@@ -260,17 +261,58 @@ class HTMLBuilder:
     </style>
 
     <script>
-        // Fonction globale d'injection chirurgicale
-        function updateBlock(pageIdx, blockId, translatedText, bgCss) {{
-            var el = document.getElementById("block-" + pageIdx + "-" + blockId); 
-            if (el)  {{
-                el.innerHTML = translatedText;
-                if (bgCss)  {{
-                    el.style.backgroundColor = bgCss;
-                }}
-                el.style.opacity = "1"; // Révèle le bloc traduit en fondu
+        // Fonction d'ajustement dynamique de la taille de police (Shrink-to-Fit)
+        function autoScaleElement(el) {{
+            let maxW = el.offsetWidth;
+            if (!maxW || maxW <= 0) return;
+            
+            let style = window.getComputedStyle(el);
+            let originalSize = parseFloat(style.fontSize);
+            if (!originalSize) return;
+            
+            let size = originalSize;
+            let minSize = originalSize * 0.6; // Limite de réduction à 60% max (ex: de 8.5px à 5.1px)
+            
+            // On force temporairement le non-retour à la ligne pour mesurer le débordement réel
+            let originalWhiteSpace = el.style.whiteSpace;
+            el.style.whiteSpace = 'nowrap';
+            
+            // Réduction progressive par paliers de 0.5px
+            while (el.scrollWidth > maxW && size > minSize) {{
+                size -= 0.5;
+                el.style.fontSize = size + 'px';
             }}
-       }}
+            
+            // On rétablit le comportement de retour à la ligne d'origine
+            el.style.whiteSpace = originalWhiteSpace;
+        }}
+
+        // Mise à jour de la fonction globale d'injection
+        function updateBlock(pageIdx, blockId, blockHtml) {{
+            var el = document.getElementById("block-" + pageIdx + "-" + blockId); 
+            if (el) {{
+                el.outerHTML = blockHtml;
+                
+                // On récupère le bloc fraîchement injecté pour ajuster ses textes
+                let newEl = document.getElementById("block-" + pageIdx + "-" + blockId);
+                if (newEl) {{
+                    // Ajuste le bloc lui-même et toutes les sous-cellules de tableau à l'intérieur
+                    autoScaleElement(newEl);
+                    newEl.querySelectorAll('div').forEach(autoScaleElement);
+                }}
+            }} else {{
+                var pageContainer = document.getElementById("page-container-" + pageIdx);
+                if (pageContainer) {{
+                    pageContainer.insertAdjacentHTML('beforeend', blockHtml);
+                    
+                    let newEl = document.getElementById("block-" + pageIdx + "-" + blockId);
+                    if (newEl) {{
+                        autoScaleElement(newEl);
+                        newEl.querySelectorAll('div').forEach(autoScaleElement);
+                    }}
+                }}
+            }}
+        }}
     </script>
     
 </head>
@@ -301,13 +343,14 @@ class HTMLBuilder:
         )
 
     @staticmethod
-    def _generate_block_element(block: FitzBlock) -> str:
+    def _generate_block_element(block: FitzBlock, element_id: str = "") -> str:
         """
         Generates an absolutely positioned text block container.
         Dynamically adjusts text-rendering based on translation availability.
         """
         align = block.alignment
         bg_css = block.bg_color
+        id_attr = f'id="{element_id}" ' if element_id else ""
 
         content_html = ""
 
@@ -349,13 +392,13 @@ class HTMLBuilder:
                         f'font-size: {size:.1f}px; '
                         f'vertical-align: {valign}; '
                         f'background: {bg_css};'
-                        # f'background: transparent;'
                         f'">{span.text}</span> '
                     )
 
         # Generates the parent container
+        opacity = "1" if not block.translated_text else "1" 
         return (
-            f'<div class="block-element" style="'
+            f'<div {id_attr}class="block-element" style="'
             f'left: {block.left - 1.0:.1f}px; '
             f'top: {block.top:.1f}px; '
             f'width: {block.width + 4.0:.1f}px; '
@@ -363,45 +406,49 @@ class HTMLBuilder:
             f'font-size: {block.fs_dominant:.1f}px; '
             f'line-height: {block.line_height_ratio:.3f}; '
             f'background: {block.bg_color}; '
-            # f'background: transparent;'
             f'text-align: {align};">'
             f'{content_html}</div>\n'
         )
     
     @staticmethod
-    def _generate_table_element(block) -> str:
+    def _generate_table_element(block, element_id: str = "" ) -> str:
         """
         Place chaque mot du tableau à sa position exacte avec ses styles fitz.
         Identique à _generate_block_element mais au niveau du mot individuel.
         """
+        id_attr = f'id="{element_id}" ' if element_id else ""
         words_html = ""
+        
         for w in block.words:
-            size    = w.get("font_size", 8.5)
-            weight  = "bold"   if w.get("is_bold")   else "normal"
-            fstyle  = "italic" if w.get("is_italic") else "normal"
-            color   = w.get("color", "rgb(0,0,0)")
-            text_color = color
-            if "cid:" in w["text"]:
-                text_color = "transparent"
-            left    = w["x0"] - 1
-            top     = w["top"]
-            width   = (w["x1"] - w["x0"]) + 2
-            height  = (w["bottom"] - w["top"]) + 1
-            txt     = w.get("text", "").replace("<","&lt;").replace(">","&gt;")
-            background = "white"
-            if "cid:" in w["text"]:
-                background = "transparent"
+            size   = w.get("font_size", 8.5)
+            weight = "bold"   if w.get("is_bold")   else "normal"
+            fstyle = "italic" if w.get("is_italic") else "normal"
+            color  = w.get("color", "rgb(0,0,0)")
+            text_color = "transparent" if "cid:" in w["text"] else color
+            background = "transparent" if "cid:" in w["text"] else "white"
+            left   = w["x0"] - 1
+            top    = w["top"]
+            width  = (w["x1"] - w["x0"]) + 2
+            height = (w["bottom"] - w["top"]) + 1
+            txt    = w.get("text", "").replace("<", "&lt;").replace(">", "&gt;")
 
             words_html += (
                 f'<div style="position:absolute;'
                 f'left:{left:.1f}px;top:{top:.1f}px;'
                 f'width:{width:.1f}px;height:{height:.1f}px;'
-                f'background:{background};overflow:hidden;white-space:nowrap;'
+                f'background:{background};overflow:hidden;white-space:normal;word-break:break-word;'
                 f'font-size:{size:.1f}px;font-weight:{weight};'
                 f'font-style:{fstyle};color:{text_color};">'
                 f'{txt}</div>\n'
-            )   # white-space: normal;
-        return words_html
+            )
+
+        # Wrapper avec l'id pour que updateBlock JS trouve le bon élément
+        return (
+            f'<div {id_attr}style="position:absolute;'
+            f'left:0px;top:0px;'
+            f'width:100%;height:100%;">'
+            f'{words_html}</div>\n'
+        )
 
     
 
