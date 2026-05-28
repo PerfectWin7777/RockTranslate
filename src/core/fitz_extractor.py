@@ -23,31 +23,31 @@ from core.domain import (
 from core.cid_normalizer import build_cid_maps, normalize_cids
 
 
-def page_has_table_lines(page: fitz.Page) -> bool:
-    """
-    Analyse instantanément (<1ms) les tracés vectoriels de la page.
-    Retourne True si la page possède au moins 3 lignes horizontales fines et larges,
-    ce qui est la signature physique obligatoire d'un tableau scientifique.
-    """
-    try:
-        drawings = page.get_drawings()
-        horizontal_lines = 0
-        for draw in drawings:
-            rect = draw.get("rect")
-            if not rect:
-                continue
-            x0, y0, x1, y1 = rect
-            w = x1 - x0
-            h = y1 - y0
+# def page_has_table_lines(page: fitz.Page) -> bool:
+#     """
+#     Analyse instantanément (<1ms) les tracés vectoriels de la page.
+#     Retourne True si la page possède au moins 3 lignes horizontales fines et larges,
+#     ce qui est la signature physique obligatoire d'un tableau scientifique.
+#     """
+#     try:
+#         drawings = page.get_drawings()
+#         horizontal_lines = 0
+#         for draw in drawings:
+#             rect = draw.get("rect")
+#             if not rect:
+#                 continue
+#             x0, y0, x1, y1 = rect
+#             w = x1 - x0
+#             h = y1 - y0
             
-            # Une ligne de tableau est large (ex: > 100 pt) et très fine (ex: < 3 pt)
-            if w > 100 and h < 3:
-                horizontal_lines += 1
-                if horizontal_lines >= 3:
-                    return True
-    except Exception:
-        pass
-    return False
+#             # Une ligne de tableau est large (ex: > 100 pt) et très fine (ex: < 3 pt)
+#             if w > 100 and h < 3:
+#                 horizontal_lines += 1
+#                 if horizontal_lines >= 3:
+#                     return True
+#     except Exception:
+#         pass
+#     return False
 
 
 class FitzExtractor:

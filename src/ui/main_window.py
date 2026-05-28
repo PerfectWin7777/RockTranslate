@@ -17,7 +17,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Core & Layout Imports
-from core.fitz_extractor import FitzExtractor, page_has_table_lines
+from core.fitz_extractor import FitzExtractor
+from core.table_detector import  page_has_table
 from core.reading_order import ReadingOrderSorter
 from core.domain import FitzDocument, FitzPage
 from core.reading_order import ReadingOrderSorter
@@ -176,7 +177,7 @@ class TranslationWorker(QThread):
                 page_obj = pdf[page_idx]
 
                 # 1. Détection et extraction tableau si nécessaire
-                has_tables = page_has_table_lines(page_obj)
+                has_tables = page_has_table(page_obj)
                 if has_tables:
                     self.status_update.emit(
                         f"Page {page_num}/{total_pages} : extraction des tableaux..."
@@ -261,18 +262,20 @@ class TranslationWorker(QThread):
 
         except Exception as e:
             err_msg = str(e).lower()
-            is_rate_limit = any(x in err_msg for x in [
-                "rate_limit", "rate limit", "429", "overloaded",
-                "resource_exhausted", "resource exhausted", "quota"
-            ])
-            if is_rate_limit:
-                # Ne remonte pas en QMessageBox — déjà géré dans LLMClient
-                self.status_update.emit(
-                    "⏳ Limite API atteinte — la traduction reprendra automatiquement."
-                )
-            else:
-                # Erreur vraiment fatale → QMessageBox dans MainWindow
-                self.error.emit(str(e))
+            import traceback
+            traceback.print_exc()
+            # is_rate_limit = any(x in err_msg for x in [
+            #     "rate_limit", "rate limit", "429", "overloaded",
+            #     # "resource_exhausted", "resource exhausted", "quota"
+            # ])
+            # if is_rate_limit:
+            #     # Ne remonte pas en QMessageBox — déjà géré dans LLMClient
+            #     self.status_update.emit(
+            #         "⏳ Limite API atteinte — la traduction reprendra automatiquement."
+            #     )
+            # else:
+            #     # Erreur vraiment fatale → QMessageBox dans MainWindow
+            #     self.error.emit(str(e))
 
     def stop(self):
         self._stop = True
@@ -354,7 +357,7 @@ class MainWindow(QMainWindow):
         self._pdf_path       = None
         self._document       = None
         self._worker         = None
-        self._current_model  = SUPPORTED_MODELS["Google Gemini"][1]
+        self._current_model  = SUPPORTED_MODELS["Google Gemini"][0]
         self._current_lang   = "French"
         self._zoom           = 1.0
 
