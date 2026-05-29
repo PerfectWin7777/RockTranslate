@@ -729,3 +729,89 @@ class FitzExtractor:
                 parts.append(chunk)
 
         return " ".join(parts)
+
+
+    def _build_styled_text_from_words(self, words: list) -> str:
+        """
+        Construit le styled_text balisé à partir d'une liste de mots de tableau.
+        Même logique que _build_styled_text mais depuis les dicts mots.
+        """
+        parts = []
+        for w in words:
+            chunk = w.get("text", "").strip()
+            if not chunk:
+                continue
+
+            # Couleur non-noire → balise custom
+            try:
+                parts_rgb = w["color"].replace("rgb(","").replace(")","").split(",")
+                r, g, b = int(parts_rgb[0]), int(parts_rgb[1]), int(parts_rgb[2])
+                is_dark = r < 50 and g < 50 and b < 50
+            except Exception:
+                is_dark = True
+
+            if not is_dark:
+                hex_color = f"{r:02x}{g:02x}{b:02x}"
+                chunk = f"<color_{hex_color}>{chunk}</color_{hex_color}>"
+
+            if w.get("is_italic"):
+                chunk = f"<i>{chunk}</i>"
+
+            if w.get("is_bold"):
+                chunk = f"<b>{chunk}</b>"
+
+            parts.append(chunk)
+
+        return " ".join(parts)
+
+
+    def get_translatable_cell_blocks(self, table_block) -> list:
+        """
+        Transforme les cellules physiques d'un FitzTableBlock en pseudo-blocs
+        FitzBlock prêts pour la traduction, avec styled_text rempli.
+        Responsabilité : extraction/domaine uniquement, pas d'UI.
+        """
+        
+        result = []
+        cells = table_block.get_cells()
+
+        for idx, cell_words in enumerate(cells):
+            combined_text = " ".join(
+                w["text"] for w in cell_words if w.get("text")
+            ).strip()
+
+            if not combined_text:
+                continue
+
+            # Formule anticollision ID — identique à l'ancienne logique
+            cell_id = (table_block.block_id + 1) * 10000 + idx + 1
+
+            c_left   = min(w["x0"]     for w in cell_words)
+            c_top    = min(w["top"]    for w in cell_words)
+            c_right  = max(w["x1"]     for w in cell_words)
+            c_bottom = max(w["bottom"] for w in cell_words)
+
+            dummy_span = FitzSpan(
+                text=combined_text,
+                left=c_left, top=c_top, right=c_right, bottom=c_bottom,
+                font_name="", font_size=cell_words[0].get("font_size", 8.5),
+                color=""
+            )
+            dummy_line = FitzLine(
+                spans=[dummy_span],
+                left=c_left, top=c_top, right=c_right, bottom=c_bottom
+            )
+            pseudo_block = FitzBlock(
+                block_id=cell_id,
+                lines=[dummy_line],
+                left=c_left, top=c_top,
+                right=c_right, bottom=c_bottom,
+                page_number=table_block.page_number
+            )
+
+            # styled_text balisé — cœur de la correction
+            pseudo_block.styled_text = self._build_styled_text_from_words(cell_words)
+
+            result.append(pseudo_block)
+
+        return result

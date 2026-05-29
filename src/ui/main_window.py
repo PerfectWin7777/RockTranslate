@@ -204,44 +204,8 @@ class TranslationWorker(QThread):
                 page_blocks = []
                 for b in fitz_page.blocks:
                     if type(b).__name__ == "FitzTableBlock":
-                        # On récupère les cellules physiques regroupées
-                        cells = b.get_cells()
-                        
-                        # On génère un pseudo-bloc indépendant pour chaque cellule
-                        for idx, cell_words in enumerate(cells):
-                            combined_text = " ".join(w["text"] for w in cell_words if w.get("text")).strip()
-                            if combined_text:
-                                # Formule mathématique anticollision : toujours supérieur ou égal à 10001
-                                cell_id = (b.block_id + 1) * 10000 + idx + 1
-                                
-                                c_left = min(w["x0"] for w in cell_words)
-                                c_top = min(w["top"] for w in cell_words)
-                                c_right = max(w["x1"] for w in cell_words)
-                                c_bottom = max(w["bottom"] for w in cell_words)
-                                
-                                # Injection pour que .text fonctionne nativement vers le LLM
-                                from core.domain import FitzBlock, FitzLine, FitzSpan
-                                dummy_span = FitzSpan(
-                                    text=combined_text,
-                                    left=c_left, top=c_top, right=c_right, bottom=c_bottom,
-                                    font_name="", font_size=8.5, color=""
-                                )
-                                dummy_line = FitzLine(
-                                    spans=[dummy_span],
-                                    left=c_left, top=c_top, right=c_right, bottom=c_bottom
-                                )
-                                pseudo_block = FitzBlock(
-                                    block_id=cell_id,
-                                    lines=[dummy_line],
-                                    left=c_left,
-                                    top=c_top,
-                                    right=c_right,
-                                    bottom=c_bottom,
-                                    page_number=page_num
-                                )
-                                page_blocks.append(pseudo_block)
+                        page_blocks.extend(self.extractor.get_translatable_cell_blocks(b))
                     else:
-                        # Bloc de texte classique
                         if should_translate(b):
                             page_blocks.append(b)
 
