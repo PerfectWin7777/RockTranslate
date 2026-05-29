@@ -334,6 +334,9 @@ class FitzExtractor:
             if self._is_in_skip_zone(x0, y0, x1, y1, table_rects):
                continue  # ignore ce bloc — le PNG montre le tableau/image original
     
+            
+            block.styled_text = self._build_styled_text(lines, block.fs_dominant)
+            print(f"[STYLED] {block.styled_text}")
 
             blocks.append(block)
             block_id_counter += 1
@@ -684,3 +687,45 @@ class FitzExtractor:
                 return path.fill_color
 
         return "white"
+
+    
+    def _build_styled_text(self, lines: list, dominant_size: float) -> str:
+        parts = []
+        for line in lines:
+            for span in line.spans:
+                chunk = span.text.strip()
+                if not chunk:
+                    continue
+
+                # Couleur non-noire → balise custom
+                try:
+                    parts_rgb = span.color.replace("rgb(","").replace(")","").split(",")
+                    r, g, b = int(parts_rgb[0]), int(parts_rgb[1]), int(parts_rgb[2])
+                    is_dark = r < 50 and g < 50 and b < 50
+                except Exception:
+                    is_dark = True
+
+                if not is_dark:
+                    hex_color = f"{r:02x}{g:02x}{b:02x}"
+                    chunk = f"<color_{hex_color}>{chunk}</color_{hex_color}>"
+
+                # Taille non-dominante
+                if abs(span.font_size - dominant_size) > 1.5:
+                    size_int = int(round(span.font_size))
+                    chunk = f"<fs_{size_int}>{chunk}</fs_{size_int}>"
+
+                # Exposant
+                if span.is_sup:
+                    chunk = f"<sup>{chunk}</sup>"
+
+                # Italique
+                if span.is_italic:
+                    chunk = f"<i>{chunk}</i>"
+
+                # Gras
+                if span.is_bold:
+                    chunk = f"<b>{chunk}</b>"
+
+                parts.append(chunk)
+
+        return " ".join(parts)

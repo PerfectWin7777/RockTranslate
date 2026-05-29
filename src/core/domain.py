@@ -92,6 +92,7 @@ class FitzBlock:
     # Translation lifecycle attributes
     skip_translation: bool = False
     translated_text: Optional[str] = None
+    styled_text: Optional[str] = None
 
     @property
     def width(self) -> float:

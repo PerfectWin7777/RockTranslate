@@ -2,7 +2,7 @@
 
 from typing import List, Optional
 from core.domain import FitzDocument, FitzPage, FitzBlock, FitzPath, FitzTableBlock
-
+from utils.style_codec import decode_styled_text
 
 class HTMLBuilder:
     """
@@ -321,11 +321,12 @@ class HTMLBuilder:
             # We render the entire translated paragraph using the block's dominant styles
             # The background mask sits directly behind the block to cleanly hide the original text
             dom_size = block.fs_dominant
+            decoded = decode_styled_text(block.translated_text)
             content_html = (
                 f'<span style="'
                 f'font-size: {dom_size:.1f}px; '
                 f'background: {bg_css};'
-                f'">{block.translated_text}</span>'
+                f'">{decoded}</span>'
             )
 
         # --- MODE B : Original text (Pre-translation) ---
@@ -358,7 +359,6 @@ class HTMLBuilder:
                     )
 
         # Generates the parent container
-        opacity = "1" if not block.translated_text else "1" 
         return (
             f'<div {id_attr}class="block-element" style="'
             f'left: {block.left - 1.0:.1f}px; '
@@ -392,8 +392,8 @@ class HTMLBuilder:
             top    = w["top"]
             width  = (w["x1"] - w["x0"]) + 2
             height = (w["bottom"] - w["top"]) + 1
-            txt    = w.get("text", "").replace("<", "&lt;").replace(">", "&gt;")
-
+            txt = decode_styled_text(w.get("text", ""))
+            
             words_html += (
                 f'<div style="position:absolute;'
                 f'left:{left:.1f}px;top:{top:.1f}px;'

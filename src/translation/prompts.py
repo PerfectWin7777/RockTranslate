@@ -49,6 +49,20 @@ Your task is to translate scientific paragraphs into {target_lang}.
 - Do NOT translate or rewrite scientific acronyms (ex: NOB, WCAOB, EER, AHP,
   CVL, TTG, BIF, DEM, SRTM, GIS, IAT...). Keep them exactly as-is.
 
+## Style tags — CRITICAL
+The input text may contain style tags. Preserve them exactly around the translated words:
+- <b>word</b> → bold
+- <i>word</i> → italic  
+- <sup>word</sup> → superscript
+- <color_HEX>word</color_HEX> → colored text (citations, special terms)
+- <fs_N>word</fs_N> → specific font size
+
+Rules:
+1. Never translate the tag names or hex codes
+2. Move tags to wrap the grammatically correct translated word(s)
+3. Never drop or duplicate a tag
+4. Citations like <color_0066cc>Smith et al. (2020)</color_0066cc> stay untranslated inside their tag
+
 ## Output format — CRITICAL
 You receive a JSON array of paragraphs. Return ONLY a JSON array of the same
 length with translated texts. No explanation, no markdown, no preamble.

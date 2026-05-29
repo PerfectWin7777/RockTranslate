@@ -16,6 +16,7 @@ Providers supportés (via LiteLLM) :
 import json
 import os
 import time
+import re
 from dataclasses import dataclass
 from typing import Callable
 
@@ -35,7 +36,7 @@ from translation.prompts import (
     get_user_message,
     DEFAULT_LANG_NAME,
 )
-
+from utils.style_codec import decode_styled_text
 
 # ── Retry config ───────────────────────────────────────────────────────────────
 _MAX_RETRIES   = 4
@@ -156,7 +157,7 @@ class LLMClient:
         batch_data = [{"id": 0, "text": text}]
         result = self._call_llm(batch_data)
         if result and result[0].get("translated"):
-            return result[0]["translated"]
+            return decode_styled_text(result[0]["translated"])
         return f"[TRANSLATION FAILED] {text}"
 
     # ══════════════════════════════════════════════════════════
@@ -205,7 +206,7 @@ class LLMClient:
                     idx = item.get("id")
                     translated = item.get("translated", "").strip()
                     if idx in id_to_para and translated:
-                        id_to_para[idx].translated_text = translated
+                        id_to_para[idx].translated_text = decode_styled_text(translated)
 
                 all_translated = all(
                     p.translated_text for p in batch.paragraphs
@@ -297,6 +298,7 @@ class LLMClient:
 
         response = self._litellm.completion(**kwargs)
         raw_text = response.choices[0].message.content.strip()
+        print(f"[LLM RAW] {raw_text}")
 
         logger.debug(f"  Réponse brute ({len(raw_text)} chars) : {raw_text[:120]}…")
 
@@ -330,6 +332,11 @@ class LLMClient:
                 except json.JSONDecodeError:
                     pass
             return None
+    
+    
+
+    
+
 
     # ══════════════════════════════════════════════════════════
     # HELPERS

@@ -269,9 +269,10 @@ class TranslationWorker(QThread):
 
                     # Prépare les données du batch
                     batch_data = [
-                        {"id": idx, "text": block.text}
+                        {"id": idx, "text": block.styled_text or block.text}
                         for idx, block in enumerate(batch.paragraphs)
                     ]
+                    
                     block_map = {
                         idx: block
                         for idx, block in enumerate(batch.paragraphs)
@@ -663,7 +664,7 @@ class MainWindow(QMainWindow):
         self._worker.start()
 
     def _on_block_translated(self, page_idx: int, block_idx: int, translated_text: str):
-        print(f"[MAIN] page={page_idx} block={block_idx}")
+        # print(f"[MAIN] page={page_idx} block={block_idx}")
         if self._document and page_idx < len(self._document.pages):
             page = self._document.pages[page_idx]
             for b in page.blocks:
