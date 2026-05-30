@@ -555,6 +555,7 @@ class MainWindow(QMainWindow):
 
     def _sync_page(self, ok):
         self.trans_panel.goto_page(0)
+        self.pdf_viewer.view.loadFinished.disconnect(self._sync_page)
 
     def _on_extraction_error(self, err_msg: str):
         QMessageBox.critical(
@@ -639,6 +640,7 @@ class MainWindow(QMainWindow):
         self.trans_panel.update_block_translation(page_idx, block_idx, translated_text)
 
     def _on_translation_finished(self):
+        print("[TRANSLATION_FINISHED]")
         self.a_start.setText("▶  Démarrer la traduction")
         self.status.showMessage("Traduction terminée avec succès.")
         QMessageBox.information(self, "Terminé", "Le document a été entièrement traduit !")

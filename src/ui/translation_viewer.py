@@ -67,10 +67,12 @@ class TranslationViewer(QWidget):
 
     def _on_load_started(self):
         self._page_loading = True
+        print(f"[LOAD_STARTED] url={self.web_view.url().toString()}")
         # self._pending_js.clear()  # La page repart de zéro, on vide l'ancienne file
 
     def _on_load_finished(self, ok: bool):
         self._page_loading = False
+        print(f"[LOAD_FINISHED] url={self.web_view.url().toString()}")
         # Injecte tous les appels JS mis en attente pendant le chargement
         for js in self._pending_js:
             self.web_view.page().runJavaScript(js)
@@ -105,6 +107,7 @@ class TranslationViewer(QWidget):
         """
         Retire l'overlay flou et rend les blocs traduits visibles au fur et à mesure.
         """
+        print(f"[SET_TRANSLATION_STARTED] started={started}")
         self.is_translation_started = started
         if started:
             self._run_js(
@@ -177,22 +180,19 @@ class TranslationViewer(QWidget):
                     bottom = max(w["bottom"] for w in cell_words)
                     first = cell_words[0]
 
-                    # Crée le mot virtuel traduit pour cette cellule spécifique
-                    translated_cell_word = {
-                        "text": translated_text,
-                        "x0": left,
-                        "top": top,
-                        "x1": right,
-                        "bottom": bottom,
+                    # Stocke la traduction sans toucher à words
+                    target_table.translated_cells[cell_index] = {
+                        "text":      translated_text,
+                        "x0":        left,
+                        "top":       top,
+                        "x1":        right,
+                        "bottom":    bottom,
                         "font_size": first.get("font_size", 8.5),
-                        "is_bold": first.get("is_bold", False),
+                        "is_bold":   first.get("is_bold", False),
                         "is_italic": first.get("is_italic", False),
-                        "color": first.get("color", "rgb(0,0,0)")
+                        "color":     first.get("color", "rgb(0,0,0)")
                     }
 
-                    # Supprime les anciens mots physiques et insère le mot traduit
-                    target_table.words = [w for w in target_table.words if w not in cell_words]
-                    target_table.words.append(translated_cell_word)
 
             # Régénère le code HTML complet du tableau mis à jour
             block_id_str = f"block-{page_idx}-{parent_table_id}"
@@ -221,6 +221,9 @@ class TranslationViewer(QWidget):
 
 
     def refresh_view(self):
+        import traceback
+        print("[REFRESH_VIEW CALLED]")
+        traceback.print_stack(limit=5)
         if not self._document_ref:
             self.web_view.load(QUrl("about:blank"))
             return

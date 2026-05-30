@@ -169,6 +169,7 @@ class FitzTableBlock:
     translated_text: Optional[str] = None
     bg_color: str = "white"
     words: list = field(default_factory=list)
+    translated_cells: dict = field(default_factory=dict)  # {cell_index: translated_text}
 
     def get_cells(self) -> list[list[dict]]:
         """

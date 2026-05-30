@@ -298,7 +298,7 @@ class LLMClient:
 
         response = self._litellm.completion(**kwargs)
         raw_text = response.choices[0].message.content.strip()
-        print(f"[LLM RAW] {raw_text}")
+        print(f"[LLM RAW] {raw_text[:200]}...")
 
         logger.debug(f"  Réponse brute ({len(raw_text)} chars) : {raw_text[:120]}…")
 

@@ -336,7 +336,7 @@ class FitzExtractor:
     
             
             block.styled_text = self._build_styled_text(lines, block.fs_dominant)
-            print(f"[STYLED] {block.styled_text}")
+            # print(f"[STYLED] {block.styled_text}")
 
             blocks.append(block)
             block_id_counter += 1
