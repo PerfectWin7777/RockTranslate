@@ -167,6 +167,12 @@ class TranslationViewer(QWidget):
                 if block.block_id == parent_table_id:
                     target_table = block
                     break
+            
+
+            print(f"[TABLE] page={page_idx} parent_table_id={parent_table_id} cell={cell_index}")
+            print(f"[TABLE] target_table trouvé = {target_table is not None}")
+            print(f"[TABLE] id(target_table) = {id(target_table) if target_table else 'None'}")
+
 
             if target_table:
                 # Récupère l'ensemble des cellules via notre méthode centralisée
@@ -192,6 +198,7 @@ class TranslationViewer(QWidget):
                         "is_italic": first.get("is_italic", False),
                         "color":     first.get("color", "rgb(0,0,0)")
                     }
+                    print(f"[TABLE] translated_cells après update = {list(target_table.translated_cells.keys())}")
 
 
             # Régénère le code HTML complet du tableau mis à jour
@@ -221,9 +228,16 @@ class TranslationViewer(QWidget):
 
 
     def refresh_view(self):
-        import traceback
-        print("[REFRESH_VIEW CALLED]")
-        traceback.print_stack(limit=5)
+        # print("[REFRESH_VIEW] appelé")
+        # # Pour chaque tableau dans toutes les pages
+        # for p_idx, page in enumerate(self.pages):
+        #     for block in page.blocks:
+        #         if hasattr(block, 'translated_cells'):
+        #             print(f"[REFRESH_VIEW] page={p_idx} table block_id={block.block_id} id={id(block)} translated_cells={list(block.translated_cells.keys())}")
+        
+
+        if self.is_translation_started:  # ← garde de sécurité
+           return
         if not self._document_ref:
             self.web_view.load(QUrl("about:blank"))
             return

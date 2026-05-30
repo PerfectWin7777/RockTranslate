@@ -545,7 +545,7 @@ class MainWindow(QMainWindow):
 
         self.pdf_viewer.load_pdf(self._pdf_path)
         self.trans_panel.init_pages(self._document.pages, self._document)
-        self.pdf_viewer.view.loadFinished.connect(self._sync_page)
+        # self.pdf_viewer.view.loadFinished.connect(self._sync_page)
 
         self.status.showMessage(
             f"Chargement terminé : {os.path.basename(self._pdf_path)} "
@@ -554,8 +554,9 @@ class MainWindow(QMainWindow):
         self.a_open.setEnabled(True)
 
     def _sync_page(self, ok):
+        print(f"[SYNC_PAGE CALLED] ok={ok}")
         self.trans_panel.goto_page(0)
-        self.pdf_viewer.view.loadFinished.disconnect(self._sync_page)
+        # self.pdf_viewer.view.loadFinished.disconnect(self._sync_page)
 
     def _on_extraction_error(self, err_msg: str):
         QMessageBox.critical(
@@ -632,17 +633,52 @@ class MainWindow(QMainWindow):
         # print(f"[MAIN] page={page_idx} block={block_idx}")
         if self._document and page_idx < len(self._document.pages):
             page = self._document.pages[page_idx]
-            for b in page.blocks:
-                if b.block_id == block_idx:
-                    b.translated_text = translated_text
-                    break
+            
+            # 1. Traitement des cellules de tableau (ID >= 10000)
+            if block_idx >= 10000:
+                parent_table_id = (block_idx // 10000) - 1
+                cell_index = (block_idx % 10000) - 1
+                
+                for b in page.blocks:
+                    if b.block_id == parent_table_id and hasattr(b, "translated_cells"):
+                        cells = b.get_cells()
+                        if 0 <= cell_index < len(cells):
+                            cell_words = cells[cell_index]
+                            left = min(w["x0"] for w in cell_words)
+                            top = min(w["top"] for w in cell_words)
+                            right = max(w["x1"] for w in cell_words)
+                            bottom = max(w["bottom"] for w in cell_words)
+                            first = cell_words[0]
+                            
+                            # Persistance de la traduction dans le modèle de données
+                            b.translated_cells[cell_index] = {
+                                "text":      translated_text,
+                                "x0":        left,
+                                "top":       top,
+                                "x1":        right,
+                                "bottom":    bottom,
+                                "font_size": first.get("font_size", 8.5),
+                                "is_bold":   first.get("is_bold", False),
+                                "is_italic": first.get("is_italic", False),
+                                "color":     first.get("color", "rgb(0,0,0)")
+                            }
+                        break
+            # 2. Traitement des blocs de texte classiques
+            else:
+                for b in page.blocks:
+                    if b.block_id == block_idx:
+                        b.translated_text = translated_text
+                        break
 
+        # Mise à jour graphique de la vue web
         self.trans_panel.update_block_translation(page_idx, block_idx, translated_text)
+
 
     def _on_translation_finished(self):
         print("[TRANSLATION_FINISHED]")
         self.a_start.setText("▶  Démarrer la traduction")
         self.status.showMessage("Traduction terminée avec succès.")
+        
         QMessageBox.information(self, "Terminé", "Le document a été entièrement traduit !")
 
     def _on_translation_error(self, err_msg: str):

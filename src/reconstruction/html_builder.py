@@ -331,32 +331,33 @@ class HTMLBuilder:
 
         # --- MODE B : Original text (Pre-translation) ---
         else:
+            pass 
             # We map spans recursively to match style structures perfectly
-            for line in block.lines:
-                for span in line.spans:
-                    weight = "bold" if span.is_bold else "normal"
-                    style = "italic" if span.is_italic else "normal"
-                    size = span.font_size
-                    valign = "baseline"
+            # for line in block.lines:
+            #     for span in line.spans:
+            #         weight = "bold" if span.is_bold else "normal"
+            #         style = "italic" if span.is_italic else "normal"
+            #         size = span.font_size
+            #         valign = "baseline"
 
-                    if span.is_sup:
-                        valign = "super"
-                        size *= 0.7  # Scale down superscripts (citations, formulas)
+            #         if span.is_sup:
+            #             valign = "super"
+            #             size *= 0.7  # Scale down superscripts (citations, formulas)
                     
-                    text_color = span.color
-                    if "cid:" in span.text:
-                        text_color = "transparent"
+            #         text_color = span.color
+            #         if "cid:" in span.text:
+            #             text_color = "transparent"
 
-                    content_html += (
-                        f'<span class="text-span" style="'
-                        f'color: {text_color}; '
-                        f'font-weight: {weight}; '
-                        f'font-style: {style}; '
-                        f'font-size: {size:.1f}px; '
-                        f'vertical-align: {valign}; '
-                        f'background: {bg_css};'
-                        f'">{span.text}</span> '
-                    )
+            #         content_html += (
+            #             f'<span class="text-span" style="'
+            #             f'color: {text_color}; '
+            #             f'font-weight: {weight}; '
+            #             f'font-style: {style}; '
+            #             f'font-size: {size:.1f}px; '
+            #             f'vertical-align: {valign}; '
+            #             f'background: {bg_css};'
+            #             f'">{span.text}</span> '
+            #         )
 
         # Generates the parent container
         return (
@@ -380,65 +381,27 @@ class HTMLBuilder:
         """
         id_attr = f'id="{element_id}" ' if element_id else ""
         words_html = ""
-
-        # Fusionne words originaux et cellules traduites
         translated_cells = getattr(block, "translated_cells", {})
-        
-        # Reconstruit get_cells pour avoir les index
-        cells = block.get_cells()
-        
-        # Mots déjà couverts par une cellule traduite
-        covered_words = set()
-        for cell_idx, cell_data in translated_cells.items():
-            if 0 <= cell_idx < len(cells):
-                for w in cells[cell_idx]:
-                    covered_words.add(id(w))
 
-        # Rendu des mots originaux non traduits
-        for w in block.words:
-            if id(w) in covered_words:
-                continue
-            size      = w.get("font_size", 8.5)
-            weight    = "bold"   if w.get("is_bold")   else "normal"
-            fstyle    = "italic" if w.get("is_italic") else "normal"
-            color     = w.get("color", "rgb(0,0,0)")
-            has_color_tag = "<color_" in w.get("text", "")
-            text_color = "transparent" if "cid:" in w["text"] else ("inherit" if has_color_tag else color)
-            background = "transparent" if "cid:" in w["text"] else "white"
-            left      = w["x0"] - 1
-            top       = w["top"]
-            width     = (w["x1"] - w["x0"]) + 2
-            height    = (w["bottom"] - w["top"]) + 1
-            txt       = decode_styled_text(w.get("text", ""))
-
-            words_html += (
-                f'<div style="position:absolute;'
-                f'left:{left:.1f}px;top:{top:.1f}px;'
-                f'width:{width:.1f}px;height:{height:.1f}px;'
-                f'background:{background};overflow:hidden;white-space:normal;word-break:break-word;'
-                f'font-size:{size:.1f}px;font-weight:{weight};'
-                f'font-style:{fstyle};color:{text_color};">'
-                f'{txt}</div>\n'
-            )
-
-        # Rendu des cellules traduites
+        # --- CELLULES TRADUITES UNIQUEMENT (L'anglais d'origine est ignoré) ---
         for cell_idx, cell_data in translated_cells.items():
             txt    = decode_styled_text(cell_data["text"])
             size   = cell_data.get("font_size", 8.5)
             weight = "bold"   if cell_data.get("is_bold")   else "normal"
             fstyle = "italic" if cell_data.get("is_italic") else "normal"
+            color  = cell_data.get("color", "rgb(0,0,0)")
+            has_color_tag = "<color_" in cell_data["text"]
+            text_color = "inherit" if has_color_tag else color
             left   = cell_data["x0"] - 1
             top    = cell_data["top"]
             width  = (cell_data["x1"] - cell_data["x0"]) + 2
             height = (cell_data["bottom"] - cell_data["top"]) + 1
-            has_color_tag = "<color_" in cell_data["text"]
-            text_color = "inherit" if has_color_tag else cell_data.get("color", "rgb(0,0,0)")
 
             words_html += (
                 f'<div style="position:absolute;'
                 f'left:{left:.1f}px;top:{top:.1f}px;'
                 f'width:{width:.1f}px;height:{height:.1f}px;'
-                f'background:white;overflow:hidden;white-space:normal;word-break:break-word;'
+                f'background:white;overflow:visible;white-space:normal;word-break:break-word;'
                 f'font-size:{size:.1f}px;font-weight:{weight};'
                 f'font-style:{fstyle};color:{text_color};">'
                 f'{txt}</div>\n'
