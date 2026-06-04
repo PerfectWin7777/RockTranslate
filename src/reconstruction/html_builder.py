@@ -1,5 +1,6 @@
 #src/reconstruction/html_builder.py
 
+import re
 import math
 from typing import List
 from core.domain import FitzDocument, FitzPage, FitzBlock, FitzPath, FitzTableBlock, FitzLine
@@ -186,16 +187,22 @@ class HTMLBuilder:
 
         if line.translated_text:
             text_to_render = decode_styled_text(line.translated_text)
-            original_len   = max(1, len(line.text))
-            translated_len = len(line.translated_text)
+            raw_original   = re.sub(r'<[^>]+>', '', line.styled_text or line.text)
+            raw_translated = re.sub(r'<[^>]+>', '', line.translated_text)
+            
+            original_len   = max(1, len(raw_original))
+            translated_len = len(raw_translated)
             ratio          = translated_len / original_len
+
         else:
             raw_fallback   = line.styled_text or line.text
             text_to_render = decode_styled_text(raw_fallback) if line.styled_text else line.text
             ratio          = 1.0
 
-        sizes         = [s.font_size for s in line.spans if s.font_size]
-        dominant_size = sorted(sizes)[len(sizes) // 2] if sizes else 9.0
+        # sizes         = [s.font_size for s in line.spans if s.font_size]
+        # dominant_size = sorted(sizes)[len(sizes) // 2] if sizes else 9.0
+         
+        dominant_size = getattr(block, 'fs_dominant', 9.0)
 
         final_font_size = dominant_size
         if ratio > 1.0:

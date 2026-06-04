@@ -65,7 +65,7 @@ LANGUAGES = [
 ]
 
 # Nombre de paragraphes traduits conservés comme contexte glissant inter-pages
-_SLIDING_CONTEXT_SIZE = 4
+_SLIDING_CONTEXT_SIZE = 10
 
 
 class ExtractionWorker(QThread):
