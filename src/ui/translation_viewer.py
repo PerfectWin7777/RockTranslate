@@ -126,116 +126,52 @@ class TranslationViewer(QWidget):
         self.zoom_factor = zoom_factor
         self.web_view.setZoomFactor(zoom_factor)
 
-    def update_block_translationSSSS(
-        self, page_idx: int, block_idx: int, translated_text: str
-    ):
+    def update_block_translation(
+    self, page_idx: int, block_id: int, line_idx: int, translated_text: str
+):
         """
-        Injection chirurgicale d'un bloc traduit dans Chromium via JS.
-        Utilise la file d'attente si la page est encore en chargement.
+        Receives a translated line and injects its div directly into Chromium.
+        Finds the exact FitzLine by block_id + line_id (Python object id).
         """
-        # print(f"[INJECT] page={page_idx} block={block_idx} text={translated_text[:40]}")
-
-        # Mise à jour du modèle local (pour les refresh_view() ultérieurs)
-        bg_css = "white"
-        if 0 <= page_idx < len(self.pages):
-            for block in self.pages[page_idx].blocks:
-                if block.block_id == block_idx:
-                    block.translated_text = translated_text
-                    bg_css = getattr(block, "bg_color", "white")
-                    break
-
-        safe_text = json.dumps(translated_text)
-        js_code = (
-            f"updateBlock({page_idx}, {block_idx}, {safe_text}, '{bg_css}');"
-        )
-
-        # print(f"[JS] {js_code[:80]}")
-        self._run_js(js_code)
-    
-    def update_block_translation(self, page_idx: int, block_idx: int, translated_text: str):
         if not (0 <= page_idx < len(self.pages)):
+           return
+
+        page = self.pages[page_idx]
+
+        # Find block by block_id
+        target_block = None
+        for block in page.blocks:
+            if block.block_id == block_id and hasattr(block, "lines"):
+                target_block = block
+                break
+
+        if not target_block or line_idx >= len(target_block.lines):
             return
 
-       # Si l'ID est supérieur ou égal à 10000, c'est une cellule de tableau
-        if block_idx >= 10000:
-            # Décodage de la formule mathématique anticollision
-            parent_table_id = (block_idx // 10000) - 1
-            cell_index = (block_idx % 10000) - 1
+        # Get line by stable index
+        target_line = target_block.lines[line_idx]
+        target_line.translated_text = translated_text
 
-            target_table = None
-            for block in self.pages[page_idx].blocks:
-                if block.block_id == parent_table_id:
-                    target_table = block
-                    break
-            
+        col_left_max, col_right_min = HTMLBuilder._compute_column_boundaries(
+            page.blocks, page.width
+        )
 
-            print(f"[TABLE] page={page_idx} parent_table_id={parent_table_id} cell={cell_index}")
-            print(f"[TABLE] target_table trouvé = {target_table is not None}")
-            print(f"[TABLE] id(target_table) = {id(target_table) if target_table else 'None'}")
+        line_html = HTMLBuilder._generate_line_div(
+            line=target_line,
+            block=target_block,
+            page_width=page.width,
+            col_left_max=col_left_max,
+            col_right_min=col_right_min,
+            page_idx=page_idx,
+        )
 
-
-            if target_table:
-                # Récupère l'ensemble des cellules via notre méthode centralisée
-                cells = target_table.get_cells()
-                if 0 <= cell_index < len(cells):
-                    cell_words = cells[cell_index]
-                    
-                    left = min(w["x0"] for w in cell_words)
-                    top = min(w["top"] for w in cell_words)
-                    right = max(w["x1"] for w in cell_words)
-                    bottom = max(w["bottom"] for w in cell_words)
-                    first = cell_words[0]
-
-                    # Stocke la traduction sans toucher à words
-                    target_table.translated_cells[cell_index] = {
-                        "text":      translated_text,
-                        "x0":        left,
-                        "top":       top,
-                        "x1":        right,
-                        "bottom":    bottom,
-                        "font_size": first.get("font_size", 8.5),
-                        "is_bold":   first.get("is_bold", False),
-                        "is_italic": first.get("is_italic", False),
-                        "color":     first.get("color", "rgb(0,0,0)")
-                    }
-                    print(f"[TABLE] translated_cells après update = {list(target_table.translated_cells.keys())}")
-
-
-            # Régénère le code HTML complet du tableau mis à jour
-            block_id_str = f"block-{page_idx}-{parent_table_id}"
-            block_html = HTMLBuilder._generate_table_element(target_table, block_id_str)
-            
-            # Injection propre dans Chromium
-            safe_html = json.dumps(block_html)
-            js_code = f"updateBlock({page_idx}, {parent_table_id}, {safe_html});"
-            self._run_js(js_code)
-
-        else:
-            # Bloc de texte classique classique
-            target_block = None
-            for block in self.pages[page_idx].blocks:
-                if block.block_id == block_idx:
-                    block.translated_text = translated_text
-                    target_block = block
-                    break
-
-            if target_block:
-                block_id_str = f"block-{page_idx}-{block_idx}"
-                block_html = HTMLBuilder._generate_block_element(target_block, block_id_str)
-                safe_html = json.dumps(block_html)
-                js_code = f"updateBlock({page_idx}, {block_idx}, {safe_html});"
-                self._run_js(js_code)
-
+        safe_html = json.dumps(line_html)
+        js_code   = f"updateBlock({page_idx}, {block_id}, {line_idx}, {safe_html});"
+        self._run_js(js_code)
+    
 
     def refresh_view(self):
-        # print("[REFRESH_VIEW] appelé")
-        # # Pour chaque tableau dans toutes les pages
-        # for p_idx, page in enumerate(self.pages):
-        #     for block in page.blocks:
-        #         if hasattr(block, 'translated_cells'):
-        #             print(f"[REFRESH_VIEW] page={p_idx} table block_id={block.block_id} id={id(block)} translated_cells={list(block.translated_cells.keys())}")
-        
-
+       
         if self.is_translation_started:  # ← garde de sécurité
            return
         if not self._document_ref:

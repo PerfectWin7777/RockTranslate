@@ -63,6 +63,9 @@ Rules:
 3. Never drop or duplicate a tag
 4. Citations like <color_0066cc>Smith et al. (2020)</color_0066cc> stay untranslated inside their tag
 
+4. Reattach hyphenated line-breaks: if a word ends with '-' and continues on the next line,
+   merge them before translating: 'fac-\nteur' → 'facteur', 'pri-\orité' → 'priorité',
+   'mor-\nphometric' → 'morphometric'. The hyphen is a line-break artifact, not a real hyphen.
 ## Output format — CRITICAL
 You receive a JSON array of paragraphs. Return ONLY a JSON array of the same
 length with translated texts. No explanation, no markdown, no preamble.

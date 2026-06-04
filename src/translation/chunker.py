@@ -8,6 +8,7 @@ Stratégie :
   - Respecte les limites par modèle
   - Un paragraphe > max_tokens est passé seul (jamais coupé)
 """
+import re
 from collections import Counter
 from loguru import logger
 from dataclasses import dataclass
@@ -60,68 +61,150 @@ def _dominant_color(block: FitzBlock) -> tuple[int, int, int]:
     return counts.most_common(1)[0][0]
 
 
-def should_translate(block: FitzBlock) -> bool:
+def should_translate(line: FitzLine) -> bool:
     """
-    Evaluates whether a visual block should be translated or preserved as-is.
-    Filters out math equations, isolated numbers, URLs, and non-black styled spans (links/citations).
+    Evaluates whether a physical line should be translated.
+    Works on FitzLine instead of FitzBlock — same logic, smaller unit.
     """
+    text = line.text.strip()
 
-    # --- FORCE LA TRADUCTION DES TABLEAUX ---
-    if type(block).__name__ == "FitzTableBlock":
-        return True
-    
-    text = block.text.strip()
-    
-    # 1. Trop court
-    if len(text) < 5:
-        return False
-    
-    # 2. URL / DOI / email
+    # if len(text) < 5:
+    #     # Keep short numeric tokens — likely table cells (e.g. "1", "3", "0.58")
+    #     if re.match(r'^[\d\s,\.]+$', text):
+    #         return True
+    #     return False
+
     tl = text.lower()
+
+    # Academic headings — always translate
+    # if text.lower() in ["abstract", "keywords", "introduction", "references",
+    #                      "conclusions", "acknowledgements"]:
+    #     return True
+
+
+    # if re.match(r'^\d+(\.\d+)*\.?\s+[A-Z]', text.strip()):
+    #     return True
+
+    # Isolated URLs / DOIs
     if any(x in tl for x in ["http", "doi.org", "www.", "@"]):
-        return False
-    
-    # 3. Pas assez de vrais mots
-    words = [w for w in text.split() if w.isalpha() and len(w) > 2]
-    if len(words) < 4:
-        return False
-    
-    # 4. Trop de chiffres isolés (tableaux, formules)
-    digit_tokens = sum(1 for w in text.split() if w.isdigit())
-    if digit_tokens / max(len(text.split()), 1) > 0.3:
-        return False
-    
-    # 5. Non-black text check (e.g., colored hyperlinks, blue citations)
-    # FitzSpan.color uses "rgb(r,g,b)". We inspect the first span to check dominant text color
-    # if block.lines and block.lines[0].spans:
-    #     first_span = block.lines[0].spans[0]
-    #     try:
-    #         color_str = first_span.color.replace("rgb(", "").replace(")", "")
-    #         r, g, b = [int(v.strip()) for v in color_str.split(",")]
-    #         # If text is distinctly colored (not black or dark grey), preserve it
-    #         if not (r < 50 and g < 50 and b < 50):
-    #             return False
-    #     except Exception:
-    #         pass
+        if len(text.split()) < 10:
+            return False
 
+    # Not enough real words
+    # clean_words = [
+    #     re.sub(r'[^a-zA-Z]', '', w)
+    #     for w in text.split()
+    # ]
+    # clean_words = [w for w in clean_words if len(w) > 2]
+    # if len(clean_words) < 3:  # 3 au lieu de 4 — les lignes sont plus courtes que les blocs
+    #     return False
 
-    # Références et sections marquées
-    if getattr(block, 'skip_translation', False):
+    # Too many digit tokens (formulas, raw data)
+    # digit_tokens = sum(1 for w in text.split() if w.isdigit())
+    # if digit_tokens / max(len(text.split()), 1) > 0.3:
+    #     return False
+    
+    if getattr(line, 'skip_translation', False):
+        
         return False
     
     return True
 
 
+def should_translateSSSS(block: FitzBlock) -> bool:
+    """
+    Version instrumentée pour observer en temps réel pourquoi les blocs 
+    sont acceptés ou rejetés du pipeline de traduction.
+    """
+    # Sécurité absolue : On traduit TOUJOURS les cellules de tableaux
+    if type(block).__name__ == "FitzTableBlock":
+        return True
+    
+    text = block.text.strip()
+    
+    # ── BLOC DE DÉBOGAGE VISUEL POUR LES PARAGRAPHES TRÈS LONGS OU RECHERCHÉS ──
+    is_target = "consistency" in text.lower() or "matrix" in text.lower() or len(text) > 40
+    
+    if is_target:
+        print(f"\n📢 [DEBUG should_translate] Analyse du Bloc ID: {block.block_id} (Page {block.page_number})")
+        print(f"   -> Texte extrait brut : '{text[:120]}...'")
+        print(f"   -> Découpage par espace (text.split()) : {text.split()[:4]} (Taille de la liste: {len(text.split())})")
+
+    # Règle 1 : Trop court
+    if len(text) < 5:
+        if is_target:
+            print("   ❌ REJETÉ : Le texte brut fait moins de 5 caractères.")
+        return False
+    
+    tl = text.lower()
+    
+    # Règle 2 : Titres académiques
+    is_academic_heading = False
+    if text.strip().lower() in ["abstract", "keywords", "introduction", "references", "conclusions", "acknowledgements"]:
+        is_academic_heading = True
+        
+    import re
+    if re.match(r'^\d+(\.\d+)*\.?\s+[A-Z]', text.strip()):
+        is_academic_heading = True
+        
+    if is_academic_heading:
+        if is_target:
+            print("   ✅ ACCEPTÉ : Détecté comme titre académique.")
+        return True
+
+    # Règle 3 : URLs ou DOIs isolés
+    if any(x in tl for x in ["http", "doi.org", "www.", "@"]):
+        words_count = len(text.split())
+        if words_count < 10:
+            if is_target:
+                print(f"   ❌ REJETÉ : Détecté comme URL ou DOI isolé ({words_count} mots).")
+            return False
+
+    # Règle 4 : Filtrage par mots valides (C'est ici que l'absence d'espaces pose problème !)
+    clean_words = []
+    for w in text.split():
+        cleaned = re.sub(r'[^a-zA-Z]', '', w)
+        if len(cleaned) > 2:
+            clean_words.append(cleaned)
+            
+    if is_target:
+        print(f"   -> Mots nettoyés trouvés (len > 2) : {clean_words[:5]} (Total compté: {len(clean_words)})")
+            
+    if len(clean_words) < 4:
+        if is_target:
+            print(f"   ❌ REJETÉ : Pas assez de mots distincts détectés (Seulement {len(clean_words)} trouvés, minimum requis: 4).")
+        return False
+    
+    # Règle 5 : Trop de chiffres
+    digit_tokens = sum(1 for w in text.split() if w.isdigit())
+    if digit_tokens / max(len(text.split()), 1) > 0.3:
+        if is_target:
+            print("   ❌ REJETÉ : Densité numérique trop élevée (formules ou données brutes).")
+        return False
+
+    if getattr(block, 'skip_translation', False):
+        if is_target:
+            print("   ❌ REJETÉ : skip_translation est à True.")
+        return False
+    
+    if is_target:
+        print("   🎉 ACCEPTÉ POUR TRADUCTION !")
+    return True
+
+
+
 
 @dataclass
 class Batch:
-    """Un batch de paragraphes à envoyer au LLM en un seul appel."""
-    paragraphs: list[FitzBlock]
+    """A batch of physical lines to send to the LLM in a single call."""
+    lines: list[FitzLine]
     estimated_tokens: int
 
     @property
     def ids(self) -> list[int]:
-        return [id(p) for p in self.paragraphs]
+        return [id(l) for l in self.lines]
+
+
 
 
 def _estimate_tokens(text: str) -> int:
@@ -146,71 +229,62 @@ def get_max_source_tokens(model: str) -> int:
 
 
 def build_batches(
-    paragraphs: list[FitzBlock],
+    lines: list[FitzLine],
     model: str = "gemini/gemini-2.5-flash-lite",
     max_tokens: int | None = None,
 ) -> list[Batch]:
     """
-    Découpe une liste de paragraphes en batches optimaux.
-
-    Paramètres :
-        paragraphs : liste de Paragraph à traduire
-        model      : nom du modèle LiteLLM (détermine la limite)
-        max_tokens : override manuel (None = auto depuis MODEL_TOKEN_LIMITS)
-
-    Retourne :
-        Liste de Batch, chacun prêt pour un appel LLM.
+    Splits a list of FitzLine objects into optimal LLM batches.
+    Same logic as before — only the input type changes.
     """
-    if not paragraphs:
+    if not lines:
         return []
 
     budget = max_tokens or get_max_source_tokens(model)
     batches: list[Batch] = []
-    current: list[FitzBlock] = []
+    current: list = []
     current_tokens = 0
 
-    for block in paragraphs:
-        if not block.text or not block.text.strip():
-            continue  # ignore les paragraphes vides
-
-        tokens = _estimate_tokens(block.text)
-
-        # Paragraphe trop grand seul → batch solo
-        if tokens > budget:
-            if current:
-                batches.append(Batch(paragraphs=current,
-                                     estimated_tokens=current_tokens))
-                current, current_tokens = [], 0
-            batches.append(Batch(paragraphs=[block], estimated_tokens=tokens))
+    for item in lines:
+        # item is a tuple (block, line_idx, line)
+        block, line_idx, line = item
+        text = (line.styled_text or line.text or "").strip()
+        if not text:
             continue
 
-        # Ajout au batch courant si ça rentre
+        tokens = _estimate_tokens(text)
+
+        if tokens > budget:
+            if current:
+                batches.append(Batch(lines=current, estimated_tokens=current_tokens))
+                current, current_tokens = [], 0
+            batches.append(Batch(lines=[item], estimated_tokens=tokens))
+            continue
+
         if current_tokens + tokens <= budget:
-            current.append(block)
+            current.append(item)
             current_tokens += tokens
         else:
-            # Batch courant plein → flush et nouveau batch
-            batches.append(Batch(paragraphs=current,
-                                 estimated_tokens=current_tokens))
-            current = [block]
+            batches.append(Batch(lines=current, estimated_tokens=current_tokens))
+            current = [item]
             current_tokens = tokens
 
     if current:
-        batches.append(Batch(paragraphs=current, estimated_tokens=current_tokens))
+        batches.append(Batch(lines=current, estimated_tokens=current_tokens))
 
     return batches
 
 
-def filter_noise(paragraphs: list[FitzBlock]) -> list[FitzBlock]:
-    """Filtre les paragraphes non-traductibles par analyse structurelle."""
-    kept = [p for p in paragraphs if should_translate(p)]
-    logger.debug(f"Filtrage : {len(paragraphs)} → {len(kept)} paragraphes")
+def filter_noise(lines: list[FitzLine]) -> list[FitzLine]:
+    """Filters non-translatable lines by structural analysis."""
+    kept = [l for l in lines if should_translate(l)]
+    logger.debug(f"Filter: {len(lines)} → {len(kept)} lines")
     return kept
 
 
 def batches_summary(batches: list[Batch]) -> str:
     """Résumé lisible des batches pour le logging."""
-    total_paras  = sum(len(b.paragraphs) for b in batches)
+    total_paras  = sum(len(b.lines) for b in batches)
     total_tokens = sum(b.estimated_tokens for b in batches)
     lines = [
         f"  {len(batches)} batch(es) | "
@@ -220,7 +294,7 @@ def batches_summary(batches: list[Batch]) -> str:
     for i, b in enumerate(batches):
         lines.append(
             f"  Batch {i+1:02d} : "
-            f"{len(b.paragraphs)} para(s), "
+            f"{len(b.lines)} para(s), "
             f"~{b.estimated_tokens:,} tokens"
         )
     return "\n".join(lines)

@@ -130,9 +130,9 @@ class LLMClient:
             success = self._translate_batch_with_retry(batch)
 
             if not success:
-                for para in batch.paragraphs:
-                    para.translated_text = f"[TRANSLATION FAILED] {para.text}"
-                    failed.append(id(para))
+                for line in batch.lines:
+                    line.translated_text = f"[TRANSLATION FAILED] {line.text}"
+                    failed.append(id(line))
                 logger.error(
                     f"Batch {i+1} échoué après {_MAX_RETRIES} tentatives."
                 )
@@ -176,8 +176,8 @@ class LLMClient:
         silencieusement avec décompte dans la status bar.
         """
         batch_data = [
-            {"id": i, "text": para.text}
-            for i, para in enumerate(batch.paragraphs)
+            {"id": i, "text": line.styled_text or line.text}
+            for i, line in enumerate(batch.lines)
         ]
 
         current_model = self.model
@@ -201,15 +201,15 @@ class LLMClient:
                 if results is None:
                     continue
 
-                id_to_para = {i: p for i, p in enumerate(batch.paragraphs)}
+                id_to_line = {i: l for i, l in enumerate(batch.lines)}
                 for item in results:
                     idx = item.get("id")
                     translated = item.get("translated", "").strip()
-                    if idx in id_to_para and translated:
-                        id_to_para[idx].translated_text = decode_styled_text(translated)
+                    if idx in id_to_line and translated:
+                        id_to_line[idx].translated_text = decode_styled_text(translated)
 
                 all_translated = all(
-                    p.translated_text for p in batch.paragraphs
+                    p.translated_text for p in batch.lines
                 )
                 if all_translated:
                     return True

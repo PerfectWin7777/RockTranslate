@@ -20,7 +20,7 @@ load_dotenv()
 from core.fitz_extractor import FitzExtractor
 from core.table_detector import  page_has_table
 from core.reading_order import ReadingOrderSorter
-from core.domain import FitzDocument, FitzPage
+from core.domain import FitzDocument, FitzPage, FitzBlock
 from core.reading_order import ReadingOrderSorter
 
 # UI Imports
@@ -93,6 +93,12 @@ class ExtractionWorker(QThread):
             for page_num in range(total_pages):
                 page = pdf[page_num]
 
+                # Blank out all words before rendering the background PNG
+                for word in page.get_text("words"):
+                    page.draw_rect(
+                        fitz.Rect(word[0], word[1], word[2], word[3]),
+                        color=(1, 1, 1), fill=(1, 1, 1)
+                    )
                 png_b64 = extractor._generate_page_image_b64(page)
 
                 fitz_page = FitzPage(
@@ -123,7 +129,7 @@ class TranslationWorker(QThread):
     - Les erreurs rate-limit sont gérées silencieusement dans LLMClient ;
       seules les erreurs vraiment fatales remontent via error.emit()
     """
-    block_done     = pyqtSignal(int, int, str)  # page_idx, block_id, translated_text
+    block_done = pyqtSignal(int, int, int, str)  # page_idx, block_id, line_idx, translated
     batch_progress = pyqtSignal(int, int)        # batches_done, total_batches
     page_done      = pyqtSignal()               # une page entièrement traitée
     finished       = pyqtSignal()
@@ -176,54 +182,44 @@ class TranslationWorker(QThread):
                 page_num = page_idx + 1
                 page_obj = pdf[page_idx]
 
-                # 1. Détermination de la présence de tableaux
-                has_tables = page_has_table(page_obj)
-                
-                txt = "extraction du texte..." if has_tables else "extraction du tableau..."
                 self.status_update.emit(
-                    f"Page {page_num}/{total_pages} : {txt}"
+                    f"Page {page_num}/{total_pages} : extraction en cours..."
                 )
 
-                # On extrait toujours les blocs de texte (extract_tables=True uniquement s'il y a des tableaux)
-                fitz_page = self.extractor._extract_page(
-                    page_obj, page_num, extract_tables=has_tables
-                )
+                # 1. Extract and sort the page
+                fitz_page = self.extractor._extract_page(page_obj, page_num)
 
-                # Réorganisation dans l'ordre de lecture humain
                 fitz_page.blocks = sorter.process_page_layout(
                     fitz_page.blocks, fitz_page.width
                 )
 
-                # Mise à jour du document en mémoire
                 self.document.pages[page_idx] = fitz_page
 
-                # 2. Collecte des blocs traduisibles de cette page
-                # page_blocks = [b for b in fitz_page.blocks if should_translate(b)]
+                # 2. Collect translatable lines (new unit — FitzLine, not FitzBlock)
+                page_lines = [
+                    (block, line_idx, line)
+                    for block in fitz_page.blocks
+                    if isinstance(block, FitzBlock)
+                    for line_idx, line in enumerate(block.lines)
+                    if should_translate(line)
+                ]
 
-                # 2. Collecte des blocs traduisibles de cette page
-                page_blocks = []
-                for b in fitz_page.blocks:
-                    if type(b).__name__ == "FitzTableBlock":
-                        page_blocks.extend(self.extractor.get_translatable_cell_blocks(b))
-                    else:
-                        if should_translate(b):
-                            page_blocks.append(b)
+              
 
-
-                if not page_blocks:
+                if not page_lines:
                     self.page_done.emit()
                     continue
 
-                # 3. Construction du contexte glissant à injecter
+                # 3. Sliding context
                 context_str: str | None = None
                 if sliding_context:
                     context_str = "\n".join(sliding_context)
 
-                # 4. Traduction par batches avec contexte
+                # 4. Build batches and translate
                 self.status_update.emit(
                     f"Page {page_num}/{total_pages} : traduction en cours..."
                 )
-                batches = build_batches(page_blocks, self.model)
+                batches = build_batches(page_lines, self.model)
 
                 for batch_idx, batch in enumerate(batches):
                     if self._stop:
@@ -231,48 +227,39 @@ class TranslationWorker(QThread):
 
                     self.batch_progress.emit(batch_idx + 1, len(batches))
 
-                    # Prépare les données du batch
                     batch_data = [
-                        {"id": idx, "text": block.styled_text or block.text}
-                        for idx, block in enumerate(batch.paragraphs)
+                        {"id": idx, "text": line.styled_text or line.text}
+                        for idx, (block, line_idx, line) in enumerate(batch.lines)
                     ]
-                    
-                    block_map = {
-                        idx: block
-                        for idx, block in enumerate(batch.paragraphs)
+                    line_map = {
+                        idx: (block, line_idx, line)
+                        for idx, (block, line_idx, line) in enumerate(batch.lines)
                     }
 
-                    # Appel LLM avec contexte glissant
-                    # Le contexte est passé uniquement au premier batch de la page
-                    # (les suivants partagent déjà la même fenêtre de tokens)
-                    ctx = context_str if batch_idx == 0 else None
+                    ctx     = context_str if batch_idx == 0 else None
                     results = client._call_llm(batch_data, context=ctx)
 
                     if not results:
                         continue
 
-                    # 5. Dispatch des traductions + mise à jour du contexte glissant
+                    # 5. Dispatch translations — one emit per line
                     for res in results:
                         idx        = res.get("id")
                         translated = res.get("translated", "").strip()
-                        if idx in block_map and translated:
-                            block = block_map[idx]
-                            block.translated_text = translated
-
-                            # Émission vers l'UI (injection JS dans Chromium)
+                        if idx in line_map and translated:
+                            block, line_idx, line = line_map[idx]
+                            line.translated_text = translated
                             self.block_done.emit(
-                                page_idx, block.block_id, translated
+                                page_idx, block.block_id, line_idx, translated
                             )
 
-                            # Mise à jour du contexte glissant
                             sliding_context.append(translated)
 
-                    # On ne garde que les N dernières traductions
                     if len(sliding_context) > _SLIDING_CONTEXT_SIZE:
                         sliding_context = sliding_context[-_SLIDING_CONTEXT_SIZE:]
 
-                # 6. Une seule émission par page → comptage propre dans ProgressPanel
                 self.page_done.emit()
+
 
             pdf.close()
             self.finished.emit()
@@ -281,18 +268,18 @@ class TranslationWorker(QThread):
             err_msg = str(e).lower()
             import traceback
             traceback.print_exc()
-            # is_rate_limit = any(x in err_msg for x in [
-            #     "rate_limit", "rate limit", "429", "overloaded",
-            #     # "resource_exhausted", "resource exhausted", "quota"
-            # ])
-            # if is_rate_limit:
-            #     # Ne remonte pas en QMessageBox — déjà géré dans LLMClient
-            #     self.status_update.emit(
-            #         "⏳ Limite API atteinte — la traduction reprendra automatiquement."
-            #     )
-            # else:
-            #     # Erreur vraiment fatale → QMessageBox dans MainWindow
-            #     self.error.emit(str(e))
+            is_rate_limit = any(x in err_msg for x in [
+                "rate_limit", "rate limit", "429", "overloaded",
+                "resource_exhausted", "resource exhausted", "quota"
+            ])
+            if is_rate_limit:
+                # Ne remonte pas en QMessageBox — déjà géré dans LLMClient
+                self.status_update.emit(
+                    "⏳ Limite API atteinte — la traduction reprendra automatiquement."
+                )
+            else:
+                # Erreur vraiment fatale → QMessageBox dans MainWindow
+                self.error.emit(str(e))
 
     def stop(self):
         self._stop = True
@@ -629,49 +616,30 @@ class MainWindow(QMainWindow):
         self.a_start.setText("⏹  Arrêter la traduction")
         self._worker.start()
 
-    def _on_block_translated(self, page_idx: int, block_idx: int, translated_text: str):
-        # print(f"[MAIN] page={page_idx} block={block_idx}")
-        if self._document and page_idx < len(self._document.pages):
-            page = self._document.pages[page_idx]
-            
-            # 1. Traitement des cellules de tableau (ID >= 10000)
-            if block_idx >= 10000:
-                parent_table_id = (block_idx // 10000) - 1
-                cell_index = (block_idx % 10000) - 1
-                
-                for b in page.blocks:
-                    if b.block_id == parent_table_id and hasattr(b, "translated_cells"):
-                        cells = b.get_cells()
-                        if 0 <= cell_index < len(cells):
-                            cell_words = cells[cell_index]
-                            left = min(w["x0"] for w in cell_words)
-                            top = min(w["top"] for w in cell_words)
-                            right = max(w["x1"] for w in cell_words)
-                            bottom = max(w["bottom"] for w in cell_words)
-                            first = cell_words[0]
-                            
-                            # Persistance de la traduction dans le modèle de données
-                            b.translated_cells[cell_index] = {
-                                "text":      translated_text,
-                                "x0":        left,
-                                "top":       top,
-                                "x1":        right,
-                                "bottom":    bottom,
-                                "font_size": first.get("font_size", 8.5),
-                                "is_bold":   first.get("is_bold", False),
-                                "is_italic": first.get("is_italic", False),
-                                "color":     first.get("color", "rgb(0,0,0)")
-                            }
-                        break
-            # 2. Traitement des blocs de texte classiques
-            else:
-                for b in page.blocks:
-                    if b.block_id == block_idx:
-                        b.translated_text = translated_text
-                        break
+    def _on_block_translated(self, page_idx: int, block_id: int, line_idx: int, translated_text: str):
+            """
+            Receives a translated line and forwards it to the TranslationViewer
+            for surgical JS injection into Chromium.
+            """
+            if not (self._document and page_idx < len(self._document.pages)):
+                return
 
-        # Mise à jour graphique de la vue web
-        self.trans_panel.update_block_translation(page_idx, block_idx, translated_text)
+            # Update the in-memory model
+            # page = self._document.pages[page_idx]
+            # for block in page.blocks:
+            #     if block.block_id == block_id and hasattr(block, "lines"):
+            #         for line in block.lines:
+            #             if id(line) == line_idx:
+            #                 line.translated_text = translated_text
+            #                 break
+            
+            # Sync viewer pages with the document updated by the worker
+            self.trans_panel.pages = self._document.pages
+
+            # Forward to viewer for JS injection
+            self.trans_panel.update_block_translation(
+                page_idx, block_id, line_idx, translated_text
+            )
 
 
     def _on_translation_finished(self):

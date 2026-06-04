@@ -17,8 +17,8 @@
 # 4. Régularité des lignes
 # 5. Densité documentaire
 # 6. Fragmentation linguistique
-#
-# Auteur : adapté pour moteur documentaire avancé
+# 7. Signature multi-gouttières (Alignement multicomptes)
+# 8. Signature booktabs (Lignes de démarcation horizontales larges)
 
 from __future__ import annotations
 
@@ -132,19 +132,25 @@ class TableDetector:
             "fragmented_text": self._detect_fragmentation(lines),
             "numeric_pattern": self._detect_numeric_patterns(lines),
             "grid_structure": self._detect_grid_structure(lines),
+            "multi_gutter_grid": self._detect_multi_gutter_grid(lines), # Indice 2
+            "booktabs_rules": self._detect_booktabs_rules(page, lines), # Indice 3
         }
 
         score = self._compute_score(features)
 
-        # --- FILTRE SÉMANTIQUE DE SÉCURITÉ AVANT CONVERSION ---
-        # Un vrai tableau de données doit posséder au moins une signature sémantique
-        # (soit des motifs numériques, soit du texte fragmenté typique de cellules courtes).
-        # Si la page a un score élevé de mise en page mais n'a aucun de ces deux indices,
-        # c'est un faux positif (ex: abstract multi-colonnes). On le rejette immédiatement
-        # pour éviter de lancer la conversion Word lente (pdf2docx) inutilement.
-        has_table = score >= 9
+        # Seuil ajusté à 12 à la suite de l'ajout des deux nouvelles signatures majeures
+        has_table = score >= 12
+        
+        # --- FILTRE SÉMANTIQUE DE SÉCURITÉ CONSOLIDÉ ---
+        # Un vrai tableau doit posséder au moins un des indicateurs structurels ou sémantiques forts
         if has_table:
-            if not features["numeric_pattern"] and not features["fragmented_text"]:
+            strong_signals = [
+                features["numeric_pattern"],
+                features["fragmented_text"],
+                features["multi_gutter_grid"],
+                features["booktabs_rules"]
+            ]
+            if not any(strong_signals):
                 has_table = False
 
         return {
@@ -224,7 +230,7 @@ class TableDetector:
 
         try:
             drawings = page.get_drawings()
-
+            rot_matrix = page.rotation_matrix # On récupère la matrice de la page
             horizontal = 0
             vertical = 0
 
@@ -235,10 +241,9 @@ class TableDetector:
                 if not rect:
                     continue
 
-                x0, y0, x1, y1 = rect
-
-                w = x1 - x0
-                h = y1 - y0
+                rotated_rect = fitz.Rect(rect) * rot_matrix
+                w = rotated_rect.x1 - rotated_rect.x0
+                h = rotated_rect.y1 - rotated_rect.y0
 
                 # horizontal line
                 if w > 80 and h < 3:
@@ -431,6 +436,113 @@ class TableDetector:
         return consistent >= 3
 
     # ========================================================
+    # INDICE 2 : ALIGNEMENT MULTICOMPTES (MULTI-GUTTER)
+    # ========================================================
+
+    def _detect_multi_gutter_grid(self, lines: List[TextLine]) -> bool:
+        """
+        Détecte si au moins 3 lignes consécutives présentent des vides (gouttières)
+        alignés verticalement sur au moins 2 colonnes (ce qui dessine un tableau à 3 colonnes).
+        """
+        if len(lines) < 3:
+            return False
+
+        # Balayage par fenêtre glissante de 3 lignes
+        for idx in range(len(lines) - 2):
+            window_lines = lines[idx:idx+3]
+            
+            # Extraction des segments d'espaces vides (gouttières) sur chaque ligne
+            line_gaps = []
+            for line in window_lines:
+                gaps = []
+                for i in range(1, len(line.words)):
+                    gap_x0 = line.words[i-1].x1
+                    gap_x1 = line.words[i].x0
+                    if gap_x1 - gap_x0 > 6.0: # Écart d'au moins 6pt
+                        gaps.append((gap_x0, gap_x1))
+                line_gaps.append(gaps)
+                
+            # Vérification de l'alignement (intersection d'intervalles X sur les 3 lignes)
+            aligned_count = 0
+            for g1_x0, g1_x1 in line_gaps[0]:
+                # Intersection avec la ligne 2
+                ov2 = [g2 for g2 in line_gaps[1] if max(g1_x0, g2[0]) < min(g1_x1, g2[1])]
+                if ov2:
+                    # Intersection des résidus avec la ligne 3
+                    for g2_x0, g2_x1 in ov2:
+                        overlap_x0 = max(g1_x0, g2_x0)
+                        overlap_x1 = min(g1_x1, g2_x1)
+                        ov3 = [g3 for g3 in line_gaps[2] if max(overlap_x0, g3[0]) < min(overlap_x1, g3[1])]
+                        if ov3:
+                            aligned_count += 1
+                            break # On a validé cet alignement vertical
+            
+            if aligned_count >= 2: # Au moins 2 gouttières alignées (définissant 3 colonnes)
+                return True
+
+        return False
+
+    # ========================================================
+    # INDICE 3 : LIGNES DE DÉMARCATION HORIZONTALES (BOOKTABS)
+    # ========================================================
+
+    def _detect_booktabs_rules(self, page: fitz.Page, lines: List[TextLine]) -> bool:
+        """
+        Repère si un bloc de données textuelles se retrouve entouré de lignes
+        vectorielles horizontales très larges (style booktabs académique).
+        """
+        try:
+            drawings = page.get_drawings()
+        except Exception:
+            return False
+
+        page_w = page.rect.width
+        horizontal_rules = []
+
+        for d in drawings:
+            rect = d.get("rect")
+            if not rect:
+                continue
+            x0, y0, x1, y1 = rect
+            w = x1 - x0
+            h = y1 - y0
+            
+            # Ligne horizontale fine (h < 4.0) et large (> 30% de la page)
+            if w > page_w * 0.30 and h < 4.0:
+                horizontal_rules.append(y0)
+
+        if len(horizontal_rules) < 2:
+            return False
+
+        horizontal_rules.sort()
+
+        # Évaluation des bandes de texte situées entre deux lignes vectorielles consécutives
+        for i in range(len(horizontal_rules) - 1):
+            y_top = horizontal_rules[i]
+            y_bot = horizontal_rules[i+1]
+            
+            # Captures des lignes textuelles s'insérant dans cet intervalle
+            lines_in_between = [l for l in lines if y_top < l.y < y_bot]
+            
+            if len(lines_in_between) >= 2:
+                total_words = sum(len(l.words) for l in lines_in_between)
+                if total_words > 0:
+                    # Calcul de la densité numérique du bloc "emprisonné"
+                    digit_count = sum(sum(1 for c in w.text if c.isdigit()) for l in lines_in_between for w in l.words)
+                    digit_ratio = digit_count / total_words
+                    
+                    # RÈGLE D'INTELLIGENCE : Pour être un tableau, ce bloc emprisonné doit :
+                    # 1. Soit contenir une vraie densité de données (chiffres > 15%)
+                    if digit_ratio > 0.15:
+                        return True
+                        
+                    # 2. Soit présenter une vraie structure de grille (au moins 3 colonnes / 2 gouttières alignées)
+                    if self._detect_multi_gutter_grid(lines_in_between):
+                        return True
+
+        return False
+
+    # ========================================================
     # SCORE ENGINE
     # ========================================================
 
@@ -458,6 +570,12 @@ class TableDetector:
 
         if f["grid_structure"]:
             score += 5
+            
+        if f["multi_gutter_grid"]:
+            score += 5 # Poids important car signature d'alignement géométrique forte
+
+        if f["booktabs_rules"]:
+            score += 4 # Poids important car signature vectorielle académique forte
 
         return score
 

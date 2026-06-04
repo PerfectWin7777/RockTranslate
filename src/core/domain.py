@@ -25,22 +25,18 @@ class FitzSpan:
 
     @property
     def width(self) -> float:
-        """Calculates the physical width of the span."""
         return self.right - self.left
 
     @property
     def height(self) -> float:
-        """Calculates the physical height of the span."""
         return self.bottom - self.top
 
     @property
     def x_center(self) -> float:
-        """Returns the horizontal midpoint of the span."""
         return (self.left + self.right) / 2.0
 
     @property
     def y_center(self) -> float:
-        """Returns the vertical midpoint of the span."""
         return (self.top + self.bottom) / 2.0
 
 
@@ -48,6 +44,8 @@ class FitzSpan:
 class FitzLine:
     """
     Represents a line of text, containing one or more styled Spans.
+    Now enriched with layout, translation, and grouping fields
+    to serve as the primary rendering unit.
     """
     spans: List[FitzSpan] = field(default_factory=list)
     left: float = 0.0
@@ -55,17 +53,23 @@ class FitzLine:
     right: float = 0.0
     bottom: float = 0.0
 
+    # ── Nouveaux champs (nouvelle approche ligne par ligne) ───────────────────
+    layout: str = "one_col"               # "one_col" ou "two_col"
+    translated_text: Optional[str] = None # Texte traduit final (rendu HTML)
+    styled_text: Optional[str] = None     # Texte balisé envoyé au LLM (<b>, <i>, <color_HEX>…)
+    block_id: int = 0                     # Identifiant du bloc sémantique auquel appartient la ligne
+
     @property
     def text(self) -> str:
         """
         Reconstructs the raw line text by joining spans.
         Preserves space separation between inline spans.
         """
-        return " ".join(s.text for s in self.spans if s.text.strip())
+        raw = " ".join(s.text for s in self.spans if s.text.strip())
+        return re.sub(r'\s+', ' ', raw).strip()
 
     @property
     def height(self) -> float:
-        """Calculates the line height based on bounding boxes."""
         return self.bottom - self.top
 
 
@@ -73,7 +77,7 @@ class FitzLine:
 class FitzBlock:
     """
     Represents a structured visual block (paragraph, heading, or caption).
-    Handles layout logic, styling, and text properties for translation context.
+    Kept for compatibility — no longer the primary rendering unit.
     """
     block_id: int
     lines: List[FitzLine] = field(default_factory=list)
@@ -81,63 +85,52 @@ class FitzBlock:
     top: float = 0.0
     right: float = 0.0
     bottom: float = 0.0
-    
-    # Layout and styling attributes
-    column: int = 0             # 0 = full-width (1-col), 1 = left column, 2 = right column
-    alignment: str = "left"     # "left", "center", "justify"
-    bg_color: str = "white"     # Background color detected under this block
+
+    column: int = 0
+    alignment: str = "left"
+    bg_color: str = "white"
     line_height_ratio: float = 1.15
     page_number: int = 0
-    
-    # Translation lifecycle attributes
+
     skip_translation: bool = False
     translated_text: Optional[str] = None
     styled_text: Optional[str] = None
 
     @property
     def width(self) -> float:
-        """Returns the physical block width."""
         return self.right - self.left
 
     @property
     def height(self) -> float:
-        """Returns the physical block height."""
         return self.bottom - self.top
 
     @property
     def x_center(self) -> float:
-        """Returns the horizontal midpoint of the block."""
         return (self.left + self.right) / 2.0
 
     @property
     def y_center(self) -> float:
-        """Returns the vertical midpoint of the block."""
         return (self.top + self.bottom) / 2.0
 
     @property
     def text(self) -> str:
-        """Reconstructs the full block text from all lines."""
         return " ".join(line.text for line in self.lines if line.text.strip())
 
     @property
     def first_line_text(self) -> str:
-        """Retrieves text of the first line. Useful for heading checks."""
         return self.lines[0].text if self.lines else ""
 
     @property
     def last_line_text(self) -> str:
-        """Retrieves text of the last line. Useful for cross-page hyphen checks."""
         return self.lines[-1].text if self.lines else ""
 
     @property
     def has_hyphen_end(self) -> bool:
-        """Detects if the block text ends with a hyphen (indicates word split)."""
         clean_last = self.last_line_text.strip()
         return clean_last.endswith("-") if clean_last else False
 
     @property
     def ends_with_punctuation(self) -> bool:
-        """Checks if the block ends with sentence-ending punctuation."""
         clean_text = self.text.strip()
         if not clean_text:
             return False
@@ -145,19 +138,18 @@ class FitzBlock:
 
     @property
     def fs_dominant(self) -> float:
-        """Computes the dominant font size within this block."""
         if not self.lines:
             return 9.0
         sizes = [s.font_size for line in self.lines for s in line.spans]
-        return max(sizes) if sizes else 9.0
-
+        if not sizes:
+            return 9.0
+        return sorted(sizes)[len(sizes) // 2]
 
 
 @dataclass
 class FitzTableBlock:
     """
-    Represents a table zone. Words with individual bbox and styles
-    extracted from fitz spans via pdfplumber position matching.
+    Represents a table zone.
     """
     block_id: int
     left: float
@@ -169,56 +161,16 @@ class FitzTableBlock:
     translated_text: Optional[str] = None
     bg_color: str = "white"
     words: list = field(default_factory=list)
-    translated_cells: dict = field(default_factory=dict)  # {cell_index: translated_text}
+    translated_cells: dict = field(default_factory=dict)
+
+    col_boundaries: list = field(default_factory=list)
+    cells: list[list[dict]] = field(default_factory=list)
 
     def get_cells(self) -> list[list[dict]]:
-        """
-        Regroupe spatialement les mots du tableau en cellules physiques (lignes x colonnes).
-        Retourne une liste de cellules, où chaque cellule est une liste de mots d'origine.
-        """
-        if not self.words:
-            return []
-        
-        # 1. Tri vertical par ligne (top) puis horizontal (x0)
-        sorted_words = sorted(self.words, key=lambda w: (w["top"], w["x0"]))
-        
-        # 2. Regroupement par lignes physiques (tolérance verticale de 4.0 px)
-        lines = []
-        current_line = []
-        for w in sorted_words:
-            if not current_line:
-                current_line.append(w)
-            else:
-                if abs(w["top"] - current_line[-1]["top"]) < 4.0:
-                    current_line.append(w)
-                else:
-                    lines.append(current_line)
-                    current_line = [w]
-        if current_line:
-            lines.append(current_line)
-            
-        # 3. Regroupement horizontal en cellules (tolérance d'écart de 15.0 px)
-        cells = []
-        for line in lines:
-            line_sorted = sorted(line, key=lambda w: w["x0"])
-            current_cell = []
-            for w in line_sorted:
-                if not current_cell:
-                    current_cell.append(w)
-                else:
-                    gap = w["x0"] - current_cell[-1]["x1"]
-                    if gap < 15.0:
-                        current_cell.append(w)
-                    else:
-                        cells.append(current_cell)
-                        current_cell = [w]
-            if current_cell:
-                cells.append(current_cell)
-        return cells
+        return self.cells
 
     @property
     def text(self) -> str:
-        """Retourne le texte complet du tableau découpé pour des besoins d'indexation."""
         cells = self.get_cells()
         phrases = [" ".join(w["text"] for w in cell if w.get("text")) for cell in cells]
         return " | ".join(p for p in phrases if p.strip())
@@ -233,19 +185,19 @@ class FitzTableBlock:
     def y_center(self): return (self.top + self.bottom) / 2.0
     @property
     def fs_dominant(self): return 8.5
-    
+
 
 @dataclass
 class FitzPath:
     """
-    Represents vector elements (background fills, dividers) to overlay under text.
+    Represents vector elements (background fills, dividers).
     """
     left: float
     top: float
     width: float
     height: float
-    fill_color: Optional[str] = None      # Format: "rgb(r,g,b)" or None
-    stroke_color: Optional[str] = None    # Format: "rgb(r,g,b)" or None
+    fill_color: Optional[str] = None
+    stroke_color: Optional[str] = None
     stroke_width: float = 0.0
 
 
