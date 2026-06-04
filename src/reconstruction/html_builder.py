@@ -247,7 +247,7 @@ class HTMLBuilder:
             f'align-items: center; '
             f'padding: 1px 2px; '
             f'margin: -1px -2px;'
-            f'">{text_to_render}</div>\n'
+            f'"><span style="display: inline-block; width: 100%; white-space: nowrap;">{text_to_render}</span></div>\n'
         )
 
     # ──────────────────────────────────────────────────────────────────────────

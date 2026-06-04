@@ -166,7 +166,7 @@ class TranslationViewer(QWidget):
         )
 
         safe_html = json.dumps(line_html)
-        js_code   = f"updateBlock({page_idx}, {block_id}, {line_idx}, {safe_html});"
+        js_code   = f"updateBlock({page_idx}, {block_id}, {id(target_line)}, {safe_html});"
         self._run_js(js_code)
     
 
