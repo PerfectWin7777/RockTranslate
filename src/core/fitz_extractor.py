@@ -89,11 +89,11 @@ class FitzExtractor:
         blocks = self._extract_text_blocks(page, page_number, paths, image_rects)
 
         # 2. THEN blank words
-        # for word in page.get_text("words"):
-        #     page.draw_rect(
-        #         fitz.Rect(word[0], word[1], word[2], word[3]),
-        #         color=(1, 1, 1), fill=(1, 1, 1)
-        #     )
+        for word in page.get_text("words"):
+            page.draw_rect(
+                fitz.Rect(word[0], word[1], word[2], word[3]),
+                color=(1, 1, 1), fill=(1, 1, 1)
+            )
 
         # 3. THEN generate PNG
         png_b64 = self._generate_page_image_b64(page)

@@ -5,7 +5,7 @@ import math
 from typing import List
 from core.domain import FitzDocument, FitzPage, FitzBlock, FitzPath, FitzTableBlock, FitzLine
 from utils.style_codec import decode_styled_text
-
+from translation.chunker import should_translate
 
 class HTMLBuilder:
     """
@@ -19,12 +19,17 @@ class HTMLBuilder:
     # ──────────────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def build_document(document: FitzDocument, show_blurred_overlay: bool = False) -> str:
+    def build_document(
+        document: FitzDocument, 
+        show_blurred_overlay: bool = False,
+        show_skeletons: bool = False
+    ) -> str:
         """
         Generates a continuous scrollable HTML document — all pages stacked vertically.
         Each line of each block is rendered as an absolutely positioned div.
         """
         pages_html = ""
+
 
         for page_idx, page in enumerate(document.pages):
             display_w = int(page.width)
@@ -48,6 +53,7 @@ class HTMLBuilder:
                         col_left_max=col_left_max,
                         col_right_min=col_right_min,
                         page_idx=page_idx,
+                        show_skeletons=show_skeletons,
                     )
 
             blur_class = "blurred-layout" if show_blurred_overlay else ""
@@ -136,6 +142,31 @@ class HTMLBuilder:
             from {{ opacity: 0; transform: scale(0.97); }}
             to   {{ opacity: 1; transform: scale(1); }}
         }}
+
+    /* ── ANIMATIONS DU SQUELETTE ET DE L'APPARITION DU TEXTE ── */
+        @keyframes shimmer {{
+            0% {{ background-position: -200% 0; }}
+            100% {{ background-position: 200% 0; }}
+        }}
+        
+        .skeleton-line {{
+            display: inline-block;
+            width: 100%;
+            height: 10px;
+            background: linear-gradient(90deg, #f1f5f9 25%, #cbd5e1 50%, #f1f5f9 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.8s infinite linear;
+            border-radius: 4px;
+        }}
+        
+        .fade-in {{
+            animation: fadeInEffect 0.5s ease-out forwards;
+        }}
+        
+        @keyframes fadeInEffect {{
+            from {{ opacity: 0; transform: translateY(1px); }}
+            to   {{ opacity: 1; transform: translateY(0); }}
+        }}
     </style>
 
     <script>
@@ -171,6 +202,7 @@ class HTMLBuilder:
         col_left_max: float,
         col_right_min: float,
         page_idx: int,
+        show_skeletons: bool = False,
     ) -> str:
         """
         Generates one absolutely positioned div for a single FitzLine.
@@ -185,8 +217,12 @@ class HTMLBuilder:
         """
         page_center = page_width / 2.0
 
-        if line.translated_text:
-            text_to_render = decode_styled_text(line.translated_text)
+        # ── Sélection dynamique de l'état : Squelette, Traduit, ou Anglais initial ──
+        if show_skeletons and should_translate(line) and not line.translated_text:
+            text_to_render = '<span class="skeleton-line"></span>'
+            ratio = 1.0
+        elif line.translated_text:
+            text_to_render = f'<span class="fade-in">{decode_styled_text(line.translated_text)}</span>'
             raw_original   = re.sub(r'<[^>]+>', '', line.styled_text or line.text)
             raw_translated = re.sub(r'<[^>]+>', '', line.translated_text)
             

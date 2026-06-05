@@ -109,13 +109,13 @@ class TranslationViewer(QWidget):
         """
         print(f"[SET_TRANSLATION_STARTED] started={started}")
         self.is_translation_started = started
-        if started:
-            self._run_js(
-                "document.querySelectorAll('.glass-overlay').forEach(e=>e.remove());"
-                "document.querySelectorAll('.blurred-layout').forEach(e=>e.classList.remove('blurred-layout'));"
-            )
-        else:
-            self.refresh_view()
+        # if started:
+        #     self._run_js(
+        #         "document.querySelectorAll('.glass-overlay').forEach(e=>e.remove());"
+        #         "document.querySelectorAll('.blurred-layout').forEach(e=>e.classList.remove('blurred-layout'));"
+        #     )
+        # else:
+        self.refresh_view()
 
     def goto_page(self, page_index: int):
         if 0 <= page_index < len(self.pages):
@@ -163,6 +163,7 @@ class TranslationViewer(QWidget):
             col_left_max=col_left_max,
             col_right_min=col_right_min,
             page_idx=page_idx,
+            show_skeletons=self.is_translation_started, # Conserve l'état squelette pour les autres lignes
         )
 
         safe_html = json.dumps(line_html)
@@ -172,8 +173,8 @@ class TranslationViewer(QWidget):
 
     def refresh_view(self):
        
-        if self.is_translation_started:  # ← garde de sécurité
-           return
+        # if self.is_translation_started:  # ← garde de sécurité
+        #    return
         if not self._document_ref:
             self.web_view.load(QUrl("about:blank"))
             return
@@ -181,6 +182,7 @@ class TranslationViewer(QWidget):
         html_content = HTMLBuilder.build_document(
             self._document_ref,
             show_blurred_overlay=not self.is_translation_started,
+            show_skeletons=self.is_translation_started
         )
 
         # Nettoyage de l'ancien fichier temporaire

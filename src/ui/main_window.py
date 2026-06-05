@@ -132,6 +132,7 @@ class TranslationWorker(QThread):
     block_done = pyqtSignal(int, int, int, str)  # page_idx, block_id, line_idx, translated
     batch_progress = pyqtSignal(int, int)        # batches_done, total_batches
     page_done      = pyqtSignal()               # une page entièrement traitée
+    page_layout_ready = pyqtSignal(int)  # page_idx
     finished       = pyqtSignal()
     status_update  = pyqtSignal(str)
     error          = pyqtSignal(str)
@@ -194,6 +195,8 @@ class TranslationWorker(QThread):
                 )
 
                 self.document.pages[page_idx] = fitz_page
+
+                self.page_layout_ready.emit(page_idx)
 
                 # 2. Collect translatable lines (new unit — FitzLine, not FitzBlock)
                 page_lines = [
@@ -607,6 +610,7 @@ class MainWindow(QMainWindow):
             self._current_lang,
         )
         self._worker.block_done.connect(self._on_block_translated)
+        self._worker.page_layout_ready.connect(self._on_page_layout_ready)
         self._worker.batch_progress.connect(self.progress_panel.set_batches)
         self._worker.finished.connect(self._on_translation_finished)
         self._worker.error.connect(self._on_translation_error)
@@ -641,7 +645,18 @@ class MainWindow(QMainWindow):
                 page_idx, block_id, line_idx, translated_text
             )
 
-
+    def _on_page_layout_ready(self, page_idx: int):
+        """
+        Appelé dès que la géométrie d'une page est extraite en mémoire.
+        Met à jour les références et force l'affichage à dessiner les squelettes de cette page.
+        """
+        if self._document:
+            # On synchronise les pages en mémoire
+            self.trans_panel.pages = self._document.pages
+            # On demande au visualiseur de recharger l'HTML complet
+            # build_document() va dessiner instantanément tous les squelettes de la page extraite
+            self.trans_panel.refresh_view()
+            
     def _on_translation_finished(self):
         print("[TRANSLATION_FINISHED]")
         self.a_start.setText("▶  Démarrer la traduction")
