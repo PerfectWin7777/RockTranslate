@@ -280,6 +280,24 @@ class LLMClient:
         Appel LiteLLM et parsing de la réponse JSON.
         context : texte de contexte glissant injecté avant le batch.
         """
+
+        # try:
+        #     import datetime
+        #     timestamp = datetime.datetime.now().strftime("%H-%M-%S")
+        #     log_filename = f"batch_envoye_{timestamp}.txt"
+            
+        #     with open(log_filename, "w", encoding="utf-8") as log_file:
+        #         log_file.write("=== CONTEXTE GLISSANT ENVOYÉ ===\n")
+        #         log_file.write(f"{context or 'Aucun contexte (Première page)'}\n\n")
+        #         log_file.write("=== BLOCS / LIGNES ENVOYÉES ===\n")
+        #         for item in batch_data:
+        #             log_file.write(f"ID: {item['id']} | Texte: {item['text']}\n")
+            
+        #     logger.info(f"💾 Contenu du lot sauvegardé dans {log_filename}")
+        # except Exception as log_err:
+        #     logger.warning(f"Impossible de sauvegarder le log d'envoi : {log_err}")
+
+
         system_prompt = get_system_prompt(self.target_lang)
         user_message  = get_user_message(batch_data, context=context)
 
@@ -298,9 +316,8 @@ class LLMClient:
 
         response = self._litellm.completion(**kwargs)
         raw_text = response.choices[0].message.content.strip()
-        print(f"[LLM RAW] {raw_text[:200]}...")
+        print(f"[LLM RAW] {raw_text}")
 
-        logger.debug(f"  Réponse brute ({len(raw_text)} chars) : {raw_text[:120]}…")
 
         return self._parse_json_response(raw_text)
 

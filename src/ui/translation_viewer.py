@@ -152,7 +152,7 @@ class TranslationViewer(QWidget):
         target_line = target_block.lines[line_idx]
         target_line.translated_text = translated_text
 
-        col_left_max, col_right_min = HTMLBuilder._compute_column_boundaries(
+        col_left_max, col_right_min, page_right_max = HTMLBuilder._compute_column_boundaries(
             page.blocks, page.width
         )
 
@@ -162,12 +162,13 @@ class TranslationViewer(QWidget):
             page_width=page.width,
             col_left_max=col_left_max,
             col_right_min=col_right_min,
+            page_right_max=page_right_max,
             page_idx=page_idx,
             show_skeletons=self.is_translation_started, # Conserve l'état squelette pour les autres lignes
         )
 
         safe_html = json.dumps(line_html)
-        js_code   = f"updateBlock({page_idx}, {block_id}, {id(target_line)}, {safe_html});"
+        js_code   = f"updateBlock({page_idx}, {block_id}, {line_idx}, {safe_html});"
         self._run_js(js_code)
     
 

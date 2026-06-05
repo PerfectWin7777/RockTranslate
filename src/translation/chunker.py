@@ -86,9 +86,9 @@ def should_translate(line: FitzLine) -> bool:
     #     return True
 
     # Isolated URLs / DOIs
-    if any(x in tl for x in ["http", "doi.org", "www.", "@"]):
-        if len(text.split()) < 10:
-            return False
+    # if any(x in tl for x in ["http", "doi.org", "www.", "@"]):
+    #     if len(text.split()) < 10:
+    #         return False
 
     # Not enough real words
     # clean_words = [

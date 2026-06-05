@@ -6,6 +6,10 @@ from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtCore import QUrl, pyqtSignal
 
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QApplication
+from PyQt6.QtGui import QKeyEvent
+from PyQt6.QtCore import QUrl, pyqtSignal, Qt, QEvent, QTimer
+
 
 class PDFViewer(QWidget):
     """
@@ -18,6 +22,7 @@ class PDFViewer(QWidget):
     def __init__(self):
         super().__init__()
         self.total_pages = 0
+        self._zoom_factor = 1.0
         self._current_path = None
 
         self._build_ui()
@@ -36,6 +41,10 @@ class PDFViewer(QWidget):
         settings.setAttribute(QWebEngineSettings.WebAttribute.PdfViewerEnabled, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
 
+        # Se connecter au signal de fin de chargement pour forcer le zoom au bon moment
+        self.view.loadFinished.connect(self._on_load_finished)
+
+
         layout.addWidget(self.view)
 
     def load_pdf(self, path: str, zoom: float = 1.0):
@@ -49,13 +58,28 @@ class PDFViewer(QWidget):
         
         # Convert local system path to a proper file:// QUrl
         file_url = QUrl.fromLocalFile(self._current_path)
+        
+        # ── Cache le volet latéral gauche par défaut ! ──
+        file_url.setFragment("navpanes=0")
+        
         self.view.load(file_url)
 
     def set_zoom(self, zoom_factor: float):
-        """
-        Sets the zoom factor of the WebEngine page (1.0 is 100%).
-        """
+        """Force le zoom de manière standard et via l'API interne du viewport de Chrome."""
+        self._zoom_factor = zoom_factor
         self.view.setZoomFactor(zoom_factor)
+        
+        # Injecte le zoom directement dans le moteur de rendu PDF interne de Chrome
+        js_zoom = f"if(window.viewer && window.viewer.viewport_) window.viewer.viewport_.setZoom({zoom_factor});"
+        self.view.page().runJavaScript(js_zoom)
+
+
+    def _on_load_finished(self, ok: bool):
+        """Appliqué dès que le plugin PDF de Chrome a fini d'initialiser le document."""
+        if ok:
+            # Force l'application du zoom en mémoire une fois le plugin prêt
+            self.set_zoom(self._zoom_factor)
+
 
     def clear(self):
         """
@@ -63,7 +87,9 @@ class PDFViewer(QWidget):
         """
         self.view.load(QUrl("about:blank"))
         self._current_path = None
+    
 
+    
     def get_current_page_idx(self) -> int:
         """
         Placeholder index to keep compatibility with main_window.

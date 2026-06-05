@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout, QSplitter, QFileDialog, QMessageBox,
     QLabel, QStatusBar, QStackedWidget, QPushButton, QComboBox, QFrame
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QKeySequence, QAction
 import fitz  # Import temporaire pour le worker de lecture
 
@@ -207,6 +207,8 @@ class TranslationWorker(QThread):
                     if should_translate(line)
                 ]
 
+                # On trie d'abord par position verticale (top), puis par position horizontale (left)
+                page_lines.sort(key=lambda item: (item[2].top, item[2].left))
               
 
                 if not page_lines:
@@ -273,7 +275,7 @@ class TranslationWorker(QThread):
             traceback.print_exc()
             is_rate_limit = any(x in err_msg for x in [
                 "rate_limit", "rate limit", "429", "overloaded",
-                "resource_exhausted", "resource exhausted", "quota"
+                "resource_exhausted", "resource exhausted", "quota", "UNAVAILABLE"
             ])
             if is_rate_limit:
                 # Ne remonte pas en QMessageBox — déjà géré dans LLMClient
@@ -367,6 +369,10 @@ class MainWindow(QMainWindow):
         self._current_model  = SUPPORTED_MODELS["Google Gemini"][0]
         self._current_lang   = "French"
         self._zoom           = 1.0
+
+        self._scroll_sync_timer = QTimer(self)
+        self._scroll_sync_timer.setInterval(100)
+        self._scroll_sync_timer.timeout.connect(self._sync_scroll_tick)
 
         self._build_menu()
         self._build_ui()
@@ -483,6 +489,10 @@ class MainWindow(QMainWindow):
         a_zoom_reset.setShortcut(QKeySequence("Ctrl+0"))
         m_view.addAction(a_zoom_reset)
 
+        a_zoom_in.triggered.connect(lambda: self._adjust_zoom(0.1))
+        a_zoom_out.triggered.connect(lambda: self._adjust_zoom(-0.1))
+        a_zoom_reset.triggered.connect(lambda: self._adjust_zoom(0.0))
+
         m_view.addSeparator()
 
         a_fullscreen = QAction("Plein écran", self, checkable=True)
@@ -533,9 +543,17 @@ class MainWindow(QMainWindow):
         self.a_close.setEnabled(True)
         self.a_start.setEnabled(True)
 
-        self.pdf_viewer.load_pdf(self._pdf_path)
+         # 1. Chargement initial
+        self.pdf_viewer.load_pdf(self._pdf_path) # Charge le vrai PDF Chrome
         self.trans_panel.init_pages(self._document.pages, self._document)
-        # self.pdf_viewer.view.loadFinished.connect(self._sync_page)
+
+        # 2. Réinitialisation des variables de suivi
+        self._last_trans_y = 0
+        self._last_pdf_y = 0
+        self._is_syncing_scroll = False
+        
+        # 3. Démarrage de la boucle de synchronisation de défilement
+        self._scroll_sync_timer.start()
 
         self.status.showMessage(
             f"Chargement terminé : {os.path.basename(self._pdf_path)} "
@@ -543,10 +561,63 @@ class MainWindow(QMainWindow):
         )
         self.a_open.setEnabled(True)
 
-    def _sync_page(self, ok):
-        print(f"[SYNC_PAGE CALLED] ok={ok}")
-        self.trans_panel.goto_page(0)
-        # self.pdf_viewer.view.loadFinished.disconnect(self._sync_page)
+
+
+    def _adjust_zoom(self, delta: float):
+        """Ajuste le niveau de zoom de manière synchrone sur le PDF Chrome et le texte traduit."""
+        if delta == 0.0:
+            self._zoom = 1.0
+        else:
+            self._zoom = max(0.5, min(2.5, self._zoom + delta))
+        
+        self.pdf_viewer.set_zoom(self._zoom)
+        self.trans_panel.set_zoom(self._zoom)
+        self.status.showMessage(f"Zoom appliqué : {int(self._zoom * 100)}%")
+
+    def _sync_scroll_tick(self):
+        """Vérifie périodiquement si l'un des deux volets a défilé et synchronise l'autre."""
+        if getattr(self, "_is_syncing_scroll", False):
+            return
+
+        # 1. On demande la position actuelle de la traduction (HTML classique)
+        self.trans_panel.web_view.page().runJavaScript("window.scrollY", self._on_trans_scroll_received)
+
+    def _on_trans_scroll_received(self, trans_y):
+        if trans_y is None:
+            return
+
+        # Si la traduction a défilé de manière significative
+        if abs(trans_y - getattr(self, "_last_trans_y", 0)) > 3:
+            self._last_trans_y = trans_y
+            self._is_syncing_scroll = True
+            
+            # On force le défilement du PDF Chrome via son Viewport interne
+            js_scroll_pdf = f"if(window.viewer && window.viewer.viewport_) window.viewer.viewport_.position = {{x: 0, y: {trans_y}}};"
+            self.pdf_viewer.view.page().runJavaScript(
+                js_scroll_pdf, 
+                lambda _: setattr(self, "_is_syncing_scroll", False)
+            )
+            return
+
+        # 2. Si la traduction n'a pas bougé, on vérifie si le PDF Chrome a défilé
+        js_get_pdf_y = "window.viewer && window.viewer.viewport_ ? window.viewer.viewport_.position.y : null"
+        self.pdf_viewer.view.page().runJavaScript(js_get_pdf_y, self._on_pdf_scroll_received)
+
+    def _on_pdf_scroll_received(self, pdf_y):
+        if pdf_y is None:
+            return
+
+        # Si le PDF Chrome a défilé de manière significative
+        if abs(pdf_y - getattr(self, "_last_pdf_y", 0)) > 3:
+            self._last_pdf_y = pdf_y
+            self._is_syncing_scroll = True
+            
+            # On force le défilement de la page traduite HTML
+            self.trans_panel.web_view.page().runJavaScript(
+                f"window.scrollTo(0, {pdf_y});",
+                lambda _: setattr(self, "_is_syncing_scroll", False)
+            )
+
 
     def _on_extraction_error(self, err_msg: str):
         QMessageBox.critical(
@@ -557,6 +628,9 @@ class MainWindow(QMainWindow):
         self.a_open.setEnabled(True)
 
     def _close_document(self):
+ 
+        self._scroll_sync_timer.stop()
+
         self.pdf_viewer.clear()
         self.trans_panel.clear()
         self._pdf_path  = None
@@ -656,7 +730,7 @@ class MainWindow(QMainWindow):
             # On demande au visualiseur de recharger l'HTML complet
             # build_document() va dessiner instantanément tous les squelettes de la page extraite
             self.trans_panel.refresh_view()
-            
+
     def _on_translation_finished(self):
         print("[TRANSLATION_FINISHED]")
         self.a_start.setText("▶  Démarrer la traduction")

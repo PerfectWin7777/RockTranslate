@@ -36,7 +36,7 @@ class HTMLBuilder:
             display_h = int(page.height)
 
             # Compute column boundaries once per page (needed for effective_width)
-            col_left_max, col_right_min = HTMLBuilder._compute_column_boundaries(
+            col_left_max, col_right_min, page_right_max = HTMLBuilder._compute_column_boundaries(
                 page.blocks, page.width
             )
 
@@ -52,6 +52,7 @@ class HTMLBuilder:
                         page_width=page.width,
                         col_left_max=col_left_max,
                         col_right_min=col_right_min,
+                        page_right_max=page_right_max,
                         page_idx=page_idx,
                         show_skeletons=show_skeletons,
                     )
@@ -201,6 +202,7 @@ class HTMLBuilder:
         page_width: float,
         col_left_max: float,
         col_right_min: float,
+        page_right_max: float,
         page_idx: int,
         show_skeletons: bool = False,
     ) -> str:
@@ -218,31 +220,45 @@ class HTMLBuilder:
         page_center = page_width / 2.0
 
         # ── Sélection dynamique de l'état : Squelette, Traduit, ou Anglais initial ──
+        real_line_width = max(line.right - line.left, 10)
+
+        # Dynamic space budget determination
+        if line.layout == "one_col":
+            max_right = page_right_max
+        else:
+            if line.right <= page_center:
+                # Left column line
+                max_right = col_left_max
+            elif line.left >= page_center:
+                # Right column line
+                max_right = page_right_max
+            else:
+                # Crossing line
+                max_right = page_right_max
+
+        effective_width = max(max_right - line.left, 10.0)
+
         if show_skeletons and should_translate(line) and not line.translated_text:
-            text_to_render = '<span class="skeleton-line"></span>'
-            ratio = 1.0
-        elif line.translated_text:
+            text_to_render = f'<span class="skeleton-line" style="width: {real_line_width:.1f}px;"></span>'
+            raw_translated = ""
+        elif line.translated_text :
             text_to_render = f'<span class="fade-in">{decode_styled_text(line.translated_text)}</span>'
-            raw_original   = re.sub(r'<[^>]+>', '', line.styled_text or line.text)
             raw_translated = re.sub(r'<[^>]+>', '', line.translated_text)
-            
-            original_len   = max(1, len(raw_original))
-            translated_len = len(raw_translated)
-            ratio          = translated_len / original_len
 
         else:
             raw_fallback   = line.styled_text or line.text
             text_to_render = decode_styled_text(raw_fallback) if line.styled_text else line.text
-            ratio          = 1.0
+            raw_translated = ""
 
-        # sizes         = [s.font_size for s in line.spans if s.font_size]
-        # dominant_size = sorted(sizes)[len(sizes) // 2] if sizes else 9.0
-         
-        dominant_size = getattr(block, 'fs_dominant', 9.0)
+        sizes = [s.font_size for s in line.spans if s.font_size]
+        dominant_size = sorted(sizes)[len(sizes) // 2] if sizes else getattr(block, 'fs_dominant', 9.0)
 
         final_font_size = dominant_size
-        if ratio > 1.0:
-            final_font_size = max(6.0, dominant_size / ratio)
+        if raw_translated:
+            estimated_text_width = len(raw_translated) * dominant_size * 0.52
+            if estimated_text_width > effective_width:
+                scale = effective_width / max(estimated_text_width, 1.0)
+                final_font_size = max(6.0, dominant_size * scale)
 
         dominant_span = max(line.spans, key=lambda s: len(s.text)) if line.spans else None
         font_weight   = "bold"   if (dominant_span and dominant_span.is_bold)   else "normal"
@@ -257,16 +273,8 @@ class HTMLBuilder:
         final_height = max(line_height, final_font_size * 1.1)
         final_top    = y_center - final_height / 2.0
 
-        if line.layout == "one_col":
-            effective_width = page_width - line.left - 20
-        else:
-            if line.right <= page_center:
-                effective_width = col_left_max - line.left
-            else:
-                effective_width = line.right - col_right_min
-        effective_width = max(effective_width, 10)
-
-        element_id = f"line-{page_idx}-{block.block_id}-{id(line)}"
+        line_idx = block.lines.index(line)
+        element_id = f"line-{page_idx}-{block.block_id}-{line_idx}"
 
         # All styles inline — identical to the test script
         return (
@@ -300,9 +308,7 @@ class HTMLBuilder:
     @staticmethod
     def _compute_column_boundaries(blocks, page_width: float):
         """
-        Computes the right edge of the left column and the left edge of the
-        right column — used to calculate effective_width for two_col lines.
-        Mirrors the logic from the original test script.
+        Computes column boundaries and page text rightmost boundary.
         """
         page_center = page_width / 2.0
 
@@ -312,11 +318,14 @@ class HTMLBuilder:
 
         left_rights  = [l.right for l in all_lines if l.right < page_center]
         right_lefts  = [l.left  for l in all_lines if l.left  > page_center]
+        all_rights   = [l.right for l in all_lines]
 
         col_left_max  = max(left_rights,  default=page_center)
         col_right_min = min(right_lefts, default=page_center)
+        page_right_max = max(all_rights, default=page_width - 40.0)
 
-        return col_left_max, col_right_min
+        # Safety padding to avoid zero or negative budgets
+        return col_left_max, col_right_min, page_right_max
 
     # ──────────────────────────────────────────────────────────────────────────
     # FONT FAMILY HELPER

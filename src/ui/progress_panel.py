@@ -30,8 +30,8 @@ class LabeledProgressBar(QWidget):
         self.lbl_right = QLabel("", self)
 
         # Application du style visuel
-        self.lbl_left.setStyleSheet("font-size: 11px; color: #a0aec0; font-weight: 500;")
-        self.lbl_right.setStyleSheet("font-size: 11px; color: #718096;")
+        self.lbl_left.setStyleSheet("font-size: 11px;  font-weight: 500;")
+        self.lbl_right.setStyleSheet("font-size: 11px; ")
         self.lbl_right.setAlignment(Qt.AlignmentFlag.AlignRight)
 
         label_row.addWidget(self.lbl_left)
