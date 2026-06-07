@@ -9,7 +9,7 @@ test_spatial_clusterer.py — Validation du SpatialClusterer
 
 
 from core.domain import RawObject
-from core.spatial_clusterer import SpatialClusterer
+from core.spatial_clusterers import SpatialClusterer
 
 
 # ──────────────────────────────────────────────────────────────

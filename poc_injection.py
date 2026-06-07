@@ -88,7 +88,7 @@ def mock_translate_table_by_cells(block: FitzTableBlock):
 def main():
     print(f"Extraction ciblée de la Page {TARGET_PAGE}...")
     import fitz
-    from core.table_detector import page_has_table
+    from core.table_detectors import page_has_table
 
     extractor = FitzExtractor(PDF_PATH)
     pdf = fitz.open(PDF_PATH)

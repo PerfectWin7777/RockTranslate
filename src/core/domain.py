@@ -216,6 +216,7 @@ class FitzPage:
     blocks: list[Union[FitzBlock, FitzTableBlock]] = field(default_factory=list)
     paths: List[FitzPath] = field(default_factory=list)
     png_b64: Optional[str] = None
+    fitz_page: Optional[object] = None  # Référence à la page PyMuPDF originale (pour accès aux spans)
 
 
 @dataclass

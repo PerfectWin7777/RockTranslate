@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from loguru import logger
 from core.pdf_extractor import PDFExtractor
-from core.spatial_clusterer import SpatialClusterer
+from core.spatial_clusterers import SpatialClusterer
 
 # ── Config loguru : affichage clair dans le terminal ──────────────────
 logger.remove()

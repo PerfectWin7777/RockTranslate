@@ -18,10 +18,12 @@ load_dotenv()
 
 # Core & Layout Imports
 from core.fitz_extractor import FitzExtractor
-from core.table_detector import  page_has_table
+from core.table_detectors import  page_has_table
 from core.reading_order import ReadingOrderSorter
 from core.domain import FitzDocument, FitzPage, FitzBlock
 from reconstruction.html_builder import HTMLBuilder
+from reconstruction.latex_builder import build_page_pdf, fitzpage_to_lines_data
+from reconstruction.pdf_builder import merge_pdfs
 
 # UI Imports
 from ui.pdf_viewer import PDFViewer
@@ -228,13 +230,6 @@ class ExtractionWorker(QThread):
 
             for page_num in range(total_pages):
                 page = pdf[page_num]
-
-                # Blank out all words before rendering the background PNG
-                # for word in page.get_text("words"):
-                #     page.draw_rect(
-                #         fitz.Rect(word[0], word[1], word[2], word[3]),
-                #         color=(1, 1, 1), fill=(1, 1, 1)
-                #     )
                 png_b64 = extractor._generate_page_image_b64(page)
 
                 fitz_page = FitzPage(
@@ -271,6 +266,7 @@ class TranslationWorker(QThread):
     page_layout_ready = pyqtSignal(int)  # page_idx
     page_pdf_ready = pyqtSignal(int, str)  # page_idx, pdf_path
     finished       = pyqtSignal()
+    document_pdf_ready = pyqtSignal(str)  # Émet le chemin du PDF final complet
     status_update  = pyqtSignal(str)
     error          = pyqtSignal(str)
     page_incomplete = pyqtSignal(int, int)  # page_idx, nb_lignes_manquantes
@@ -419,7 +415,7 @@ class TranslationWorker(QThread):
                     f"Page {page_num}/{total_pages} : compilation PDF..."
                 )
 
-                from reconstruction.latex_builder import build_page_pdf, fitzpage_to_lines_data
+                
 
                 output_dir = os.path.join(
                     os.path.dirname(self.document.path), "rocktranslate_output"
@@ -454,7 +450,34 @@ class TranslationWorker(QThread):
 
 
             pdf.close()
+
+            # --- ASSEMBLAGE FINAL DE TOUTES LES PAGES TRADUITES ---
+            if not self._stop:
+                self.status_update.emit("Génération et assemblage du document final complet...")
+                
+                # Reconstruction ordonnée de la liste des chemins des pages compilées
+                compiled_paths = []
+                for p_num in range(1, total_pages + 1):
+                    p_path = os.path.join(output_dir, f"page_{p_num:03d}.pdf")
+                    if os.path.exists(p_path):
+                        compiled_paths.append(p_path)
+                
+                # Définition du nom du document traduit complet (ex: original_translated.pdf)
+                base_name = os.path.splitext(os.path.basename(self.document.path))[0]
+                final_output_pdf = os.path.join(output_dir, f"{base_name}_translated.pdf")
+                
+                # Appel du builder d'assemblage
+                success = merge_pdfs(compiled_paths, final_output_pdf)
+                
+                if success:
+                    # Émission du signal avec le chemin du document final unifié
+                    self.document_pdf_ready.emit(final_output_pdf)
+                    self.status_update.emit("Traduction et assemblage final terminés.")
+                else:
+                    self.status_update.emit("Traduction terminée, mais échec de l'assemblage final.")
+
             self.finished.emit()
+
 
         except Exception as e:
             err_msg = str(e).lower()
@@ -733,8 +756,8 @@ class MainWindow(QMainWindow):
         self.a_start.setEnabled(True)
 
          # 1. Chargement initial
-        self.pdf_viewer.load_pdf(self._pdf_path) # Charge le vrai PDF Chrome
         self.trans_panel.init_pages(self._document.pages, self._document)
+        self.pdf_viewer.load_pdf(self._pdf_path)
 
         # 2. Réinitialisation des variables de suivi
         self._last_trans_y = 0
@@ -880,6 +903,7 @@ class MainWindow(QMainWindow):
         self._worker.batch_progress.connect(self.progress_panel.set_batches)
         self._worker.finished.connect(self._on_translation_finished)
         self._worker.page_pdf_ready.connect(self._on_page_pdf_ready)
+        self._worker.document_pdf_ready.connect(self._on_final_pdf_ready)
         self._worker.error.connect(self._on_translation_error)
         self._worker.page_done.connect(self.progress_panel.increment)
         self._worker.status_update.connect(self.status.showMessage)
@@ -912,10 +936,12 @@ class MainWindow(QMainWindow):
         if self._document:
             # On synchronise les pages en mémoire
             self.trans_panel.pages = self._document.pages
-            # On demande au visualiseur de recharger l'HTML complet
-            # build_document() va dessiner instantanément tous les squelettes de la page extraite
-            self.trans_panel.refresh_view()
+            fitz_page = self._document.pages[page_idx]
+            # 1. Retire le glass de cette page
             self.trans_panel.remove_glass(page_idx)
+
+            # 2. Injecte les skeletons chirurgicalement
+            self.trans_panel.inject_skeletons(page_idx, fitz_page)
 
     
     def _on_page_pdf_ready(self, page_idx: int, pdf_path: str):
@@ -944,6 +970,13 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "Terminé", "Le document a été traduit !")
 
 
+    def _on_final_pdf_ready(self, final_pdf_path: str):
+        """
+        Appelé quand l'assemblage final de toutes les pages est terminé.
+        Remplace l'affichage fragmenté HTML par la visionneuse PDF unique complète.
+        """
+        # On charge le document PDF unifié final dans l'interface de droite
+        self.trans_panel.show_final_pdf(final_pdf_path)
 
     def _on_translation_error(self, err_msg: str):
         self.a_start.setText("▶  Démarrer la traduction")

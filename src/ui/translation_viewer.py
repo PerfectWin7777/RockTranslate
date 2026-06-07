@@ -4,13 +4,14 @@ import json
 import os
 import tempfile
 from typing import List, Optional
+import fitz
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtCore import QUrl
 from core.domain import FitzPage, FitzBlock
 from reconstruction.html_builder import HTMLBuilder
-
+from translation.chunker import should_translate
 
 os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--translate-script-url="
 
@@ -55,7 +56,9 @@ class TranslationViewer(QWidget):
         settings.setAttribute(
             QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True
         )
-
+        settings.setAttribute(
+            QWebEngineSettings.WebAttribute.ScrollAnimatorEnabled, True
+        )
         # Suivi du cycle de chargement pour la file d'attente JS
         self.web_view.loadStarted.connect(self._on_load_started)
         self.web_view.loadFinished.connect(self._on_load_finished)
@@ -114,7 +117,7 @@ class TranslationViewer(QWidget):
         #         "document.querySelectorAll('.blurred-layout').forEach(e=>e.classList.remove('blurred-layout'));"
         #     )
         # else:
-        self.refresh_view()
+        # self.refresh_view()
 
     def goto_page(self, page_index: int):
         if 0 <= page_index < len(self.pages):
@@ -134,6 +137,78 @@ class TranslationViewer(QWidget):
         """Remplace la page HTML par le PDF compilé."""
         safe_path = pdf_path.replace("\\", "/")
         self._run_js(f"showPagePdf({page_idx}, 'file:///{safe_path}');")
+    
+
+    def show_final_pdf(self, pdf_path: str):
+        """
+        Remplace la totalité du document HTML interactif par l'affichage direct
+        du document PDF traduit et unifié final, sans volet de navigation.
+        """
+        # Nettoyage de l'arrière-plan et des résidus de la structure HTML
+        self._pending_js.clear()
+        self._page_loading = False
+        
+        # Nettoyage physique du fichier HTML temporaire d'édition s'il existe
+        if self._tmp_html_path and os.path.exists(self._tmp_html_path):
+            try:
+                os.unlink(self._tmp_html_path)
+                self._tmp_html_path = None
+            except Exception:
+                pass
+
+        # Convertit le chemin absolu du PDF complet en QUrl compatible
+        safe_path = pdf_path.replace("\\", "/")
+        file_url = QUrl.fromLocalFile(safe_path)
+        
+        # Forcer le masquage de la barre de navigation de Chromium
+        file_url.setFragment("navpanes=0")
+        
+        # Chargement direct du PDF unifié dans le panneau
+        self.web_view.load(file_url)
+
+        
+
+    def inject_skeletons(self, page_idx: int, page):
+        """
+        Injecte les divs skeleton dans la page sans recharger le HTML.
+        Appelé quand la géométrie d'une page est extraite.
+        """
+
+        skeletons_html = ""
+        for block in page.blocks:
+            if not isinstance(block, FitzBlock):
+                continue
+            for line in block.lines:
+                if not should_translate(line):
+                    continue
+                real_w     = max(line.right - line.left, 10)
+                line_h     = line.bottom - line.top
+                y_center   = line.top + line_h / 2.0
+                final_h    = max(line_h, 10.0)
+                final_top  = y_center - final_h / 2.0
+
+                skeletons_html += (
+                    f'<div style="position:absolute;'
+                    f'left:{line.left:.1f}px;top:{final_top:.1f}px;'
+                    f'width:{real_w:.1f}px;height:{final_h:.1f}px;'
+                    f'display:flex;align-items:center;">'
+                    f'<span class="skeleton-line" '
+                    f'style="width:{real_w:.1f}px;"></span></div>'
+                )
+
+        if not skeletons_html:
+            return
+
+        safe_html = json.dumps(skeletons_html)
+        js = (
+            f"var c = document.getElementById('page-container-{page_idx}');"
+            f"if(c) {{"
+            f"  c.style.backgroundImage = 'url(data:image/png;base64,{page.png_b64})';"
+            f"  c.insertAdjacentHTML('beforeend', {safe_html});"
+            f"}}"
+        )
+        self._run_js(js)
+
 
     def update_block_translation(
     self, page_idx: int, block_id: int, line_idx: int, translated_text: str
@@ -215,16 +290,14 @@ class TranslationViewer(QWidget):
             os.path.join(os.path.dirname(__file__), "..", "assets", "fonts")
         )
 
-        print("fonts_dir =",fonts_dir)
         tmp = tempfile.NamedTemporaryFile(
             mode="w", suffix=".html", encoding="utf-8",
             delete=False, dir=fonts_dir
         )
-
         tmp.write(html_content)
         tmp.close()
         self._tmp_html_path = tmp.name
-
+        
         self.web_view.load(QUrl.fromLocalFile(self._tmp_html_path))
 
     def clear(self):

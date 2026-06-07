@@ -2,7 +2,7 @@ import pypdfium2 as pdfium
 import pypdfium2.raw as pdfium_c
 import ctypes
 from core.pdf_extractor import PDFExtractor
-from core.spatial_clusterer import SpatialClusterer
+from core.spatial_clusterers import SpatialClusterer
 
 def draw_rect(page_raw, bounds, color=(255, 0, 0), thickness=1):
     """Dessine un rectangle creux (Stroke) via l'API C."""

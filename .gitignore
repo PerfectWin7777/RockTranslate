@@ -47,8 +47,12 @@ src/rocktranslate.egg-info
 .idea/
 
 
-output_files
+src/core/spatial_clusterers.py
+src/core/table_detectors.py
+src/core/formula_detectors.py
 
+output_files
+rocktranslate_output
 
 # OS
 .DS_Store

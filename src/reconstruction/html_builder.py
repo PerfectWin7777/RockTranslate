@@ -41,6 +41,7 @@ class HTMLBuilder:
         for page_idx, page in enumerate(document.pages):
             display_w = int(page.width)
             display_h = int(page.height)
+           
 
             # Compute column boundaries once per page (needed for effective_width)
             # col_left_max, col_right_min, page_right_max = HTMLBuilder._compute_column_boundaries(
@@ -99,49 +100,49 @@ class HTMLBuilder:
         #     """
 
 
-        glass_overlay = f"""
-            <div id="glass-overlay-{page_idx}" style="
-                position: absolute;
-                top: 10%;
-                left: 10%;
-                width: 80%;
-                height: 80%;
-                background: rgba(255, 255, 255, 0.15);
-                backdrop-filter: blur(8px);
-                -webkit-backdrop-filter: blur(8px);
-                border-radius: 12px;
-                z-index: 10;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                pointer-events: none;
-            ">
-                <div style="
-                    background: rgba(255,255,255,0.9);
-                    padding: 20px 40px;
-                    border-radius: 10px;
-                    text-align: center;
-                    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            glass_overlay = f"""
+                <div id="glass-overlay-{page_idx}" style="
+                    position: absolute;
+                    top: 10%;
+                    left: 10%;
+                    width: 80%;
+                    height: 80%;
+                    background: rgba(255, 255, 255, 0.25);
+                    backdrop-filter: blur(8px);
+                    -webkit-backdrop-filter: blur(8px);
+                    border-radius: 12px;
+                    z-index: 10;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    pointer-events: none;
                 ">
-                    <p style="color:#1e293b; font-size:14px; font-weight:600; margin:0;">
-                        ⏳ En attente de traduction...
-                    </p>
+                    <div style="
+                        background: rgba(255,255,255,0.9);
+                        padding: 20px 40px;
+                        border-radius: 10px;
+                        text-align: center;
+                        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+                    ">
+                        <p style="color:#1e293b; font-size:14px; font-weight:600; margin:0;">
+                            ⏳ En attente de traduction...
+                        </p>
+                    </div>
                 </div>
+                """
+
+            pages_html += f"""
+            <div id="page-container-{page_idx}" class="page-container" style="
+                width: {display_w}px;
+                height: {display_h}px;
+                background-image: url('data:image/png;base64,{page.png_b64}');
+                background-size: {display_w}px {display_h}px;
+                margin-bottom: 24px;
+            ">
+                {glass_overlay}
+                {lines_html}
             </div>
             """
-
-        pages_html += f"""
-        <div id="page-container-{page_idx}" class="page-container" style="
-            width: {display_w}px;
-            height: {display_h}px;
-            background-image: url('data:image/png;base64,{page.png_b64}');
-            background-size: {display_w}px {display_h}px;
-            margin-bottom: 24px;
-        ">
-            {glass_overlay}
-            {lines_html}
-        </div>
-        """
 
 
 
@@ -156,7 +157,7 @@ class HTMLBuilder:
             display: flex;
             flex-direction: column;
             align-items: center;
-            min-height: 100vh;
+            height: auto;
             padding: 30px 0;
             font-family: 'Times New Roman', Times, serif;
         }}
@@ -278,7 +279,14 @@ class HTMLBuilder:
         function showPagePdf(pageIdx, pdfPath) {{
             var container = document.getElementById("page-container-" + pageIdx);
             if (container) {{
-                container.innerHTML = '<iframe src="' + pdfPath + '" style="width:100%;height:100%;border:none;"></iframe>';
+                // Enlever l'image de fond pour ne pas surcharger le rendu sous le PDF compilé
+                container.style.backgroundImage = 'none';
+                // AJUSTEMENT : On ajoute #navpanes=0 à l'URL pour Chromium
+                var targetUrl = pdfPath;
+                if (!targetUrl.includes('#'))  {{
+                    targetUrl += '#navpanes=0';
+                }}
+                container.innerHTML = '<iframe src="' + targetUrl + '" style="width:100%;height:100%;border:none;"></iframe>';
             }}
         }}
 

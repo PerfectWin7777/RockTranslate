@@ -105,6 +105,7 @@ class FitzExtractor:
             blocks=blocks,
             paths=paths,
             png_b64=png_b64,
+            fitz_page=page,  # Garde la référence à la page originale pour accès aux spans
         )
  
     # ──────────────────────────────────────────────────────────────────────────
@@ -262,11 +263,11 @@ class FitzExtractor:
         clusters = self._cluster_lines_into_blocks(all_lines_flat)
         logger.info(f"Semantic blocks after clustering: {len(clusters)}")
 
-        for cluster in clusters:
-            cluster_sorted = sorted(cluster, key=lambda l: l.top)
-            print(f"\n[BLOC] {len(cluster_sorted)} lignes :")
-            for line in cluster_sorted:
-                print(f"  top={line.top:.1f} left={line.left:.1f} right={line.right:.1f} | '{line.text}'")
+        # for cluster in clusters:
+        #     cluster_sorted = sorted(cluster, key=lambda l: l.top)
+        #     print(f"\n[BLOC] {len(cluster_sorted)} lignes :")
+        #     for line in cluster_sorted:
+        #         print(f"  top={line.top:.1f} left={line.left:.1f} right={line.right:.1f} | '{line.text}'")
  
         # ── Step 3 : assign layout to every line ──────────────────────────────
         self._detect_line_layouts(all_lines_flat, page_w)

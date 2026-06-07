@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2026.1.19)  7 JUN 2026 15:37
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2026.1.19)  7 JUN 2026 18:34
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -60,7 +60,7 @@ Package textpos Info: choosing support for LaTeX3 on input line 60.
 \TP@margin=\dimen159
 \TP@absmargin=\dimen160
 
-Grid set 16 x 16 = 37.20624pt x 49.60625pt
+Grid set 16 x 16 = 49.60625pt x 37.20624pt
 \TPboxrulesize=\dimen161
 \TP@ox=\dimen162
 \TP@oy=\dimen163
@@ -170,8 +170,7 @@ TextBlockOrigin set to 0pt x 0pt
 ex.def
 File: l3backend-pdftex.def 2025-06-09 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count289
-)
-No file page_001.aux.
+) (page_001.aux)
 \openout1 = `page_001.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 19.
@@ -188,6 +187,7 @@ LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 19.
 LaTeX Font Info:    ... okay on input line 19.
 LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 19.
 LaTeX Font Info:    ... okay on input line 19.
+
 *geometry* driver: auto-detecting
 *geometry* detected driver: pdftex
 *geometry* verbose mode - [ preamble ] result:
@@ -196,12 +196,12 @@ LaTeX Font Info:    ... okay on input line 19.
 * layout: <same size as paper>
 * layoutoffset:(h,v)=(0.0pt,0.0pt)
 * modes: 
-* h-part:(L,W,R)=(0.0pt, 595.3pt, 0.0pt)
-* v-part:(T,H,B)=(0.0pt, 793.7pt, 0.0pt)
-* \paperwidth=595.3pt
-* \paperheight=793.7pt
-* \textwidth=595.3pt
-* \textheight=793.7pt
+* h-part:(L,W,R)=(0.0pt, 793.7pt, 0.0pt)
+* v-part:(T,H,B)=(0.0pt, 595.3pt, 0.0pt)
+* \paperwidth=793.7pt
+* \paperheight=595.3pt
+* \textwidth=793.7pt
+* \textheight=595.3pt
 * \oddsidemargin=-72.26999pt
 * \evensidemargin=-72.26999pt
 * \topmargin=-109.26999pt
@@ -248,126 +248,134 @@ Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 4
 g
 File: epstopdf-sys.cfg 2021/03/18 v2.0 Configuration of epstopdf for MiKTeX
 ))
+LaTeX Font Info:    External font `cmex10' loaded for size
+(Font)              <7> on input line 27.
+LaTeX Font Info:    External font `cmex10' loaded for size
+(Font)              <5> on input line 27.
 
-LaTeX Font Warning: Font shape `OT1/cmr/m/n' in size <16.4> not available
-(Font)              size <17.28> substituted on input line 34.
-
-
-Overfull \hbox (2.78308pt too wide) in paragraph at lines 44--49
-[] 
+Overfull \hbox (6.0pt too wide) in paragraph at lines 23--28
+[][][][][][] 
  []
 
 
-LaTeX Font Warning: Font shape `OT1/cmr/m/n' in size <13> not available
-(Font)              size <12> substituted on input line 76.
-
-LaTeX Font Info:    Calculating math sizes for size <13> on input line 76.
-
-LaTeX Font Warning: Font shape `OT1/cmr/m/n' in size <6.5> not available
-(Font)              size <6> substituted on input line 76.
-
-
-LaTeX Font Warning: Font shape `OML/cmm/m/it' in size <13> not available
-(Font)              size <12> substituted on input line 76.
-
-
-LaTeX Font Warning: Font shape `OML/cmm/m/it' in size <6.5> not available
-(Font)              size <6> substituted on input line 76.
-
-
-LaTeX Font Warning: Font shape `OMS/cmsy/m/n' in size <13> not available
-(Font)              size <12> substituted on input line 76.
-
-
-LaTeX Font Warning: Font shape `OMS/cmsy/m/n' in size <6.5> not available
-(Font)              size <6> substituted on input line 76.
+Overfull \hbox (45.0604pt too wide) in paragraph at lines 30--35
+[] 
+ []
 
 LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <13> on input line 76.
+(Font)              <8> on input line 62.
 LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <9.09996> on input line 76.
-LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <6.5> on input line 76.
+(Font)              <6> on input line 62.
 
-! LaTeX Error: Unicode character ⇑ (U+21D1)
+! LaTeX Error: Unicode character ^^C (U+0003)
                not set up for use with LaTeX.
 
 See the LaTeX manual or LaTeX Companion for explanation.
 Type  H <return>  for immediate help.
  ...                                              
                                                   
-l.76 }
+l.97 }
       %
 You may provide a definition with
 \DeclareUnicodeCharacter 
 
 
-LaTeX Font Warning: Font shape `TS1/cmr/m/n' in size <13> not available
-(Font)              size <12> substituted on input line 76.
-
-
-Overfull \hbox (35.17398pt too wide) in paragraph at lines 156--161
-[] 
- []
-
-LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <9> on input line 188.
-LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <6> on input line 188.
-LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <5> on input line 188.
-
-Overfull \hbox (10.09656pt too wide) in paragraph at lines 233--238
-[] 
- []
-
-
-! LaTeX Error: Unicode character ⇑ (U+21D1)
+! LaTeX Error: Unicode character ^^C (U+0003)
                not set up for use with LaTeX.
 
 See the LaTeX manual or LaTeX Companion for explanation.
 Type  H <return>  for immediate help.
  ...                                              
                                                   
-l.251 }
+l.139 }
        %
 You may provide a definition with
 \DeclareUnicodeCharacter 
 
 
-Overfull \hbox (1.16815pt too wide) in paragraph at lines 331--336
+! LaTeX Error: Unicode character ^^D (U+0004)
+               not set up for use with LaTeX.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.293 }
+       %
+You may provide a definition with
+\DeclareUnicodeCharacter 
+
+
+! LaTeX Error: Unicode character ^^C (U+0003)
+               not set up for use with LaTeX.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.293 }
+       %
+You may provide a definition with
+\DeclareUnicodeCharacter 
+
+
+Overfull \hbox (50.6909pt too wide) in paragraph at lines 345--350
 [] 
  []
 
-LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <7> on input line 377.
 
-Overfull \hbox (6.0pt too wide) in paragraph at lines 373--378
-[][][][][][] 
+Overfull \hbox (3.1795pt too wide) in paragraph at lines 352--357
+[] 
  []
 
 
-Overfull \hbox (13.95607pt too wide) in paragraph at lines 384--384
-[][] 
+Overfull \hbox (7.193pt too wide) in paragraph at lines 695--700
+[] 
  []
 
 
-Overfull \hbox (6.0pt too wide) in paragraph at lines 380--385
-[][][][][][] 
+! LaTeX Error: Unicode character ^^D (U+0004)
+               not set up for use with LaTeX.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.741 }
+       %
+You may provide a definition with
+\DeclareUnicodeCharacter 
+
+
+! LaTeX Error: Unicode character ^^D (U+0004)
+               not set up for use with LaTeX.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.741 }
+       %
+You may provide a definition with
+\DeclareUnicodeCharacter 
+
+
+Overfull \hbox (1.54567pt too wide) in paragraph at lines 751--756
+[] 
  []
 
 
-Overfull \hbox (6.0pt too wide) in paragraph at lines 387--392
-[][][][][][] 
+Overfull \hbox (80.0026pt too wide) in paragraph at lines 758--763
+[] 
  []
 
 
 
-<bg_001.png, id=1, 934.24031pt x 1245.15187pt>
+<bg_001.png, id=1, 1245.15187pt x 934.24031pt>
 File: bg_001.png Graphic file (type png)
 <use bg_001.png>
-Package pdftex.def Info: bg_001.png  used on input line 394.
-(pdftex.def)             Requested size: 595.33154pt x 793.70258pt.
+Package pdftex.def Info: bg_001.png  used on input line 772.
+(pdftex.def)             Requested size: 793.70258pt x 595.33154pt.
 [1
 
 {C:/Users/TONY/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map} <./bg_001.png 
@@ -376,39 +384,23 @@ Package pdftex.def Info: bg_001.png  used on input line 394.
 LaTeX2e <2025-06-01> patch level 1
 L3 programming layer <2025-07-19>
  ***********
-
-
-LaTeX Font Warning: Size substitutions with differences
-(Font)              up to 1.0pt have occurred.
-
  ) 
 Here is how much of TeX's memory you used:
- 3740 strings out of 468148
- 61907 string characters out of 5431545
- 492314 words of memory out of 5000000
- 32312 multiletter control sequences out of 15000+600000
- 632487 words of font info for 58 fonts, out of 8000000 for 9000
+ 3702 strings out of 468148
+ 61478 string characters out of 5431545
+ 505305 words of memory out of 5000000
+ 32282 multiletter control sequences out of 15000+600000
+ 629000 words of font info for 47 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 58i,11n,65p,844b,289s stack positions out of 10000i,1000n,20000p,200000b,200000s
- <C:\Users\TONY\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\tcrm0
-800.pk> <C:\Users\TONY\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\
-tcrm0900.pk> <C:\Users\TONY\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dp
-i600\tcrm1200.pk><C:/Users/TONY/AppData/Local/Programs/MiKTeX/fonts/type1/publi
-c/amsfonts/cm/cmbx10.pfb><C:/Users/TONY/AppData/Local/Programs/MiKTeX/fonts/typ
-e1/public/amsfonts/cm/cmbx9.pfb><C:/Users/TONY/AppData/Local/Programs/MiKTeX/fo
-nts/type1/public/amsfonts/cm/cmr10.pfb><C:/Users/TONY/AppData/Local/Programs/Mi
-KTeX/fonts/type1/public/amsfonts/cm/cmr12.pfb><C:/Users/TONY/AppData/Local/Prog
-rams/MiKTeX/fonts/type1/public/amsfonts/cm/cmr17.pfb><C:/Users/TONY/AppData/Loc
-al/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr6.pfb><C:/Users/TONY/AppDa
-ta/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr8.pfb><C:/Users/TONY
-/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr9.pfb><C:/User
-s/TONY/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy9.pfb><
-C:/Users/TONY/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmti
-7.pfb><C:/Users/TONY/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/
-cm/cmti8.pfb>
-Output written on page_001.pdf (1 page, 221690 bytes).
+ 58i,11n,65p,206b,289s stack positions out of 10000i,1000n,20000p,200000b,200000s
+<C:/Users/TONY/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/c
+mr6.pfb><C:/Users/TONY/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfont
+s/cm/cmr8.pfb><C:/Users/TONY/AppData/Local/Programs/MiKTeX/fonts/type1/public/a
+msfonts/cm/cmsy6.pfb><C:/Users/TONY/AppData/Local/Programs/MiKTeX/fonts/type1/p
+ublic/amsfonts/cm/cmti8.pfb>
+Output written on page_001.pdf (1 page, 80009 bytes).
 PDF statistics:
- 78 PDF objects out of 1000 (max. 8388607)
+ 27 PDF objects out of 1000 (max. 8388607)
  0 named destinations out of 1000 (max. 500000)
  6 words of extra memory for PDF output out of 10000 (max. 10000000)
 
