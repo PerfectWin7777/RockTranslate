@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QLabel, QStatusBar, QStackedWidget, QPushButton, QComboBox, QFrame
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont, QKeySequence, QAction
+from PyQt6.QtGui import QFont, QKeySequence, QAction, QActionGroup
 import fitz  # Import temporaire pour le worker de lecture
 
 from dotenv import load_dotenv
@@ -719,6 +719,33 @@ class MainWindow(QMainWindow):
         a_fullscreen.setShortcut(QKeySequence("F11"))
         m_view.addAction(a_fullscreen)
 
+        m_view.addSeparator()
+
+        # Création d'un groupe d'actions pour l'exclusivité (boutons radio)
+        self.layout_group = QActionGroup(self)
+
+        self.a_layout_both = QAction("Afficher les deux côte-à-côte", self, checkable=True)
+        self.a_layout_both.setShortcut(QKeySequence("Ctrl+3"))
+        self.a_layout_both.setChecked(True)  # Sélectionné par défaut
+        self.a_layout_both.triggered.connect(self._apply_layout_both)
+        self.layout_group.addAction(self.a_layout_both)
+        m_view.addAction(self.a_layout_both)
+
+        self.a_layout_pdf = QAction("Afficher uniquement l'original (PDF)", self, checkable=True)
+        self.a_layout_pdf.setShortcut(QKeySequence("Ctrl+1"))
+        self.a_layout_pdf.triggered.connect(self._apply_layout_pdf_only)
+        self.layout_group.addAction(self.a_layout_pdf)
+        m_view.addAction(self.a_layout_pdf)
+
+        self.a_layout_trans = QAction("Afficher uniquement la traduction", self, checkable=True)
+        self.a_layout_trans.setShortcut(QKeySequence("Ctrl+2"))
+        self.a_layout_trans.triggered.connect(self._apply_layout_trans_only)
+        self.layout_group.addAction(self.a_layout_trans)
+        m_view.addAction(self.a_layout_trans)
+
+
+
+
         # ── Aide ──
         m_help = mb.addMenu("Aide")
 
@@ -906,6 +933,8 @@ class MainWindow(QMainWindow):
         self.a_close.setEnabled(False)
         self.a_start.setEnabled(False)
         self.a_export.setEnabled(False)
+        # Rétablir l'affichage des deux volets par défaut pour le prochain document
+        self.a_layout_both.setChecked(True)
         self.stacked_widget.setCurrentIndex(0)
         self.status.showMessage("Document clos.")
 
@@ -1056,6 +1085,32 @@ class MainWindow(QMainWindow):
         self.status.showMessage(
             f"Page {page_idx+1} incomplète — {missing} lignes manquantes."
         )
+
+    
+
+    def _apply_layout_both(self):
+        """Affiche les deux volets côte-à-côte et rétablit une division équitable."""
+        self.pdf_viewer.show()
+        self.trans_panel.show()
+        
+        # Rétablir une répartition à parts égales (50/50)
+        total_width = self.splitter.width()
+        self.splitter.setSizes([total_width // 2, total_width // 2])
+        self.status.showMessage("Affichage : Vue partagée côte-à-côte.")
+
+    def _apply_layout_pdf_only(self):
+        """Masque le panneau de droite et agrandit le PDF d'origine à 100%."""
+        self.trans_panel.hide()
+        self.pdf_viewer.show()
+        self.status.showMessage("Affichage : Original (PDF) uniquement.")
+
+    def _apply_layout_trans_only(self):
+        """Masque le PDF d'origine et agrandit le volet de traduction à 100%."""
+        self.pdf_viewer.hide()
+        self.trans_panel.show()
+        self.status.showMessage("Affichage : Traduction uniquement.")
+
+
 
     def _on_lang_selected(self):
         a = self.sender()
