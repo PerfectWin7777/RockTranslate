@@ -1,6 +1,6 @@
 # src/ui/main_window.py
 
-import os
+import os,re
 import sys
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout,
@@ -21,7 +21,7 @@ from core.fitz_extractor import FitzExtractor
 from core.table_detector import  page_has_table
 from core.reading_order import ReadingOrderSorter
 from core.domain import FitzDocument, FitzPage, FitzBlock
-from core.reading_order import ReadingOrderSorter
+from reconstruction.html_builder import HTMLBuilder
 
 # UI Imports
 from ui.pdf_viewer import PDFViewer
@@ -66,6 +66,142 @@ LANGUAGES = [
 
 # Nombre de paragraphes traduits conservés comme contexte glissant inter-pages
 _SLIDING_CONTEXT_SIZE = 10
+
+
+
+
+def redistribute_translated_lines(
+    batch_lines: list,
+    results: list[dict],
+    page_width: float,
+    geo: dict = None,
+) -> None:
+
+    page_center = page_width / 2.0
+
+    # ── 1. Calcul des max_chars pour chaque ligne ─────────────────────────
+    id_to_item = {}
+    for idx, (block, line_idx, line) in enumerate(batch_lines):
+        original_chars = max(len(re.sub(r'\s+', ' ', line.text).strip()), 1)
+        is_last = (line_idx == len(block.lines) - 1)
+
+        if is_last:
+            # Dernière ligne : absorbe le surplus MAIS reste dans sa colonne
+            if geo:
+                avail_width = HTMLBuilder._effective_col_width(line, geo)
+                max_chars = int(avail_width / max(line.right - line.left, 10.0) * original_chars * 3)
+            else:
+                max_chars = 999
+        else:
+            char_budget = int(original_chars * 1.30)
+            if geo:
+                avail_width = HTMLBuilder._effective_col_width(line, geo)
+                avail_chars = int(avail_width / max(line.right - line.left, 10.0) * original_chars)
+                max_chars = min(char_budget, avail_chars)
+            else:
+                max_chars = char_budget
+
+        id_to_item[idx] = (block, line_idx, line, max_chars, is_last)
+
+    # ── 2. Résultats LLM indexés par id ──────────────────────────────────
+    id_to_result = {r["id"]: r.get("translated", "") for r in results}
+
+    # ── 3. Regroupement par block_id ─────────────────────────────────────
+    block_ids_seen: dict[int, list[int]] = {}
+    for idx, (block, line_idx, line, max_chars, is_last) in id_to_item.items():
+        bid = block.block_id
+        if bid not in block_ids_seen:
+            block_ids_seen[bid] = []
+        block_ids_seen[bid].append(idx)
+
+    # ── 4. Redistribution bloc par bloc ──────────────────────────────────
+    for bid, indices in block_ids_seen.items():
+
+        widths = [id_to_item[i][2].right - id_to_item[i][2].left for i in indices]
+        if max(widths) / max(min(widths), 1) > 2.5:
+            for i in indices:
+                _, _, line, _, _ = id_to_item[i]
+                line.translated_text = id_to_result.get(i, "") or " "
+            continue
+
+        if len(indices) == 1:
+            _, _, single_line, _, _ = id_to_item[indices[0]]
+            single_line.translated_text = id_to_result.get(indices[0], "") or " "
+            continue
+
+        left_indices  = [i for i in indices if id_to_item[i][2].left < page_center]
+        right_indices = [i for i in indices if id_to_item[i][2].left >= page_center]
+
+        for col_indices in [left_indices, right_indices]:
+            if not col_indices:
+                continue
+
+            tops = [id_to_item[i][2].top for i in col_indices]
+            max_gap = max(tops[j+1] - tops[j] for j in range(len(tops)-1)) if len(tops) > 1 else 0
+            if max_gap > 30.0:
+                for i in col_indices:
+                    _, _, line, _, _ = id_to_item[i]
+                    line.translated_text = id_to_result.get(i, "") or " "
+                continue
+
+            first_max_chars = id_to_item[col_indices[0]][3]
+            if first_max_chars <= 3:
+                for i in col_indices:
+                    _, _, line, _, _ = id_to_item[i]
+                    line.translated_text = id_to_result.get(i, "") or " "
+                continue
+
+            if len(col_indices) == 1:
+                _, _, single_line, _, _ = id_to_item[col_indices[0]]
+                single_line.translated_text = id_to_result.get(col_indices[0], "") or " "
+                continue
+
+            full_text = " ".join(
+                id_to_result.get(i, "") for i in col_indices
+            ).strip()
+
+            if not full_text:
+                for i in col_indices:
+                    _, _, line, _, _ = id_to_item[i]
+                    line.translated_text = " "
+                continue
+
+            words    = full_text.split()
+            word_idx = 0
+
+            for i in col_indices:
+                _, _, line, max_chars, _ = id_to_item[i]
+                is_last_in_col = (i == col_indices[-1])
+
+                if is_last_in_col or word_idx >= len(words):
+                    # Dernière ligne — absorbe le reste MAIS respecte max_chars
+                    remaining = " ".join(words[word_idx:])
+                    remaining_plain = re.sub(r'<[^>]+>', '', remaining)
+                    if len(remaining_plain) > max_chars:
+                        current = ""
+                        while word_idx < len(words):
+                            candidate = (current + " " + words[word_idx]).strip()
+                            if len(re.sub(r'<[^>]+>', '', candidate)) <= max_chars:
+                                current   = candidate
+                                word_idx += 1
+                            else:
+                                break
+                        line.translated_text = current or " "
+                    else:
+                        line.translated_text = remaining or " "
+                    word_idx = len(words)
+
+                else:
+                    current = ""
+                    while word_idx < len(words):
+                        candidate = (current + " " + words[word_idx]).strip()
+                        candidate_plain = re.sub(r'<[^>]+>', '', candidate)
+                        if len(candidate_plain) <= max_chars:
+                            current   = candidate
+                            word_idx += 1
+                        else:
+                            break
+                    line.translated_text = current if current else " "
 
 
 class ExtractionWorker(QThread):
@@ -232,17 +368,32 @@ class TranslationWorker(QThread):
 
                     self.batch_progress.emit(batch_idx + 1, len(batches))
 
-                    batch_data = [
-                        {"id": idx, "text": line.styled_text or line.text}
-                        for idx, (block, line_idx, line) in enumerate(batch.lines)
-                    ]
+                    batch_data = []
+                    for idx, (block, line_idx, line) in enumerate(batch.lines):
+                        # Est-ce que c'est la dernière ligne de ce bloc précis ?
+                        is_last_line = (line_idx == len(block.lines) - 1)
+                        
+                        # Si oui, budget infini. Si non, budget = taille du texte anglais + 2
+                        # budget = 999 if is_last_line else len(line.text) + 2
+                        budget = 999 if is_last_line else int(len(line.text) * 1.25)
+                        
+                        batch_data.append({
+                            "id": idx,
+                            "block_id": block.block_id,
+                            "max_chars": budget,
+                            "text": line.styled_text or line.text
+                        })
+
+
                     line_map = {
                         idx: (block, line_idx, line)
                         for idx, (block, line_idx, line) in enumerate(batch.lines)
                     }
 
                     ctx     = context_str if batch_idx == 0 else None
+                    print ("batch_data=", batch_data)
                     results = client._call_llm(batch_data, context=ctx)
+    
 
                     if not results:
                         continue
@@ -259,6 +410,27 @@ class TranslationWorker(QThread):
                             )
 
                             sliding_context.append(translated)
+
+                    # 1. Redistribution Python
+                    
+
+                    # geo = HTMLBuilder._detect_column_layout(fitz_page.blocks, fitz_page.width)
+    
+                    # print(f"[REDISTRIBUTION] Redistributing lines for batch {batch_idx}")
+                    # redistribute_translated_lines(
+                    #     batch.lines,
+                    #     results,
+                    #     page_width=fitz_page.width,
+                    #     geo=geo,
+                    # )
+                    #                     # 2. Dispatch des lignes redistribuées
+                    # for idx, (block, line_idx, line) in enumerate(batch.lines):
+                    #     if line.translated_text:
+                    #         self.block_done.emit(
+                    #             page_idx, block.block_id, line_idx, line.translated_text
+                    #         )
+                    #         sliding_context.append(line.translated_text)
+
 
                     if len(sliding_context) > _SLIDING_CONTEXT_SIZE:
                         sliding_context = sliding_context[-_SLIDING_CONTEXT_SIZE:]
@@ -701,15 +873,6 @@ class MainWindow(QMainWindow):
             """
             if not (self._document and page_idx < len(self._document.pages)):
                 return
-
-            # Update the in-memory model
-            # page = self._document.pages[page_idx]
-            # for block in page.blocks:
-            #     if block.block_id == block_id and hasattr(block, "lines"):
-            #         for line in block.lines:
-            #             if id(line) == line_idx:
-            #                 line.translated_text = translated_text
-            #                 break
             
             # Sync viewer pages with the document updated by the worker
             self.trans_panel.pages = self._document.pages

@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from loguru import logger
+import json_repair 
 
 try:
     import litellm
@@ -316,7 +317,7 @@ class LLMClient:
 
         response = self._litellm.completion(**kwargs)
         raw_text = response.choices[0].message.content.strip()
-        print(f"[LLM RAW] {raw_text}")
+        # print(f"[LLM RAW] {raw_text}")
 
 
         return self._parse_json_response(raw_text)
@@ -332,7 +333,7 @@ class LLMClient:
         cleaned = cleaned.strip()
 
         try:
-            data = json.loads(cleaned)
+            data = json_repair.loads(cleaned)
             if isinstance(data, list):
                 return data
             logger.warning(f"JSON valide mais pas une liste : {type(data)}")
@@ -345,7 +346,7 @@ class LLMClient:
             end   = cleaned.rfind("]")
             if start != -1 and end != -1 and end > start:
                 try:
-                    return json.loads(cleaned[start:end + 1])
+                    return json_repair.loads(cleaned[start:end + 1])
                 except json.JSONDecodeError:
                     pass
             return None

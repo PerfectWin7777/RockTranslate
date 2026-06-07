@@ -46,6 +46,10 @@ src/rocktranslate.egg-info
 .vscode/
 .idea/
 
+
+output_files
+
+
 # OS
 .DS_Store
 Thumbs.db

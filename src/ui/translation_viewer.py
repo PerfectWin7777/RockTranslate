@@ -152,22 +152,31 @@ class TranslationViewer(QWidget):
         target_line = target_block.lines[line_idx]
         target_line.translated_text = translated_text
 
-        col_left_max, col_right_min, page_right_max = HTMLBuilder._compute_column_boundaries(
-            page.blocks, page.width
-        )
+        # col_left_max, col_right_min, page_right_max = HTMLBuilder._compute_column_boundaries(
+        #     page.blocks, page.width
+        # )
 
-        line_html = HTMLBuilder._generate_line_div(
-            line=target_line,
-            block=target_block,
-            page_width=page.width,
-            col_left_max=col_left_max,
-            col_right_min=col_right_min,
-            page_right_max=page_right_max,
-            page_idx=page_idx,
-            show_skeletons=self.is_translation_started, # Conserve l'état squelette pour les autres lignes
-        )
+        geo = HTMLBuilder._detect_column_layout(page.blocks, page.width)
 
-        safe_html = json.dumps(line_html)
+        # line_html = HTMLBuilder._generate_line_div(
+        #     line=target_line,
+        #     block=target_block,
+        #     page_width=page.width,
+        #     col_left_max=col_left_max,
+        #     col_right_min=col_right_min,
+        #     page_right_max=page_right_max,
+        #     page_idx=page_idx,
+        #     show_skeletons=self.is_translation_started, # Conserve l'état squelette pour les autres lignes
+        # )
+        
+        lines_html = HTMLBuilder._generate_line_div(
+                line=target_line, block=target_block, page_width=page.width,
+                geo=geo,
+                page_idx=page_idx,
+                show_skeletons=self.is_translation_started,
+            )
+
+        safe_html = json.dumps(lines_html)
         js_code   = f"updateBlock({page_idx}, {block_id}, {line_idx}, {safe_html});"
         self._run_js(js_code)
     
@@ -193,9 +202,16 @@ class TranslationViewer(QWidget):
             except PermissionError:
                 pass  # Chromium lit encore le fichier — l'OS le nettoiera
 
-        tmp = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".html", encoding="utf-8", delete=False
+        fonts_dir = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "assets", "fonts")
         )
+
+        print("fonts_dir =",fonts_dir)
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".html", encoding="utf-8",
+            delete=False, dir=fonts_dir
+        )
+
         tmp.write(html_content)
         tmp.close()
         self._tmp_html_path = tmp.name

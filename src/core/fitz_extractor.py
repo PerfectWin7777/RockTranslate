@@ -120,6 +120,20 @@ class FitzExtractor:
         top, bot = (a, b) if a.top <= b.top else (b, a)
         v_gap  = bot.top - top.bottom
         line_h = max(top.height, bot.height)
+
+        # NOUVEAU : ne jamais fusionner une ligne très courte (titre/heading)
+        # avec une ligne longue (paragraphe)
+        top_w = top.right - top.left
+        bot_w = bot.right - bot.left
+        if min(top_w, bot_w) / max(max(top_w, bot_w), 1) < 0.3:
+            return False
+        
+        # NOUVEAU : deux lignes côte à côte horizontalement
+        # (même top, gap horizontal large) → colonnes différentes → ne pas fusionner
+        if abs(a.top - b.top) < line_h * 0.5:
+            h_gap = max(a.left, b.left) - min(a.right, b.right)
+            if h_gap > 5.0:
+                return False
  
         if v_gap < -2.0:
             h_gap = max(0.0, max(top.left, bot.left) - min(top.right, bot.right))
@@ -247,6 +261,12 @@ class FitzExtractor:
         # ── Step 2 : cluster lines into semantic blocks ───────────────────────
         clusters = self._cluster_lines_into_blocks(all_lines_flat)
         logger.info(f"Semantic blocks after clustering: {len(clusters)}")
+
+        for cluster in clusters:
+            cluster_sorted = sorted(cluster, key=lambda l: l.top)
+            print(f"\n[BLOC] {len(cluster_sorted)} lignes :")
+            for line in cluster_sorted:
+                print(f"  top={line.top:.1f} left={line.left:.1f} right={line.right:.1f} | '{line.text}'")
  
         # ── Step 3 : assign layout to every line ──────────────────────────────
         self._detect_line_layouts(all_lines_flat, page_w)

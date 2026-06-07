@@ -71,6 +71,10 @@ class FitzLine:
     @property
     def height(self) -> float:
         return self.bottom - self.top
+    
+    @property
+    def width(self) -> float:
+        return self.right - self.left
 
 
 @dataclass
