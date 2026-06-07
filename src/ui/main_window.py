@@ -1,7 +1,7 @@
 # src/ui/main_window.py
 
-import os,re
-import sys
+import os, re
+import sys, base64
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout,
     QVBoxLayout, QSplitter, QFileDialog, QMessageBox,
@@ -230,11 +230,11 @@ class ExtractionWorker(QThread):
                 page = pdf[page_num]
 
                 # Blank out all words before rendering the background PNG
-                for word in page.get_text("words"):
-                    page.draw_rect(
-                        fitz.Rect(word[0], word[1], word[2], word[3]),
-                        color=(1, 1, 1), fill=(1, 1, 1)
-                    )
+                # for word in page.get_text("words"):
+                #     page.draw_rect(
+                #         fitz.Rect(word[0], word[1], word[2], word[3]),
+                #         color=(1, 1, 1), fill=(1, 1, 1)
+                #     )
                 png_b64 = extractor._generate_page_image_b64(page)
 
                 fitz_page = FitzPage(
@@ -269,9 +269,11 @@ class TranslationWorker(QThread):
     batch_progress = pyqtSignal(int, int)        # batches_done, total_batches
     page_done      = pyqtSignal()               # une page entièrement traitée
     page_layout_ready = pyqtSignal(int)  # page_idx
+    page_pdf_ready = pyqtSignal(int, str)  # page_idx, pdf_path
     finished       = pyqtSignal()
     status_update  = pyqtSignal(str)
     error          = pyqtSignal(str)
+    page_incomplete = pyqtSignal(int, int)  # page_idx, nb_lignes_manquantes
 
     def __init__(
         self,
@@ -340,7 +342,7 @@ class TranslationWorker(QThread):
                     for block in fitz_page.blocks
                     if isinstance(block, FitzBlock)
                     for line_idx, line in enumerate(block.lines)
-                    if should_translate(line)
+                    if should_translate(line) and not line.translated_text
                 ]
 
                 # On trie d'abord par position verticale (top), puis par position horizontale (left)
@@ -368,22 +370,10 @@ class TranslationWorker(QThread):
 
                     self.batch_progress.emit(batch_idx + 1, len(batches))
 
-                    batch_data = []
-                    for idx, (block, line_idx, line) in enumerate(batch.lines):
-                        # Est-ce que c'est la dernière ligne de ce bloc précis ?
-                        is_last_line = (line_idx == len(block.lines) - 1)
-                        
-                        # Si oui, budget infini. Si non, budget = taille du texte anglais + 2
-                        # budget = 999 if is_last_line else len(line.text) + 2
-                        budget = 999 if is_last_line else int(len(line.text) * 1.25)
-                        
-                        batch_data.append({
-                            "id": idx,
-                            "block_id": block.block_id,
-                            "max_chars": budget,
-                            "text": line.styled_text or line.text
-                        })
-
+                    batch_data = [
+                        {"id": idx, "text": line.styled_text or line.text}
+                        for idx, (block, line_idx, line) in enumerate(batch.lines)
+                    ]
 
                     line_map = {
                         idx: (block, line_idx, line)
@@ -391,49 +381,74 @@ class TranslationWorker(QThread):
                     }
 
                     ctx     = context_str if batch_idx == 0 else None
-                    print ("batch_data=", batch_data)
                     results = client._call_llm(batch_data, context=ctx)
-    
 
                     if not results:
                         continue
 
-                    # 5. Dispatch translations — one emit per line
+                    # 5. Stocke les traductions en mémoire — pas d'émission ligne par ligne
                     for res in results:
                         idx        = res.get("id")
                         translated = res.get("translated", "").strip()
                         if idx in line_map and translated:
                             block, line_idx, line = line_map[idx]
                             line.translated_text = translated
-                            self.block_done.emit(
-                                page_idx, block.block_id, line_idx, translated
-                            )
-
                             sliding_context.append(translated)
-
-                    # 1. Redistribution Python
-                    
-
-                    # geo = HTMLBuilder._detect_column_layout(fitz_page.blocks, fitz_page.width)
-    
-                    # print(f"[REDISTRIBUTION] Redistributing lines for batch {batch_idx}")
-                    # redistribute_translated_lines(
-                    #     batch.lines,
-                    #     results,
-                    #     page_width=fitz_page.width,
-                    #     geo=geo,
-                    # )
-                    #                     # 2. Dispatch des lignes redistribuées
-                    # for idx, (block, line_idx, line) in enumerate(batch.lines):
-                    #     if line.translated_text:
-                    #         self.block_done.emit(
-                    #             page_idx, block.block_id, line_idx, line.translated_text
-                    #         )
-                    #         sliding_context.append(line.translated_text)
-
 
                     if len(sliding_context) > _SLIDING_CONTEXT_SIZE:
                         sliding_context = sliding_context[-_SLIDING_CONTEXT_SIZE:]
+                
+
+                # Vérifie les lignes manquantes
+                missing = [
+                    line
+                    for block in fitz_page.blocks
+                    if isinstance(block, FitzBlock)
+                    for line in block.lines
+                    if should_translate(line) and not line.translated_text
+                ]
+
+                if missing:
+                    self.page_incomplete.emit(page_idx, len(missing))
+                    self.status_update.emit(
+                        f"Page {page_num} : {len(missing)} lignes non traduites."
+                    )
+
+                # 6. Page entièrement traduite → compilation LaTeX
+                self.status_update.emit(
+                    f"Page {page_num}/{total_pages} : compilation PDF..."
+                )
+
+                from reconstruction.latex_builder import build_page_pdf, fitzpage_to_lines_data
+
+                output_dir = os.path.join(
+                    os.path.dirname(self.document.path), "rocktranslate_output"
+                )
+                os.makedirs(output_dir, exist_ok=True)
+
+                bg_path = os.path.join(output_dir, f"bg_{page_num:03d}.png")
+                with open(bg_path, "wb") as f:
+                    f.write(base64.b64decode(fitz_page.png_b64))
+
+                lines_data = fitzpage_to_lines_data(fitz_page)
+                pdf_path   = build_page_pdf(
+                    bg_image_path=bg_path,
+                    page_w=fitz_page.width,
+                    page_h=fitz_page.height,
+                    lines_data=lines_data,
+                    output_dir=output_dir,
+                    page_number=page_num,
+                )
+
+                if pdf_path:
+                    self.page_pdf_ready.emit(page_idx, pdf_path)
+                    self.status_update.emit(
+                        f"Page {page_num}/{total_pages} : PDF prêt."
+                    )
+                else:
+                    self.status_update.emit(
+                        f"Page {page_num}/{total_pages} : échec compilation."
+                    )
 
                 self.page_done.emit()
 
@@ -541,6 +556,8 @@ class MainWindow(QMainWindow):
         self._current_model  = SUPPORTED_MODELS["Google Gemini"][0]
         self._current_lang   = "French"
         self._zoom           = 1.0
+
+        self._incomplete_pages: list[int] = []
 
         self._scroll_sync_timer = QTimer(self)
         self._scroll_sync_timer.setInterval(100)
@@ -835,6 +852,9 @@ class MainWindow(QMainWindow):
                 "Clé API manquante dans votre environnement ou fichier .env"
             )
             return
+        
+        #  reset les pages incomplètes au démarrage
+        self._incomplete_pages.clear()
 
         blocks_to_translate = [
             b for page in self._document.pages for b in page.blocks
@@ -859,9 +879,11 @@ class MainWindow(QMainWindow):
         self._worker.page_layout_ready.connect(self._on_page_layout_ready)
         self._worker.batch_progress.connect(self.progress_panel.set_batches)
         self._worker.finished.connect(self._on_translation_finished)
+        self._worker.page_pdf_ready.connect(self._on_page_pdf_ready)
         self._worker.error.connect(self._on_translation_error)
         self._worker.page_done.connect(self.progress_panel.increment)
         self._worker.status_update.connect(self.status.showMessage)
+        self._worker.page_incomplete.connect(self._on_page_incomplete)
 
         self.a_start.setText("⏹  Arrêter la traduction")
         self._worker.start()
@@ -893,19 +915,47 @@ class MainWindow(QMainWindow):
             # On demande au visualiseur de recharger l'HTML complet
             # build_document() va dessiner instantanément tous les squelettes de la page extraite
             self.trans_panel.refresh_view()
+            self.trans_panel.remove_glass(page_idx)
+
+    
+    def _on_page_pdf_ready(self, page_idx: int, pdf_path: str):
+        """Affiche le PDF compilé à la place du skeleton."""
+        self.trans_panel.show_page_pdf(page_idx, pdf_path)
 
     def _on_translation_finished(self):
         print("[TRANSLATION_FINISHED]")
         self.a_start.setText("▶  Démarrer la traduction")
-        self.status.showMessage("Traduction terminée avec succès.")
-        
-        QMessageBox.information(self, "Terminé", "Le document a été entièrement traduit !")
+    
+        if self._incomplete_pages:
+            pages_str = ", ".join(str(p+1) for p in self._incomplete_pages)
+            reply = QMessageBox.question(
+                self,
+                "Pages incomplètes",
+                f"Les pages {pages_str} ont des lignes non traduites.\n"
+                f"Voulez-vous les retraduire ?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self._incomplete_pages.clear()
+                self._start_translation()
+                return
+
+        self.status.showMessage("Traduction terminée.")
+        QMessageBox.information(self, "Terminé", "Le document a été traduit !")
+
+
 
     def _on_translation_error(self, err_msg: str):
         self.a_start.setText("▶  Démarrer la traduction")
         QMessageBox.critical(
             self, "Erreur",
             f"La traduction a été interrompue :\n{err_msg}"
+        )
+    
+    def _on_page_incomplete(self, page_idx: int, missing: int):
+        self._incomplete_pages.append(page_idx)
+        self.status.showMessage(
+            f"Page {page_idx+1} incomplète — {missing} lignes manquantes."
         )
 
     def _on_lang_selected(self):

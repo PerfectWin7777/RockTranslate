@@ -8,7 +8,6 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtCore import QUrl
-
 from core.domain import FitzPage, FitzBlock
 from reconstruction.html_builder import HTMLBuilder
 
@@ -125,6 +124,16 @@ class TranslationViewer(QWidget):
     def set_zoom(self, zoom_factor: float):
         self.zoom_factor = zoom_factor
         self.web_view.setZoomFactor(zoom_factor)
+   
+
+    def remove_glass(self, page_idx: int):
+        """Retire l'overlay glass d'une page — appelé quand la traduction commence."""
+        self._run_js(f"removeGlass({page_idx});")
+
+    def show_page_pdf(self, page_idx: int, pdf_path: str):
+        """Remplace la page HTML par le PDF compilé."""
+        safe_path = pdf_path.replace("\\", "/")
+        self._run_js(f"showPagePdf({page_idx}, 'file:///{safe_path}');")
 
     def update_block_translation(
     self, page_idx: int, block_id: int, line_idx: int, translated_text: str
@@ -191,7 +200,7 @@ class TranslationViewer(QWidget):
 
         html_content = HTMLBuilder.build_document(
             self._document_ref,
-            show_blurred_overlay=not self.is_translation_started,
+            # show_blurred_overlay=not self.is_translation_started,
             show_skeletons=self.is_translation_started
         )
 

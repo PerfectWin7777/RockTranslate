@@ -69,7 +69,6 @@ Rules:
 
 
 
-
 ## Output format — CRITICAL
 You receive a JSON array of paragraphs. Return ONLY a JSON array of the same
 length with translated texts. No explanation, no markdown, no preamble.

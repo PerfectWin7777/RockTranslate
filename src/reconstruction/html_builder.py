@@ -28,7 +28,7 @@ class HTMLBuilder:
     @staticmethod
     def build_document(
         document: FitzDocument, 
-        show_blurred_overlay: bool = False,
+        # show_blurred_overlay: bool = False,
         show_skeletons: bool = False
     ) -> str:
         """
@@ -73,30 +73,77 @@ class HTMLBuilder:
                         show_skeletons=show_skeletons,
                     )
 
-            blur_class = "blurred-layout" if show_blurred_overlay else ""
-            pages_html += f"""
-            <div id="page-container-{page_idx}" class="page-container {blur_class}" style="
-                width: {display_w}px;
-                height: {display_h}px;
-                background-image: url('data:image/png;base64,{page.png_b64}');
-                background-size: {display_w}px {display_h}px;
-                margin-bottom: 24px;
-            ">
-                {lines_html}
-            </div>
-            """
+        #     blur_class = "blurred-layout" if show_blurred_overlay else ""
+        #     pages_html += f"""
+        #     <div id="page-container-{page_idx}" class="page-container {blur_class}" style="
+        #         width: {display_w}px;
+        #         height: {display_h}px;
+        #         background-image: url('data:image/png;base64,{page.png_b64}');
+        #         background-size: {display_w}px {display_h}px;
+        #         margin-bottom: 24px;
+        #     ">
+        #         {lines_html}
+        #     </div>
+        #     """
 
-        # Frosted glass overlay (shown before translation starts)
-        overlay_html = ""
-        if show_blurred_overlay:
-            overlay_html = """
-            <div class="glass-overlay">
-                <div class="glass-card">
-                    <h3>✨ Translation Layer Active</h3>
-                    <p>Ready to translate this document.</p>
+        # # Frosted glass overlay (shown before translation starts)
+        # overlay_html = ""
+        # if show_blurred_overlay:
+        #     overlay_html = """
+        #     <div class="glass-overlay">
+        #         <div class="glass-card">
+        #             <h3>✨ Translation Layer Active</h3>
+        #             <p>Ready to translate this document.</p>
+        #         </div>
+        #     </div>
+        #     """
+
+
+        glass_overlay = f"""
+            <div id="glass-overlay-{page_idx}" style="
+                position: absolute;
+                top: 10%;
+                left: 10%;
+                width: 80%;
+                height: 80%;
+                background: rgba(255, 255, 255, 0.15);
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
+                border-radius: 12px;
+                z-index: 10;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                pointer-events: none;
+            ">
+                <div style="
+                    background: rgba(255,255,255,0.9);
+                    padding: 20px 40px;
+                    border-radius: 10px;
+                    text-align: center;
+                    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+                ">
+                    <p style="color:#1e293b; font-size:14px; font-weight:600; margin:0;">
+                        ⏳ En attente de traduction...
+                    </p>
                 </div>
             </div>
             """
+
+        pages_html += f"""
+        <div id="page-container-{page_idx}" class="page-container" style="
+            width: {display_w}px;
+            height: {display_h}px;
+            background-image: url('data:image/png;base64,{page.png_b64}');
+            background-size: {display_w}px {display_h}px;
+            margin-bottom: 24px;
+        ">
+            {glass_overlay}
+            {lines_html}
+        </div>
+        """
+
+
 
         return f"""<!DOCTYPE html>
 <html>
@@ -222,11 +269,24 @@ class HTMLBuilder:
                 }}
             }}
         }}
+
+        function removeGlass(pageIdx) {{
+                var el = document.getElementById("glass-overlay-" + pageIdx);
+                if (el) el.remove();
+            }}
+
+        function showPagePdf(pageIdx, pdfPath) {{
+            var container = document.getElementById("page-container-" + pageIdx);
+            if (container) {{
+                container.innerHTML = '<iframe src="' + pdfPath + '" style="width:100%;height:100%;border:none;"></iframe>';
+            }}
+        }}
+
     </script>
 </head>
 <body>
     {pages_html}
-    {overlay_html}
+   
 </body>
 </html>"""
 
@@ -275,31 +335,6 @@ class HTMLBuilder:
         # else:
         #     final_font_size = dominant_size
 
-        
-
-
-        # if raw_translated:
-        #     # On nettoie le texte pour ne mesurer que les vrais caractères affichés
-        #     trans_plain = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', '', raw_translated)).strip()
-            
-        #     current_size = dominant_size
-        #     MIN_FONT_SIZE = 7.0  # Limite de sécurité absolue pour la lisibilité
-            
-        #     # Boucle d'ajustement progressif : on réduit d'un point (1.0) à chaque itération
-        #     # tant que le texte estimé dépasse la largeur autorisée de la colonne.
-        #     estimated_w =10
-        #     while current_size > MIN_FONT_SIZE:
-        #         estimated_w = len(trans_plain) * current_size * 0.52
-        #         if estimated_w <= effective_width:
-        #             break
-        #         current_size -= 1.0  # Réduction discrète 
-                
-        #     final_font_size = max(current_size, MIN_FONT_SIZE)
-        #     print ("effective_width=", effective_width,"real_line_width=", real_line_width, "estimated_w=", estimated_w, "final_font_size=", final_font_size, "texte=", raw_translated)
-        # else:
-        #     final_font_size = dominant_size
-        
-       
         final_font_size = dominant_size
         # final_font_size = final_font_size * 1.45
         # 4. Style dominant

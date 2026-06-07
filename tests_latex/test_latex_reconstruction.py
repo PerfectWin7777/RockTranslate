@@ -38,6 +38,31 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 # ═══════════════════════════════════════════════════════════════════════════════
 # 1. LATEX HELPERS
 # ═══════════════════════════════════════════════════════════════════════════════
+def fix_math_symbols(text: str) -> str:
+    replacements = {
+        '≤': '$\\leq$',   '≥': '$\\geq$',
+        '≠': '$\\neq$',   '≈': '$\\approx$',
+        '∞': '$\\infty$', '±': '$\\pm$',
+        '×': '$\\times$', '÷': '$\\div$',
+        '∑': '$\\sum$',   '∏': '$\\prod$',
+        '∫': '$\\int$',   '√': '$\\sqrt{}$',
+        'α': '$\\alpha$', 'β': '$\\beta$',
+        'γ': '$\\gamma$', 'δ': '$\\delta$',
+        'λ': '$\\lambda$','μ': '$\\mu$',
+        'π': '$\\pi$',    'σ': '$\\sigma$',
+        'θ': '$\\theta$', '°': '$^{\\circ}$',
+        '→': '$\\to$',    '←': '$\\leftarrow$',
+        '↑': '$\\uparrow$','↓': '$\\downarrow$',
+        '∈': '$\\in$',    '∉': '$\\notin$',
+        '⊂': '$\\subset$','∩': '$\\cap$',
+        '∪': '$\\cup$',   '∀': '$\\forall$',
+        '∃': '$\\exists$','∂': '$\\partial$',
+        '·': '$\\cdot$',  '−': '$-$',
+    }
+    for char, latex in replacements.items():
+        text = text.replace(char, latex)
+    return text
+
 
 def escape_latex(text: str) -> str:
     special = {
@@ -72,7 +97,7 @@ def convert_style_tags_to_latex(styled_text: str) -> str:
                 sz = tag[3:]
                 out.append(f"\\fontsize{{{sz}}}{{{float(sz)*1.25:.1f}}}\\selectfont {{")
         else:
-            out.append(escape_latex(p))
+            out.append(fix_math_symbols(escape_latex(p)))
     return "".join(out)
 
 
@@ -208,6 +233,42 @@ def extract_and_blank_page(pdf_path: str, page_idx: int):
                 "styled_text": styled,
                 "font_size":   sizes[0] if sizes else 9.0,
             })
+    
+    seen = {}
+    dedup = []
+    for l in lines_data:
+        key = (round(l["top"], 0), round(l["left"], 0))
+        if key not in seen:
+            seen[key] = True
+            dedup.append(l)
+        else:
+            print(f"[DOUBLON] top={l['top']:.1f} left={l['left']:.1f} '{l['text'][:40]}'")
+    lines_data = dedup
+
+
+    drawings = page.get_drawings()
+    bg_colors = {}  # { line_idx: "rgb(r,g,b)" }
+
+    for draw in drawings:
+        fill = draw.get("fill")
+        if not fill:
+            continue
+        r, g, b_ = int(fill[0]*255), int(fill[1]*255), int(fill[2]*255)
+        if r > 240 and g > 240 and b_ > 240:
+            continue  # blanc → skip
+        rect = draw.get("rect")
+        if not rect:
+            continue
+        # Pour chaque ligne qui se trouve sur ce fond
+        for i, l in enumerate(lines_data):
+            cx = l["left"] + l["width"] / 2
+            cy = l["top"] + l["height"] / 2
+            if rect[0] <= cx <= rect[2] and rect[1] <= cy <= rect[3]:
+                bg_colors[i] = f"{r:02x}{g:02x}{b_:02x}"
+
+    # Ajoute bg_color à chaque ligne
+    for i, l in enumerate(lines_data):
+        l["bg_color"] = bg_colors.get(i, None)
 
     # Blanking
     for word in page.get_text("words"):
@@ -236,6 +297,7 @@ def translate_lines_with_llm(lines_data: list[dict]) -> list[dict]:
     logger.info(f"Appel LLM {MODEL_NAME} — {len(lines_data)} lignes…")
     client     = LLMClient(model=MODEL_NAME, api_key=api_key, target_lang=TARGET_LANG)
     batch_data = [{"id": i, "text": l["styled_text"]} for i, l in enumerate(lines_data)]
+
     results    = client._call_llm(batch_data)
 
     translated = 0
@@ -323,7 +385,8 @@ def generate_latex_document(
         # Ratio de compression Python-side (évite que \resizebox écrase trop)
         # On estime la largeur du texte traduit en caractères × taille de police × 0.50
         trans_plain = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', '', translated)).strip()
-        estimated_w = len(trans_plain) * font_size * 0.50
+        char_width_coeff = 0.48 if geo["layout"] == "one_col" else 0.50
+        estimated_w = len(trans_plain) * font_size * char_width_coeff
 
         if estimated_w > max_w* 1.15:
             # Compression amortie : on ne descend pas en dessous de 70 % de la taille orig
@@ -338,21 +401,14 @@ def generate_latex_document(
         # ── Hauteur de la boîte : original + 40 % de marge pour l'interligne ──
         box_h = max(height * 1.4, render_fs * 1.4)
 
-        if "facteurs" in line.get("translated_styled_text", "").lower() or "degré de" in line.get("text", "").lower():
-            print(f"texte={line.get("translated_styled_text", "")} left={line['left']:.1f} right={line['left']+line['width']:.1f} "
-                f"max_w={max_w:.1f} font={font_size:.1f} "
-                f"estimated={estimated_w:.1f} scale={python_scale:.2f} "
-                f"layout={geo['layout']} col_left_max={geo['col_left_max']:.1f}")
 
-        tex += f"""
-\\begin{{textblock*}}{{{max_w:.1f}pt}}({left:.1f}pt, {top:.1f}pt)%
-\\noindent%
-\\scalebox{{{python_scale:.3f}}}{{%
-\\fontsize{{{font_size:.1f}pt}}{{{font_size*1.2:.1f}pt}}\\selectfont%
-{latex_text}%
-}}%
-\\end{{textblock*}}
-"""
+        bg_color   = line.get("bg_color")
+
+        if bg_color:
+            tex += f"\\begin{{textblock*}}{{{max_w:.1f}pt}}({left:.1f}pt, {top:.1f}pt)%\n\\noindent%\n\\colorbox[HTML]{{{bg_color}}}{{\\parbox{{{max_w:.1f}pt}}{{%\n\\scalebox{{{python_scale:.3f}}}{{%\n\\fontsize{{{font_size:.1f}pt}}{{{font_size*1.2:.1f}pt}}\\selectfont%\n{latex_text}%\n}}}}}}%\n\\end{{textblock*}}\n"
+        else:
+            tex += f"\\begin{{textblock*}}{{{max_w:.1f}pt}}({left:.1f}pt, {top:.1f}pt)%\n\\noindent%\n\\scalebox{{{python_scale:.3f}}}{{%\n\\fontsize{{{font_size:.1f}pt}}{{{font_size*1.2:.1f}pt}}\\selectfont%\n{latex_text}%\n}}%\n\\end{{textblock*}}\n"
+        
 
     tex += "\n\\end{document}\n"
 
@@ -368,19 +424,22 @@ def generate_latex_document(
 # 6. COMPILATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def compile_latex(tex_path: str):
+import time
+
+def compile_latex(tex_path: str, suffix: str = ""):
     logger.info("Compilation pdflatex…")
     cwd      = os.path.abspath(OUTPUT_DIR)
     tex_file = os.path.basename(tex_path)
-    pdf_out  = os.path.join(cwd, "document.pdf")
-
-    if os.path.exists(pdf_out):
-        try: os.remove(pdf_out)
-        except Exception: pass
+    
+    # Nom unique basé sur timestamp + suffix optionnel
+    timestamp = time.strftime("%H%M%S")
+    pdf_name  = f"document_{timestamp}{suffix}.pdf"
+    pdf_out   = os.path.join(cwd, pdf_name)
 
     try:
         res = subprocess.run(
-            ["pdflatex", "-interaction=nonstopmode", tex_file],
+            ["pdflatex", "-interaction=nonstopmode",
+             f"-jobname=document_{timestamp}{suffix}", tex_file],
             cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
         )
         if os.path.exists(pdf_out):
