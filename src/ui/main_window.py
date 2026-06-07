@@ -584,9 +584,8 @@ class MainWindow(QMainWindow):
 
         self._incomplete_pages: list[int] = []
 
-        self._scroll_sync_timer = QTimer(self)
-        self._scroll_sync_timer.setInterval(100)
-        self._scroll_sync_timer.timeout.connect(self._sync_scroll_tick)
+        self._last_synced_page  = 0
+        self._is_syncing_scroll = False
 
         self._build_menu()
         self._build_ui()
@@ -846,9 +845,6 @@ class MainWindow(QMainWindow):
         self._last_pdf_y = 0
         self._is_syncing_scroll = False
         
-        # 3. Démarrage de la boucle de synchronisation de défilement
-        self._scroll_sync_timer.start()
-
         self.status.showMessage(
             f"Chargement terminé : {os.path.basename(self._pdf_path)} "
             f"({len(self._document.pages)} pages)"
@@ -869,48 +865,63 @@ class MainWindow(QMainWindow):
         self.status.showMessage(f"Zoom appliqué : {int(self._zoom * 100)}%")
 
     def _sync_scroll_tick(self):
-        """Vérifie périodiquement si l'un des deux volets a défilé et synchronise l'autre."""
-        if getattr(self, "_is_syncing_scroll", False):
+        """
+        Vérification périodique (100ms) pour aligner les pages.
+        Utilise un système de défilement par page (snapping) pour éviter le drift.
+        """
+        if getattr(self, "_is_syncing_scroll", False) or not self._document:
             return
 
-        # 1. On demande la position actuelle de la traduction (HTML classique)
-        self.trans_panel.web_view.page().runJavaScript("window.scrollY", self._on_trans_scroll_received)
+        # 1. On interroge d'abord le PDF d'origine (Gauche)
+        js_get_pdf_page = (
+            "window.viewer && window.viewer.viewport_ ? "
+            "window.viewer.viewport_.getMostVisiblePage() : null"
+        )
+        self.pdf_viewer.view.page().runJavaScript(js_get_pdf_page, self._on_pdf_page_received)
 
-    def _on_trans_scroll_received(self, trans_y):
-        if trans_y is None:
+    def _on_pdf_page_received(self, pdf_page_idx):
+        if pdf_page_idx is None or getattr(self, "_is_syncing_scroll", False):
             return
 
-        # Si la traduction a défilé de manière significative
-        if abs(trans_y - getattr(self, "_last_trans_y", 0)) > 3:
-            self._last_trans_y = trans_y
+        # Si la page courante lue à gauche a changé, on aligne la droite
+        if pdf_page_idx != getattr(self, "_last_synced_page", None):
+            self._last_synced_page = pdf_page_idx
             self._is_syncing_scroll = True
             
-            # On force le défilement du PDF Chrome via son Viewport interne
-            js_scroll_pdf = f"if(window.viewer && window.viewer.viewport_) window.viewer.viewport_.position = {{x: 0, y: {trans_y}}};"
+            # Appel fluide du défilement HTML à droite
+            js_scroll_html = f"if(typeof scrollToPageHTML === 'function') scrollToPageHTML({pdf_page_idx});"
+            self.trans_panel.web_view.page().runJavaScript(
+                js_scroll_html, 
+                lambda _: self._release_scroll_lock()
+            )
+            return
+
+        # 2. Si la page n'a pas bougé à gauche, on vérifie si l'utilisateur fait défiler à droite (HTML)
+        js_get_html_page = "typeof getMostVisiblePageHTML === 'function' ? getMostVisiblePageHTML() : null"
+        self.trans_panel.web_view.page().runJavaScript(js_get_html_page, self._on_html_page_received)
+
+    def _on_html_page_received(self, html_page_idx):
+        if html_page_idx is None or getattr(self, "_is_syncing_scroll", False):
+            return
+
+        # Si la page lue à droite a changé, on aligne la gauche
+        if html_page_idx != getattr(self, "_last_synced_page", None):
+            self._last_synced_page = html_page_idx
+            self._is_syncing_scroll = True
+            
+            # Appel du défilement interne Chromium PDF à gauche
+            js_scroll_pdf = f"if(window.viewer && window.viewer.viewport_) window.viewer.viewport_.goToPage({html_page_idx});"
             self.pdf_viewer.view.page().runJavaScript(
                 js_scroll_pdf, 
-                lambda _: setattr(self, "_is_syncing_scroll", False)
+                lambda _: self._release_scroll_lock()
             )
-            return
 
-        # 2. Si la traduction n'a pas bougé, on vérifie si le PDF Chrome a défilé
-        js_get_pdf_y = "window.viewer && window.viewer.viewport_ ? window.viewer.viewport_.position.y : null"
-        self.pdf_viewer.view.page().runJavaScript(js_get_pdf_y, self._on_pdf_scroll_received)
-
-    def _on_pdf_scroll_received(self, pdf_y):
-        if pdf_y is None:
-            return
-
-        # Si le PDF Chrome a défilé de manière significative
-        if abs(pdf_y - getattr(self, "_last_pdf_y", 0)) > 3:
-            self._last_pdf_y = pdf_y
-            self._is_syncing_scroll = True
-            
-            # On force le défilement de la page traduite HTML
-            self.trans_panel.web_view.page().runJavaScript(
-                f"window.scrollTo(0, {pdf_y});",
-                lambda _: setattr(self, "_is_syncing_scroll", False)
-            )
+    def _release_scroll_lock(self):
+        """
+        Déverrouille la synchronisation après 450ms pour laisser le temps
+        aux animations de défilement Chromium 'smooth' de se finaliser proprement.
+        """
+        QTimer.singleShot(450, lambda: setattr(self, "_is_syncing_scroll", False))
 
 
     def _on_extraction_error(self, err_msg: str):

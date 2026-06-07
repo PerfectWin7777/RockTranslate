@@ -64,14 +64,22 @@ class HTMLBuilder:
             glass_overlay = f"""
                 <div id="glass-overlay-{page_idx}" style="
                     position: absolute;
-                    top: 10%;
-                    left: 10%;
-                    width: 80%;
-                    height: 80%;
-                    background: rgba(255, 255, 255, 0.25);
-                    backdrop-filter: blur(8px);
-                    -webkit-backdrop-filter: blur(8px);
-                    border-radius: 12px;
+                    top: 5%;
+                    left: 5%;
+                    width: 90%;
+                    height: 90%;
+                    background: linear-gradient(
+                        135deg,
+                        rgba(255,255,255,0.45),
+                        rgba(255,255,255,0.15)
+                    );
+                    backdrop-filter: blur(18px);
+                    -webkit-backdrop-filter: blur(18px);
+                    border: 1px solid rgba(255,255,255,0.5);
+                    border-radius: 16px;
+                    box-shadow:
+                        0 8px 32px rgba(31,38,135,0.25),
+                        0 0 1px rgba(255,255,255,0.5);
                     z-index: 10;
                     display: flex;
                     justify-content: center;
@@ -272,6 +280,40 @@ class HTMLBuilder:
                 container.innerHTML = '<iframe src="' + targetUrl + '" style="width:100%;height:100%;border:none;"></iframe>';
             }}
         }}
+
+        // ──  DÉTECTION ET DÉPLACEMENT PAR INDEX DE PAGE ──
+
+        function getMostVisiblePageHTML()  {{
+            var containers = document.querySelectorAll('.page-container');
+            var maxVisibleHeight = 0;
+            var mostVisibleIndex = 0;
+            var viewportTop = window.scrollY;
+            var viewportBottom = viewportTop + window.innerHeight;
+
+            containers.forEach(function(container, index)  {{
+                var rect = container.getBoundingClientRect();
+                var top = rect.top + window.scrollY;
+                var bottom = rect.bottom + window.scrollY;
+
+                var visibleTop = Math.max(top, viewportTop);
+                var visibleBottom = Math.min(bottom, viewportBottom);
+                var visibleHeight = Math.max(0, visibleBottom - visibleTop);
+
+                if (visibleHeight > maxVisibleHeight)  {{
+                    maxVisibleHeight = visibleHeight;
+                    mostVisibleIndex = index;
+                }}
+            }});
+            return mostVisibleIndex;
+        }}
+
+        function scrollToPageHTML(index) {{
+            var container = document.getElementById('page-container-' + index);
+            if (container)  {{
+                container.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+           }}
+        }}
+
 
     </script>
 </head>
