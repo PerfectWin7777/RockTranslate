@@ -166,7 +166,7 @@ class TranslationViewer(QWidget):
         # Chargement direct du PDF unifié dans le panneau
         self.web_view.load(file_url)
 
-        
+
 
     def inject_skeletons(self, page_idx: int, page):
         """
@@ -236,23 +236,9 @@ class TranslationViewer(QWidget):
         target_line = target_block.lines[line_idx]
         target_line.translated_text = translated_text
 
-        # col_left_max, col_right_min, page_right_max = HTMLBuilder._compute_column_boundaries(
-        #     page.blocks, page.width
-        # )
 
         geo = HTMLBuilder._detect_column_layout(page.blocks, page.width)
 
-        # line_html = HTMLBuilder._generate_line_div(
-        #     line=target_line,
-        #     block=target_block,
-        #     page_width=page.width,
-        #     col_left_max=col_left_max,
-        #     col_right_min=col_right_min,
-        #     page_right_max=page_right_max,
-        #     page_idx=page_idx,
-        #     show_skeletons=self.is_translation_started, # Conserve l'état squelette pour les autres lignes
-        # )
-        
         lines_html = HTMLBuilder._generate_line_div(
                 line=target_line, block=target_block, page_width=page.width,
                 geo=geo,

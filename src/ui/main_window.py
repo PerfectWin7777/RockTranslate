@@ -2,6 +2,7 @@
 
 import os, re
 import sys, base64
+import shutil
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout,
     QVBoxLayout, QSplitter, QFileDialog, QMessageBox,
@@ -579,6 +580,7 @@ class MainWindow(QMainWindow):
         self._current_model  = SUPPORTED_MODELS["Google Gemini"][0]
         self._current_lang   = "French"
         self._zoom           = 1.0
+        self._final_pdf_path = None
 
         self._incomplete_pages: list[int] = []
 
@@ -637,6 +639,12 @@ class MainWindow(QMainWindow):
         self.a_close.setEnabled(False)
         self.a_close.triggered.connect(self._close_document)
         m_file.addAction(self.a_close)
+
+        self.a_export = QAction("Exporter le PDF traduit…", self)
+        self.a_export.setShortcut(QKeySequence("Ctrl+S"))  # Raccourci standard de sauvegarde
+        self.a_export.setEnabled(False)
+        self.a_export.triggered.connect(self._export_pdf_dialog)
+        m_file.addAction(self.a_export)
 
         m_file.addSeparator()
 
@@ -731,7 +739,7 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(self, "Ouvrir un PDF", "", "PDF (*.pdf)")
         if path:
             self._open_pdf_by_path(path)
-
+ 
     def _open_pdf_by_path(self, path: str):
         self.status.showMessage("Analyse du document et extraction en cours...")
         self._pdf_path = path
@@ -742,6 +750,53 @@ class MainWindow(QMainWindow):
         self._ext_worker.finished.connect(self._on_extraction_finished)
         self._ext_worker.error.connect(self._on_extraction_error)
         self._ext_worker.start()
+    
+    def _export_pdf_dialog(self):
+        """
+        Ouvre une boîte de dialogue d'enregistrement et exporte le document final
+        à l'aide de shutil.copy2 (copie brute instantanée).
+        """
+        if not self._final_pdf_path or not os.path.exists(self._final_pdf_path):
+            QMessageBox.warning(
+                self, "Export impossible", 
+                "Le fichier PDF assemblé est introuvable ou n'est pas encore prêt."
+            )
+            return
+        # Préparation du nom de fichier par défaut
+        original_file_name = os.path.basename(self._pdf_path)
+        base_name, extension = os.path.splitext(original_file_name)
+        suggested_name = f"{base_name}_translated{extension}"
+
+        # Définition du chemin d'export par défaut vers le dossier Documents
+        default_dir = os.path.join(os.path.expanduser("~"), "Documents", suggested_name)
+
+        # Ouverture de la boîte de dialogue de sauvegarde système
+        destination_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Exporter le PDF traduit",
+            default_dir,
+            "Documents PDF (*.pdf)"
+        )
+
+        if destination_path:
+            try:
+                # Copie du fichier temporaire vers la destination utilisateur
+                shutil.copy2(self._final_pdf_path, destination_path)
+                
+                self.status.showMessage(f"Fichier exporté : {os.path.basename(destination_path)}")
+                QMessageBox.information(
+                    self,
+                    "Export réussi",
+                    f"Le PDF traduit a été enregistré avec succès à l'emplacement :\n{destination_path}"
+                )
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    "Erreur d'exportation",
+                    f"Impossible d'enregistrer le fichier à l'emplacement choisi :\n{str(e)}"
+                )
+
+
 
     def _on_extraction_progress(self, current: int, total: int):
         self.status.showMessage(
@@ -847,8 +902,10 @@ class MainWindow(QMainWindow):
         self.trans_panel.clear()
         self._pdf_path  = None
         self._document  = None
+        self._final_pdf_path = None
         self.a_close.setEnabled(False)
         self.a_start.setEnabled(False)
+        self.a_export.setEnabled(False)
         self.stacked_widget.setCurrentIndex(0)
         self.status.showMessage("Document clos.")
 
@@ -878,6 +935,7 @@ class MainWindow(QMainWindow):
         
         #  reset les pages incomplètes au démarrage
         self._incomplete_pages.clear()
+        self.a_export.setEnabled(False)
 
         blocks_to_translate = [
             b for page in self._document.pages for b in page.blocks
@@ -976,7 +1034,15 @@ class MainWindow(QMainWindow):
         Remplace l'affichage fragmenté HTML par la visionneuse PDF unique complète.
         """
         # On charge le document PDF unifié final dans l'interface de droite
+        self._final_pdf_path = final_pdf_path
+        
+        # ACTIVATION du bouton d'exportation
+        self.a_export.setEnabled(True)
+        
+        # Mise à jour du volet de droite avec le PDF final complet
         self.trans_panel.show_final_pdf(final_pdf_path)
+
+
 
     def _on_translation_error(self, err_msg: str):
         self.a_start.setText("▶  Démarrer la traduction")
