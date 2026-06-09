@@ -39,6 +39,7 @@ test_detect_tables.py
 test_pdfplumber.py
 test_searchfor.py
 
+src/ui_pyqt/main_windowSS.py
 
 src/rocktranslate.egg-info
 
