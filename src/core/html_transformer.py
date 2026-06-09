@@ -41,36 +41,74 @@ def convert_pdf_to_html(pdf_path: str, assets_dir: str = DEFAULT_ASSETS_DIR) -> 
         return output_html_path
     return None
 
+def wrap_text_nodes_recursively(soup, parent_element, trans_idx_ref, original_texts_map) -> None:
+    """
+    Parcourt récursivement les nœuds enfants d'un élément pour envelopper tous les textes bruts,
+    tout en préservant les spacers d'origine sans les altérer.
+    """
+    children = list(parent_element.contents)
+    parent_element.clear()
+
+    for child in children:
+        if isinstance(child, NavigableString):
+            # C'est du texte brut : on l'enveloppe pour la traduction
+            text_val = str(child)
+            if text_val.strip():
+                text_id = f"t-{trans_idx_ref[0]}"
+                original_texts_map[text_id] = text_val
+                
+                new_span = soup.new_tag("span", attrs={
+                    "class": "trans-span",
+                    "data-trans-id": text_id,
+                    "data-orig-text": text_val
+                })
+                new_span.string = text_val
+                parent_element.append(new_span)
+                trans_idx_ref[0] += 1
+            else:
+                parent_element.append(child)
+                
+        elif child.name == "span" and child.get("class") and any(c.startswith("_") for c in child.get("class")):
+            # C'est une balise d'espacement (spacer) de pdf2htmlEX : on la conserve strictement intacte
+            parent_element.append(child)
+            
+        elif child.name in ["span", "a", "b", "i", "sup", "sub", "em", "strong"]:
+            # C'est un conteneur stylisé ou un lien : on descend récursivement à l'intérieur
+            wrap_text_nodes_recursively(soup, child, trans_idx_ref, original_texts_map)
+            parent_element.append(child)
+            
+        else:
+            # Sécurité pour tout autre type d'élément HTML
+            parent_element.append(child)
+
 
 def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]:
     """
-    Analyse le fichier HTML de pdf2htmlEX, isole les zones de texte sans toucher
-    aux spacers de colonnes, et injecte le CSS/JS de production.
-    
-    Retourne :
-        dict[str, str]: Un dictionnaire des textes d'origine à traduire {"id_texte": "texte_anglais"}
+    Analyse le fichier HTML de pdf2htmlEX, isole récursivement le texte,
+    et injecte vos animations Shimmer vivantes et d'apparitions d'origine.
     """
     with open(raw_html_path, "r", encoding="utf-8") as f:
         soup = BeautifulSoup(f.read(), "lxml")
 
     text_divs = soup.find_all("div", class_="t")
     original_texts_map = {}
-    trans_idx = 0
+    trans_idx_ref = [0] # Passage par référence pour l'indexation récursive unique
 
-    # 1. Analyse BeautifulSoup de la structure et injection des balises d'isolation (row-wrapper & trans-span)
+    # 1. Analyse récursive BeautifulSoup et injection des enveloppes d'isolations (row-wrapper & trans-span)
     for div in text_divs:
         children = list(div.contents)
-        div.clear() # On vide la ligne pour la reconstruire avec nos éléments d'isolation
+        div.clear()
 
         # Enveloppe globale protectrice de ligne
         wrapper = soup.new_tag("span", attrs={"class": "row-wrapper"})
         div.append(wrapper)
 
+        # Descente récursive pour envelopper 100% des chaînes de texte de la ligne
         for child in children:
             if isinstance(child, NavigableString):
                 text_val = str(child)
                 if text_val.strip():
-                    text_id = f"t-{trans_idx}"
+                    text_id = f"t-{trans_idx_ref[0]}"
                     original_texts_map[text_id] = text_val
                     
                     new_span = soup.new_tag("span", attrs={
@@ -80,38 +118,18 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
                     })
                     new_span.string = text_val
                     wrapper.append(new_span)
-                    trans_idx += 1
+                    trans_idx_ref[0] += 1
                 else:
                     wrapper.append(child)
-            elif child.name == "a":
-                # Traitement récursif de sécurité pour les liens hypertextes
-                a_children = list(child.contents)
-                child.clear()
-                for a_child in a_children:
-                    if isinstance(a_child, NavigableString):
-                        a_text_val = str(a_child)
-                        if a_text_val.strip():
-                            text_id = f"t-{trans_idx}"
-                            original_texts_map[text_id] = a_text_val
-                            
-                            new_span = soup.new_tag("span", attrs={
-                                "class": "trans-span",
-                                "data-trans-id": text_id,
-                                "data-orig-text": a_text_val
-                            })
-                            new_span.string = a_text_val
-                            child.append(new_span)
-                            trans_idx += 1
-                        else:
-                            child.append(a_child)
-                    else:
-                        child.append(a_child)
+            elif child.name == "span" and child.get("class") and any(c.startswith("_") for c in child.get("class")):
+                wrapper.append(child)
+            elif child.name in ["span", "a", "b", "i", "sup", "sub", "em", "strong"]:
+                wrap_text_nodes_recursively(soup, child, trans_idx_ref, original_texts_map)
                 wrapper.append(child)
             else:
-                # Préservation des balises d'espacement (spacers) de pdf2htmlEX
                 wrapper.append(child)
 
-    # 2. Injection du style CSS de production (Squelettes shimmer & styles de lignes)
+    # 2. Injection de vos styles originaux d'animation Shimmer dynamique et Fade-In d'écriture
     style_tag = soup.new_tag("style")
     style_tag.string = """
         .row-wrapper {
@@ -121,29 +139,42 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
         .trans-span {
             display: inline-block;
         }
-        .translated-skeleton {
-            color: transparent !important; /* Rend le texte d'origine invisible */
-            background: linear-gradient(90deg, #e2e8f0 25%, #cbd5e1 50%, #e2e8f0 75%) !important;
-            background-size: 200% 100% !important;
-            animation: loading-shimmer 1.5s infinite linear !important;
-            border-radius: 3px !important;
-        }
-        @keyframes loading-shimmer {
+        
+        /* ── ANIMATIONS DU SQUELETTE ET DE L'APPARITION DU TEXTE INTERNE ── */
+        @keyframes shimmer {
             0% { background-position: -200% 0; }
             100% { background-position: 200% 0; }
+        }
+        
+        .translated-skeleton {
+            color: transparent !important; /* Rend le texte original invisible */
+            background: linear-gradient(90deg, #f1f5f9 25%, #cbd5e1 50%, #f1f5f9 75%) !important;
+            background-size: 200% 100% !important;
+            animation: shimmer 1.8s infinite linear !important;
+            border-radius: 4px !important;
+        }
+        
+        .fade-in {
+            animation: fadeInEffect 0.5s ease-out forwards;
+        }
+        
+        @keyframes fadeInEffect {
+            from { opacity: 0; transform: translateY(1px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
     """
     soup.head.append(style_tag)
 
-    # 3. Injection du moteur JavaScript universel (Streaming d'écriture et compression scaleX)
+    # 3. Injection du moteur JavaScript avec transition d'apparition Fade-In
     script_tag = soup.new_tag("script")
     script_tag.string = """
-        // Fonction universelle appelée par PyQt, CLI ou API pour injecter une traduction reçue
         window.streamTranslatedElementById = function(transId, translatedText) {
             var el = document.querySelector('.trans-span[data-trans-id="' + transId + '"]');
             if (!el) return;
 
+            // Retrait du squelette et application de la transition d'apparition d'écriture
             el.classList.remove('translated-skeleton');
+            el.classList.add('fade-in');
             el.innerHTML = "";
 
             var wrapper = el.closest('.row-wrapper');
@@ -157,10 +188,9 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
                     el.innerHTML += (currentWordIdx === 0 ? "" : " ") + words[currentWordIdx];
                     currentWordIdx++;
                     
-                    // Réduction d'échelle horizontale de l'enveloppe entière si nécessaire
                     compressWrapperIfNeeded(wrapper, origWidth);
                     
-                    setTimeout(appendNextWord, 15); // Débit fluide à l'écriture (15ms)
+                    setTimeout(appendNextWord, 15);
                 } else {
                     compressWrapperIfNeeded(wrapper, origWidth);
                 }
@@ -181,7 +211,6 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
             }
         }
 
-        // Phase d'initialisation : Mesure géométrique et activation des squelettes d'attente
         window.onload = function() {
             var wrappers = document.querySelectorAll('.row-wrapper');
             wrappers.forEach(function(wrapper) {
@@ -197,7 +226,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
     """
     soup.body.append(script_tag)
 
-    # 4. Enregistrement du fichier instrumenté de production
+    # 4. Enregistrement de l'espace de travail
     with open(output_html_path, "w", encoding="utf-8") as f:
         f.write(str(soup))
 
