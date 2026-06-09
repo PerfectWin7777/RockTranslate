@@ -58,7 +58,7 @@ def should_translate(text: str) -> bool:
         return False
 
     # Élimine les éléments trop courts de bruit (ex: "a", "x", "by")
-    if len(text) < 3:
+    if len(text) < 2:
         return False
 
     return True
