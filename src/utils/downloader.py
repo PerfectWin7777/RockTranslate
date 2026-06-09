@@ -6,10 +6,12 @@ import zipfile
 import urllib.request
 
 # Détection dynamique du dossier assets de production
-if os.path.exists("./src/assets"):
-    DEFAULT_ASSETS_DIR = os.path.abspath("./src/assets")
-else:
-    DEFAULT_ASSETS_DIR = os.path.abspath("./assets")
+# Force l'utilisation stricte de src/assets comme l'unique source de vérité
+DEFAULT_ASSETS_DIR = os.path.abspath("src/assets")
+
+print(f"📁 Dossier d'assets : {DEFAULT_ASSETS_DIR}")
+# Sécurité : création du dossier s'il n'existe pas encore
+os.makedirs(DEFAULT_ASSETS_DIR, exist_ok=True)
 
 
 def _download_and_extract(url: str, dest_dir: str, zip_name: str) -> bool:

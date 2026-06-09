@@ -22,7 +22,7 @@ from ui_pyqt.workspace_viewer import WorkspaceViewer
 from ui_pyqt.progress_panel import ProgressPanel
 from ui_pyqt.workers.extraction_worker import ExtractionWorker
 from ui_pyqt.workers.translation_worker import TranslationWorker
-from utils.downloader import check_and_download_pdfjs, check_and_download_pdf2htmlex
+from utils.downloader import check_and_download_pdfjs, check_and_download_pdf2htmlex, DEFAULT_ASSETS_DIR
 
 # ── Configuration Constants ──────────────────────────────────────────────────
 SUPPORTED_MODELS = {
@@ -326,7 +326,8 @@ class MainWindow(QMainWindow):
         self.a_start.setEnabled(True)
 
         # Initialisation et chargement de notre double-vue Chromium synchronisée !
-        self.workspace_view.load_document(self._pdf_path, self._instrumented_html_path, "./assets/pdfjs")
+        pdfjs_absolute_path = os.path.join(DEFAULT_ASSETS_DIR, "pdfjs")
+        self.workspace_view.load_document(self._pdf_path, self._instrumented_html_path, pdfjs_absolute_path)
 
         self.status.showMessage(f"Document chargé : {os.path.basename(self._pdf_path)} ({len(original_texts_map)} segments textuels identifiés)")
         self.a_open.setEnabled(True)
@@ -452,7 +453,7 @@ class MainWindow(QMainWindow):
             self._zoom = 1.0
         else:
             self._zoom = max(0.5, min(2.5, self._zoom + delta))
-        self.view.setZoomFactor(self._zoom)
+        self.workspace_view.setZoomFactor(self._zoom)
         self.status.showMessage(f"Zoom appliqué : {int(self._zoom * 100)}%")
 
     def toggle_fullscreen(self):
@@ -484,7 +485,7 @@ class MainWindow(QMainWindow):
             self._trans_worker.wait()
 
         self.workspace_view.cleanup_temp_files()
-        self.view.load(QUrl("about:blank"))
+        self.workspace_view.load(QUrl("about:blank"))
         
         self._pdf_path = None
         self._instrumented_html_path = None

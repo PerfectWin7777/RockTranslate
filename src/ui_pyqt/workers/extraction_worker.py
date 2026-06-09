@@ -15,7 +15,7 @@ class ExtractionWorker(QThread):
     finished      = pyqtSignal(str, dict)        # Émet (instrumented_html_path, dictionnaire_textes)
     error         = pyqtSignal(str)              # Émet le message en cas d'erreur fatale
 
-    def __init__(self, pdf_path: str, assets_dir: str = "./assets"):
+    def __init__(self, pdf_path: str, assets_dir: str = "src/assets"):
         super().__init__()
         self.pdf_path = pdf_path
         self.assets_dir = assets_dir

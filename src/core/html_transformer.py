@@ -5,43 +5,11 @@ import subprocess
 from bs4 import BeautifulSoup, NavigableString
 
 # Importation découplée de notre nouvel utilitaire de téléchargement
-from utils.downloader import check_and_download_pdf2htmlex
-
-def convert_pdf_to_html(pdf_path: str) -> str | None:
-    """
-    Convertit un fichier PDF en HTML brut en utilisant l'exécutable local pdf2htmlEX.
-    """
-    pdf2htmlex_exe = check_and_download_pdf2htmlex()
-    if not pdf2htmlex_exe:
-        return None
-
-    pdf_dir = os.path.dirname(os.path.abspath(pdf_path))
-    pdf_filename = os.path.basename(pdf_path)
-    html_filename = f"{os.path.splitext(pdf_filename)[0]}_raw.html"
-    output_html_path = os.path.join(pdf_dir, html_filename)
-
-    if os.path.exists(output_html_path):
-        return output_html_path # Évite de re-compiler si déjà présent
-
-    cmd = [
-        os.path.abspath(pdf2htmlex_exe),
-        "--zoom", "1.3",
-        pdf_filename,
-        html_filename
-    ]
-    
-    print(f"⚙️ Conversion haute fidélité du PDF en cours ({pdf_filename})...")
-    result = subprocess.run(
-        cmd, cwd=pdf_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=120
-    )
-    if result.returncode == 0 and os.path.exists(output_html_path):
-        print("✅ Fichier HTML brut généré.")
-        return output_html_path
-    return None
+from utils.downloader import check_and_download_pdf2htmlex, DEFAULT_ASSETS_DIR
 
 
 
-def convert_pdf_to_html(pdf_path: str, assets_dir: str = "./assets") -> str | None:
+def convert_pdf_to_html(pdf_path: str, assets_dir: str = DEFAULT_ASSETS_DIR) -> str | None:
     """
     Convertit un fichier PDF en HTML brut en utilisant l'exécutable local pdf2htmlEX.
     """
