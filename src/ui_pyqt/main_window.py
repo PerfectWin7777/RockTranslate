@@ -131,7 +131,7 @@ class MainWindow(QMainWindow):
         self._pdf_path = None
         self._instrumented_html_path = None
         self._original_texts = {}
-        self._zoom = 0.6
+        self._zoom = 0.7
 
         self._ext_worker = None
         self._trans_worker = None

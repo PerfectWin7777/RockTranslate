@@ -286,11 +286,27 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
             var wrapper = el.closest('.row-wrapper');
             var origWidth = parseFloat(wrapper.getAttribute('data-orig-width'));
 
-            // Retrait de la classe squelette de la ligne complète
+            // ── DEBLOCAGE AUTOMATIQUE ET TRANSITION EN SQUELETTES DE LA PAGE EN COURS ──
+            // Recherche du conteneur de page parent (.pf)
+            var pageElement = el.closest('.pf');
+            if (pageElement) {
+                var pageId = pageElement.id; // Ex: "pf1" ou "pfa"
+                var pageHex = pageId.replace('pf', '');
+                var pageIdx = parseInt(pageHex, 16) - 1; // Conversion hexadécimale en index 0-based
+                
+                // Si le voile dépoli de verre est toujours présent, on le retire et on active les squelettes de la page !
+                var glass = document.getElementById('glass-overlay-t-' + pageIdx);
+                if (glass) {
+                    window.preparePageForTranslation(pageIdx);
+                }
+            }
+
+            // On retire le squelette de la ligne complète dès qu'un élément commence à s'écrire
             if (wrapper.classList.contains('translated-skeleton')) {
                 wrapper.classList.remove('translated-skeleton');
             }
 
+            // Transition d'apparition d'écriture fluide
             el.classList.add('fade-in');
             el.innerHTML = "";
 
@@ -311,6 +327,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
             }
             appendNextWord();
         };
+        
 
         function compressWrapperIfNeeded(wrapper, origWidth) {
             if (origWidth <= 0) return;
