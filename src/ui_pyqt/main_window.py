@@ -139,6 +139,9 @@ class MainWindow(QMainWindow):
         self._current_model = SUPPORTED_MODELS["Google Gemini"][0]
         self._current_lang = "French"
 
+        self._tid_to_page = {}
+        self._current_translating_page = -1
+
         # Sécurité : Vérification et téléchargement des moteurs web en tâche de fond au démarrage
         check_and_download_pdfjs()
         check_and_download_pdf2htmlex()
@@ -317,9 +320,10 @@ class MainWindow(QMainWindow):
     def _on_extraction_progress(self, message: str):
         self.status.showMessage(message)
 
-    def _on_extraction_finished(self, instrumented_html_path: str, original_texts_map: dict):
+    def _on_extraction_finished(self, instrumented_html_path: str, original_texts_map: dict, tid_to_page: dict):
         self._instrumented_html_path = instrumented_html_path
         self._original_texts = original_texts_map
+        self._tid_to_page = tid_to_page
 
         # Basculement sur l'espace de travail principal
         self.stacked_widget.setCurrentIndex(1)
@@ -375,10 +379,16 @@ class MainWindow(QMainWindow):
         self._trans_worker.error.connect(self._on_translation_error)
         
         self.a_start.setText("⏹  Arrêter la traduction")
+        self._current_translating_page = -1
         self._trans_worker.start()
 
     def _on_segment_translated(self, trans_id: str, translated_text: str):
         """Reçoit une traduction progressive et l'injecte en temps réel dans l'HTML de droite."""
+        page_idx = self._tid_to_page.get(trans_id, 0)
+        if page_idx != self._current_translating_page:
+            self._current_translating_page = page_idx
+            self.workspace_view.prepare_page(page_idx)
+
         self.workspace_view.stream_translation(trans_id, translated_text)
         self.progress_panel.increment()
 

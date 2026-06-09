@@ -1,6 +1,6 @@
 # core/html_transformer.py
 
-import os
+import os, re
 import subprocess
 from bs4 import BeautifulSoup, NavigableString
 
@@ -82,7 +82,54 @@ def wrap_text_nodes_recursively(soup, parent_element, trans_idx_ref, original_te
             parent_element.append(child)
 
 
-def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]:
+def _wrap_children_recursively(soup, element, idx, original_texts_map, tid_to_page, page_idx, sx_orig, sy_orig):
+    """
+    Descend récursivement dans les éléments imbriqués d'une div.t
+    pour wrapper tous les TextNodes, sans row-wrapper ni style complexe.
+    Préserve intacts les spacers pdf2htmlEX (class="_").
+    """
+    for child in list(element.children):
+        if isinstance(child, NavigableString) and child.strip():
+            tid = f"t-{idx[0]}"
+            original_texts_map[tid] = str(child)
+            tid_to_page[tid] = page_idx
+
+            span = soup.new_tag("span", attrs={
+                "data-trans-id": tid,
+                "data-sx": str(sx_orig),
+                "data-sy": str(sy_orig),
+                "style": "display:inline;"
+            })
+            span.string = str(child)
+            child.replace_with(span)
+            idx[0] += 1
+
+        elif hasattr(child, "get"):
+            classes = child.get("class", [])
+            # Spacer pdf2htmlEX → ne pas toucher
+            if "_" in classes:
+                continue
+            elif child.name in ["span", "a", "b", "i", "sup", "sub", "em", "strong"]:
+                _wrap_children_recursively(soup, child, idx, original_texts_map, tid_to_page, page_idx, sx_orig, sy_orig)
+
+
+
+def parse_matrix_classes(soup) -> dict:
+    matrix_map = {}
+    for style_tag in soup.find_all("style"):
+        text = style_tag.string or ""
+        for m in re.finditer(
+            r'\.(m\w+)\{transform:matrix\(([\d.]+),[\d.]+,[\d.]+,([\d.]+),', text
+        ):
+            cls = m.group(1)
+            sx  = float(m.group(2))
+            sy  = float(m.group(3))
+            matrix_map[cls] = (sx, sy)
+    return matrix_map
+
+
+
+def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, dict]:
     """
     Analyse le fichier HTML de pdf2htmlEX, isole récursivement le texte,
     et injecte vos animations Shimmer vivantes, le Glass dépoli et le Loader Circulaire.
@@ -91,44 +138,47 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
         soup = BeautifulSoup(f.read(), "lxml")
 
     # 1. Analyse récursive BeautifulSoup et injection des enveloppes d'isolations (row-wrapper & trans-span)
-    text_divs = soup.find_all("div", class_="t")
+    matrix_map = parse_matrix_classes(soup)
+    pages_list = soup.find_all("div", class_="pf")
+
     original_texts_map = {}
-    trans_idx_ref = [0] # Passage par référence pour l'indexation récursive unique
+    tid_to_page = {}
+    idx = [0]
 
-    for div in text_divs:
-        children = list(div.contents)
-        div.clear()
+    for div_t in soup.find_all("div", class_="t"):
+        # Trouver le (sx, sy) de cette div
+        classes = div_t.get("class", [])
+        sx_orig, sy_orig = 1.0, 1.0
+        for cls in classes:
+            if cls in matrix_map:
+                sx_orig, sy_orig = matrix_map[cls]
+                break
 
-        # Enveloppe globale protectrice de ligne
-        wrapper = soup.new_tag("span", attrs={"class": "row-wrapper"})
-        div.append(wrapper)
+        # Trouver la page parente
+        page_el = div_t.find_parent("div", class_="pf")
+        page_idx = pages_list.index(page_el) if page_el in pages_list else 0
 
-        # Descente récursive pour envelopper 100% des chaînes de texte de la ligne
-        for child in children:
-            if isinstance(child, NavigableString):
-                text_val = str(child)
-                if text_val.strip():
-                    text_id = f"t-{trans_idx_ref[0]}"
-                    original_texts_map[text_id] = text_val
+        for child in list(div_t.children):
+            if isinstance(child, NavigableString) and child.strip():
+                tid = f"t-{idx[0]}"
+                original_texts_map[tid] = str(child)
+                tid_to_page[tid] = page_idx
+
+                span = soup.new_tag("span", attrs={
+                    "data-trans-id": tid,
+                    "data-sx": str(sx_orig),
+                    "data-sy": str(sy_orig),
+                    "style": "display:inline;"
+                })
+                span.string = str(child)
+                child.replace_with(span)
+                idx[0] += 1
+            
+            elif hasattr(child, "get"):
+                child_classes  = child.get("class", [])
+                if "_" not in child_classes  and child.name in ["span", "a", "b", "i", "sup", "sub", "em", "strong"]:
+                    _wrap_children_recursively(soup, child, idx, original_texts_map, tid_to_page, page_idx, sx_orig, sy_orig)
                     
-                    new_span = soup.new_tag("span", attrs={
-                        "class": "trans-span",
-                        "data-trans-id": text_id,
-                        "data-orig-text": text_val
-                    })
-                    new_span.string = text_val
-                    wrapper.append(new_span)
-                    trans_idx_ref[0] += 1
-                else:
-                    wrapper.append(child)
-            elif child.name == "span" and child.get("class") and any(c.startswith("_") for c in child.get("class")):
-                wrapper.append(child)
-            elif child.name in ["span", "a", "b", "i", "sup", "sub", "em", "strong"]:
-                wrap_text_nodes_recursively(soup, child, trans_idx_ref, original_texts_map)
-                wrapper.append(child)
-            else:
-                wrapper.append(child)
-
     # 2. INJECTION DE VOTRE GLASS DE POLI SUR TOUTES LES PAGES DU DOCUMENT (div.pf)
     pages = soup.find_all("div", class_="pf")
     for page_idx, page in enumerate(pages):
@@ -186,66 +236,32 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
     # 3. Injection de vos styles CSS (Squelettes shimmer & styles de lignes & spin circulaire)
     style_tag = soup.new_tag("style")
     style_tag.string = """
-        /* ── MASQUAGE DE LA BARRE LATÉRALE pdf2htmlEX ET RECENTrage ── */
-        #sidebar { 
-            display: none !important; 
-        }
-        #page-container { 
-            left: 0 !important; 
-            margin: 0 auto !important; 
-        }
+        #sidebar { display: none !important; }
+        #page-container { left: 0 !important; margin: 0 auto !important; }
 
-        .row-wrapper {
-            display: inline-block !important;
-            white-space: nowrap !important;
-            border-radius: 3px !important;
-            transition: transform 0.1s ease-out;
-        }
-        .trans-span {
-            display: inline-block;
-        }
-        
-        /* ── ANIMATIONS VIVANTES DU SQUELETTE (SUR LA LIGNE ENTIÈRE) ── */
         @keyframes loading-shimmer {
-            0% { background-position: 200% 0; }
+            0%   { background-position: 200% 0; }
             100% { background-position: -200% 0; }
         }
-        
-        .translated-skeleton {
+        .shimmer-line {
             background: linear-gradient(90deg, #f1f5f9 25%, #cbd5e1 50%, #f1f5f9 75%) !important;
             background-size: 200% 100% !important;
             animation: loading-shimmer 1.8s infinite linear !important;
-            border-radius: 4px !important;
-        }
-        
-        .translated-skeleton,
-        .translated-skeleton * {
+            border-radius: 2px !important;
             color: transparent !important;
-            text-decoration: none !important;
         }
-        
-        .fade-in {
-            animation: fadeInEffect 0.5s ease-out forwards;
-        }
-        
-        @keyframes fadeInEffect {
-            from { opacity: 0; transform: translateY(1px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
+        .shimmer-line * { color: transparent !important; }
 
-        /* ── ANIMATION DU CHARGEMENT CIRCULAIRE DE VOTRE PROTOTYPE ── */
         .circular-loader {
             border: 4px solid #f3f4f6 !important;
             border-top: 4px solid #4f8ef7 !important;
             border-radius: 50% !important;
-            width: 36px !important;
-            height: 36px !important;
+            width: 36px !important; height: 36px !important;
             animation: spin 1s linear infinite !important;
             margin-bottom: 12px !important;
         }
-
         @keyframes spin {
-            0% { transform: rotate(0deg); }
+            0%   { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
     """
@@ -254,99 +270,50 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
     # 4. Injection du JavaScript d'accompagnement (Streaming & initialisation de transition)
     script_tag = soup.new_tag("script")
     script_tag.string = """
-        // Étape 1 : Retirer le Glass Dépoli d'une page et basculer ses lignes en Squelettes (shimmers)
+        window.applyTranslation = function(transId, translatedText, sxOrig, syOrig) {
+            var span = document.querySelector('[data-trans-id="' + transId + '"]');
+            if (!span) return;
+            var divT = span.closest('div.t');
+            if (!divT) return;
+
+            if (!divT.hasAttribute('data-orig-sw')) {
+                divT.style.transform = 'matrix(' + sxOrig + ',0,0,' + syOrig + ',0,0)';
+                divT.setAttribute('data-orig-sw', divT.scrollWidth);
+                divT.setAttribute('data-sx-orig', sxOrig);
+                divT.setAttribute('data-sy-orig', syOrig);
+            }
+
+            var origSW = parseFloat(divT.getAttribute('data-orig-sw'));
+            var sx     = parseFloat(divT.getAttribute('data-sx-orig'));
+            var sy     = parseFloat(divT.getAttribute('data-sy-orig'));
+
+            span.textContent = translatedText;
+
+            var newSW = divT.scrollWidth;
+            if (newSW > 0 && origSW > 0) {
+                var newSx = sx * (origSW / newSW);
+                newSx = Math.min(newSx, sx);
+                divT.style.transform = 'matrix(' + newSx + ',0,0,' + sy + ',0,0)';
+            }
+        };
+
         window.preparePageForTranslation = function(pageIdx) {
+            var pages = document.querySelectorAll('.pf');
+            var page = pages[pageIdx];
+            if (!page) return;
+
             var glass = document.getElementById('glass-overlay-t-' + pageIdx);
             if (glass) {
-                // Transition de fondu douce lors de la disparition
                 glass.style.transition = 'opacity 0.3s ease-out';
                 glass.style.opacity = '0';
-                setTimeout(function() { 
-                    glass.remove(); 
-                }, 300);
+                setTimeout(function() { glass.remove(); }, 300);
             }
 
-            // CORRECTIF : Recherche de l'élément par son index physique dans le DOM (insensible aux formats d'ID)
-            var pages = document.querySelectorAll('.pf');
-            var pageElement = pages[pageIdx];
-            if (pageElement) {
-                var wrappers = pageElement.querySelectorAll('.row-wrapper');
-                wrappers.forEach(function(wrapper) {
-                    wrapper.classList.add('translated-skeleton');
-                });
-            }
-        };
-
-        // Étape 2 : Remplacement progressif mot par mot lors de la traduction reçue
-        window.streamTranslatedElementById = function(transId, translatedText) {
-            var el = document.querySelector('.trans-span[data-trans-id="' + transId + '"]');
-            if (!el) return;
-
-            var wrapper = el.closest('.row-wrapper');
-            var origWidth = parseFloat(wrapper.getAttribute('data-orig-width'));
-
-            // ── DEBLOCAGE AUTOMATIQUE ET TRANSITION EN SQUELETTES DE LA PAGE EN COURS ──
-            // ── CORRECTIF : DÉTECTION ROBUSTE DE L'INDEX DE LA PAGE PAR RECHERCHE DOM ──
-            var pageElement = el.closest('.pf');
-            if (pageElement) {
-                var pages = Array.from(document.querySelectorAll('.pf'));
-                var pageIdx = pages.indexOf(pageElement); // Donne l'index exact (0, 1, 2...)
-                
-                var glass = document.getElementById('glass-overlay-t-' + pageIdx);
-                if (glass) {
-                    window.preparePageForTranslation(pageIdx);
-                }
-            }
-
-            if (wrapper.classList.contains('translated-skeleton')) {
-                wrapper.classList.remove('translated-skeleton');
-            }
-
-            el.classList.add('fade-in');
-            el.innerHTML = "";
-
-            var words = translatedText.split(" ");
-            var currentWordIdx = 0;
-
-            
-
-            function appendNextWord() {
-                if (currentWordIdx < words.length) {
-                    el.innerHTML += (currentWordIdx === 0 ? "" : " ") + words[currentWordIdx];
-                    currentWordIdx++;
-                    
-                    compressWrapperIfNeeded(wrapper, origWidth);
-                    
-                    setTimeout(appendNextWord, 15);
-                } else {
-                    compressWrapperIfNeeded(wrapper, origWidth);
-                }
-            }
-            appendNextWord();
-        };
-
-
-        function compressWrapperIfNeeded(wrapper, origWidth) {
-            if (origWidth <= 0) return;
-            
-            wrapper.style.transform = 'none';
-            var currentWidth = wrapper.getBoundingClientRect().width;
-            
-            if (currentWidth > origWidth) {
-                var scale = origWidth / currentWidth;
-                wrapper.style.transform = 'scaleX(' + scale + ')';
-                wrapper.style.transformOrigin = 'left center';
-            }
-        }
-
-        // Étape 3 : Mesure géométrique initiale à l'ouverture du document (Pas de squelette appliqué !)
-        window.onload = function() {
-            var wrappers = document.querySelectorAll('.row-wrapper');
-            wrappers.forEach(function(wrapper) {
-                var origWidth = wrapper.getBoundingClientRect().width;
-                wrapper.setAttribute('data-orig-width', origWidth);
+            page.querySelectorAll('div.t').forEach(function(divT) {
+                divT.classList.add('shimmer-line');
             });
         };
+    
     """
     soup.body.append(script_tag)
 
@@ -354,4 +321,4 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
     with open(output_html_path, "w", encoding="utf-8") as f:
         f.write(str(soup))
 
-    return original_texts_map
+    return original_texts_map, tid_to_page

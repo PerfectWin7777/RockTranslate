@@ -274,13 +274,35 @@ class WorkspaceViewer(QWebEngineView):
         escaped_text = json.dumps(translated_text)
         
         # Passage par contentWindow de l'iframe de droite pour appeler notre moteur scaleX JS
-        js_code = (
+        sx = "0"  # sera lu depuis data-sx du span par le JS
+        sy = "0"  # sera lu depuis data-sy du span par le JS
+        js = (
             f"var iframe = document.getElementById('html-iframe');"
-            f"if (iframe && iframe.contentWindow && iframe.contentWindow.streamTranslatedElementById) {{"
-            f"  iframe.contentWindow.streamTranslatedElementById('{trans_id}', {escaped_text});"
+            f"if (iframe && iframe.contentWindow && iframe.contentWindow.applyTranslation) {{"
+            f"  var span = iframe.contentWindow.document.querySelector('[data-trans-id=\"{trans_id}\"]');"
+            f"  if (span) {{"
+            f"    var sx = parseFloat(span.getAttribute('data-sx') || '1');"
+            f"    var sy = parseFloat(span.getAttribute('data-sy') || '1');"
+            f"    iframe.contentWindow.applyTranslation('{trans_id}', {escaped_text}, sx, sy);"
+            f"  }}"
             f"}}"
         )
-        self.page().runJavaScript(js_code)
+        self.page().runJavaScript(js)
+    
+
+    def prepare_page(self, page_idx: int):
+        """
+        Enlève le glass et active les skeletons sur une page spécifique.
+        Appelé depuis main_window dès qu'on détecte un nouveau page_idx.
+        """
+        js = (
+            f"var iframe = document.getElementById('html-iframe');"
+            f"if (iframe && iframe.contentWindow && iframe.contentWindow.preparePageForTranslation) {{"
+            f"  iframe.contentWindow.preparePageForTranslation({page_idx});"
+            f"}}"
+        )
+        self.page().runJavaScript(js)
+
 
     def set_pane_layout(self, layout_mode: str):
         """Configure la disposition visuelle (both / pdf_only / trans_only)."""
