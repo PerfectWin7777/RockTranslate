@@ -47,7 +47,6 @@ src/rocktranslate.egg-info
 .idea/
 
 table_detector/
-pdfjs/
 old/
 src/core/spatial_clusterers.py
 src/core/table_detectors.py
