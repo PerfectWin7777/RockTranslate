@@ -8,7 +8,7 @@ venv/
 env/
 build/
 dist/
-fonts/
+
 setup.bat
 
 # Project Specific
