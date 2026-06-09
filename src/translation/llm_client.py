@@ -114,7 +114,8 @@ class LLMClient:
                 is_rate_limit = any(
                     x in err_msg for x in [
                         "rate_limit", "rate limit", "429", "overloaded",
-                        "resource_exhausted", "resource exhausted", "quota"
+                        "resource_exhausted", "resource exhausted", "quota",
+                        "UNAVAILABLE", "503", "timeout", "timed out", "connection error",
                     ]
                 )
 
