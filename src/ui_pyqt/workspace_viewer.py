@@ -270,16 +270,11 @@ class WorkspaceViewer(QWebEngineView):
         Injecte chirurgicalement une traduction en l'écrivant progressivement
         à l'intérieur de l'iframe de droite.
         """
-        # Utilisation de json.dumps pour échapper parfaitement les caractères spéciaux
-        escaped_text = json.dumps(translated_text)
-        js = f"""
-        var span = document.querySelector('[data-trans-id="{trans_id}"]');
-        if (!span) return;
-        var sx = parseFloat(span.getAttribute('data-sx') || '1');
-        var sy = parseFloat(span.getAttribute('data-sy') || '1');
-        applyTranslation('{trans_id}', {escaped_text}, sx, sy);
-        """
-        self._run_js_in_right_iframe(js)
+        self._run_js_in_right_iframe({
+            "action": "applyTranslation",
+            "transId": trans_id,
+            "translatedText": translated_text,
+        })
     
 
     def prepare_page(self, page_idx: int):
@@ -287,23 +282,29 @@ class WorkspaceViewer(QWebEngineView):
         Enlève le glass et active les skeletons sur une page spécifique.
         Appelé depuis main_window dès qu'on détecte un nouveau page_idx.
         """
-        js = f"preparePageForTranslation({page_idx});"
-        self._run_js_in_right_iframe(js)
+        self._run_js_in_right_iframe({
+            "action": "preparePage",
+            "pageIdx": page_idx
+        })
    
 
-    def _run_js_in_right_iframe(self, js: str):
-        """Exécute du JS directement dans la page de l'iframe droite via Qt."""
-        self.page().runJavaScript(
-            f"""
+    def _run_js_in_right_iframe(self, js_code_as_msg_dict: str):
+        """
+        xécute du JS directement dans la page de l'iframe droite via Qt.
+        Envoie un message structuré à l'iframe de droite de façon sécurisée.
+        """
+        # On convertit notre dictionnaire Python en JSON lisible par le JS du parent
+        msg_json = json.dumps(js_code_as_msg_dict)
+        
+        # Le document parent cible l'iframe et lui envoie le message
+        self.page().runJavaScript(f"""
             (function() {{
                 var iframe = document.getElementById('html-iframe');
-                if (!iframe) return;
-                // Utiliser l'API Qt pour accéder à la page de l'iframe
-                iframe.contentWindow.eval({json.dumps(js)});
+                if (iframe && iframe.contentWindow) {{
+                    iframe.contentWindow.postMessage({msg_json}, '*');
+                }}
             }})();
-            """
-        )
-
+        """)
 
 
     def set_pane_layout(self, layout_mode: str):

@@ -429,9 +429,14 @@ pdf2htmlEX.defaultViewer = new pdf2htmlEX.Viewer({});
             var origSW = parseFloat(divT.getAttribute('data-orig-sw'));
             var sx     = parseFloat(divT.getAttribute('data-sx-orig'));
             var sy     = parseFloat(divT.getAttribute('data-sy-orig'));
-
+            
+            // Insertion du texte traduit
             span.textContent = translatedText;
 
+            // ── OPTIMISATION : SUPPRESSION DU SKELETON POUR RÉVÉLER LE TEXTE TRADUIT ──
+            divT.classList.remove('shimmer-line');
+
+            // Ajustement de la largeur (scaleX) si le texte traduit est plus long
             var newSW = divT.scrollWidth;
             if (newSW > 0 && origSW > 0) {
                 var newSx = sx * (origSW / newSW);
@@ -456,6 +461,19 @@ pdf2htmlEX.defaultViewer = new pdf2htmlEX.Viewer({});
                 divT.classList.add('shimmer-line');
             });
         };
+
+        // ÉCOUTEUR DE MESSAGES SÉCURISÉ POUR FRANCHIR LA BARRIÈRE DE L'IFRAME
+        window.addEventListener('message', function(event) {
+            var msg = event.data;
+            if (!msg) return;
+
+            if (msg.action === 'applyTranslation') {
+                window.applyTranslation(msg.transId, msg.translatedText);
+            } else if (msg.action === 'preparePage') {
+                window.preparePageForTranslation(msg.pageIdx);
+            }
+        });
+    
     
     </script></body>
 </html>

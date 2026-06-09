@@ -286,9 +286,14 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
             var origSW = parseFloat(divT.getAttribute('data-orig-sw'));
             var sx     = parseFloat(divT.getAttribute('data-sx-orig'));
             var sy     = parseFloat(divT.getAttribute('data-sy-orig'));
-
+            
+            // Insertion du texte traduit
             span.textContent = translatedText;
 
+            // ── OPTIMISATION : SUPPRESSION DU SKELETON POUR RÉVÉLER LE TEXTE TRADUIT ──
+            divT.classList.remove('shimmer-line');
+
+            // Ajustement de la largeur (scaleX) si le texte traduit est plus long
             var newSW = divT.scrollWidth;
             if (newSW > 0 && origSW > 0) {
                 var newSx = sx * (origSW / newSW);
@@ -313,6 +318,19 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
                 divT.classList.add('shimmer-line');
             });
         };
+
+        // ÉCOUTEUR DE MESSAGES SÉCURISÉ POUR FRANCHIR LA BARRIÈRE DE L'IFRAME
+        window.addEventListener('message', function(event) {
+            var msg = event.data;
+            if (!msg) return;
+
+            if (msg.action === 'applyTranslation') {
+                window.applyTranslation(msg.transId, msg.translatedText);
+            } else if (msg.action === 'preparePage') {
+                window.preparePageForTranslation(msg.pageIdx);
+            }
+        });
+    
     
     """
     soup.body.append(script_tag)

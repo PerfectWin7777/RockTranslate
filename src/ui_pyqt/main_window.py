@@ -412,7 +412,7 @@ class MainWindow(QMainWindow):
         self.a_start.setText("▶  Démarrer la traduction")
         QMessageBox.critical(self, "Erreur", f"La traduction a été interrompue :\n{err_msg}")
 
-    # ── LOGIQUE D'EXPORTATION NATIVE HAUTE FIDÉLITÉ (SANS LATEX / SANS FITZ) ──
+    # ── LOGIQUE D'EXPORTATION NATIVE HAUTE FIDÉLITÉ  ──
     def _export_pdf_dialog(self):
         """
         Génère un PDF vectoriel d'une qualité d'impression identique en tâche de fond.

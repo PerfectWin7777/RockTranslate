@@ -101,13 +101,19 @@ class LLMClient:
                 results = self._call_llm(batch_segments, model=current_model, api_key=current_key, context=context)
                 
                 if results is not None:
+                     
+                    print ('batch_segments : ', batch_segments)
+                    print ('results : ', results)
+
+                    return results
+                
                     # Vérification de l'intégrité du retour
-                    if len(results) == len(batch_segments):
-                        return results
-                    else:
-                        self._log_status(
-                            f"⚠️ Traduction incomplète : reçu {len(results)}/{len(batch_segments)} segments."
-                        )
+                    # if len(results) == len(batch_segments):
+                    #     return results
+                    # else:
+                    #     self._log_status(
+                    #         f"⚠️ Traduction incomplète : reçu {len(results)}/{len(batch_segments)} segments."
+                    #     )
 
             except Exception as e:
                 err_msg = str(e).lower()
