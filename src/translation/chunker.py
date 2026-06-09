@@ -102,6 +102,9 @@ def build_batches(
     current_segments: list[dict] = []
     current_tokens = 0
 
+    # Sécurité : Pas plus de 60 lignes/segments par lot pour garantir la rigueur du JSON de l'IA
+    MAX_SEGMENTS_PER_BATCH = 80 
+
     for text_id, text in segments.items():
         # Filtrage systématique du bruit avant intégration
         if not should_translate(text):
@@ -119,7 +122,8 @@ def build_batches(
             continue
 
         # Accumulation dans le lot en cours
-        if current_tokens + tokens <= budget:
+        # CORRECTIF : On ajoute le segment si on ne dépasse ni le budget de tokens, ni la limite physique d'éléments
+        if (current_tokens + tokens <= budget) and (len(current_segments) < MAX_SEGMENTS_PER_BATCH):
             current_segments.append(item)
             current_tokens += tokens
         else:

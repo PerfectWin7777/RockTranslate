@@ -266,10 +266,9 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
                 }, 300);
             }
 
-            // Basculement de toutes les lignes (row-wrapper) de cette page en squelettes animés !
-            // pdf2htmlEX utilise les formats pf1, pf2, ..., pfa, pfb pour les ID de pages
-            var pageHex = (pageIdx + 1).toString(16);
-            var pageElement = document.getElementById('pf' + pageHex);
+            // CORRECTIF : Recherche de l'élément par son index physique dans le DOM (insensible aux formats d'ID)
+            var pages = document.querySelectorAll('.pf');
+            var pageElement = pages[pageIdx];
             if (pageElement) {
                 var wrappers = pageElement.querySelectorAll('.row-wrapper');
                 wrappers.forEach(function(wrapper) {
@@ -287,31 +286,29 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
             var origWidth = parseFloat(wrapper.getAttribute('data-orig-width'));
 
             // ── DEBLOCAGE AUTOMATIQUE ET TRANSITION EN SQUELETTES DE LA PAGE EN COURS ──
-            // Recherche du conteneur de page parent (.pf)
+            // ── CORRECTIF : DÉTECTION ROBUSTE DE L'INDEX DE LA PAGE PAR RECHERCHE DOM ──
             var pageElement = el.closest('.pf');
             if (pageElement) {
-                var pageId = pageElement.id; // Ex: "pf1" ou "pfa"
-                var pageHex = pageId.replace('pf', '');
-                var pageIdx = parseInt(pageHex, 16) - 1; // Conversion hexadécimale en index 0-based
+                var pages = Array.from(document.querySelectorAll('.pf'));
+                var pageIdx = pages.indexOf(pageElement); // Donne l'index exact (0, 1, 2...)
                 
-                // Si le voile dépoli de verre est toujours présent, on le retire et on active les squelettes de la page !
                 var glass = document.getElementById('glass-overlay-t-' + pageIdx);
                 if (glass) {
                     window.preparePageForTranslation(pageIdx);
                 }
             }
 
-            // On retire le squelette de la ligne complète dès qu'un élément commence à s'écrire
             if (wrapper.classList.contains('translated-skeleton')) {
                 wrapper.classList.remove('translated-skeleton');
             }
 
-            // Transition d'apparition d'écriture fluide
             el.classList.add('fade-in');
             el.innerHTML = "";
 
             var words = translatedText.split(" ");
             var currentWordIdx = 0;
+
+            
 
             function appendNextWord() {
                 if (currentWordIdx < words.length) {
@@ -327,7 +324,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
             }
             appendNextWord();
         };
-        
+
 
         function compressWrapperIfNeeded(wrapper, origWidth) {
             if (origWidth <= 0) return;

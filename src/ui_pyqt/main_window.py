@@ -131,7 +131,7 @@ class MainWindow(QMainWindow):
         self._pdf_path = None
         self._instrumented_html_path = None
         self._original_texts = {}
-        self._zoom = 0.7
+        self._zoom = 0.8
 
         self._ext_worker = None
         self._trans_worker = None
@@ -480,10 +480,23 @@ class MainWindow(QMainWindow):
         a.setChecked(True)
 
     def _close_document(self):
-        # Arrêt sécurisé des threads actifs si existants
+        # Arrêt sécurisé et découplé du thread actif s'il existe
         if self._trans_worker and self._trans_worker.isRunning():
             self._trans_worker.stop()
-            self._trans_worker.wait()
+            
+            # Déconnexion de sécurité des signaux pour éviter les retours sur widgets détruits
+            try:
+                self._trans_worker.status_update.disconnect()
+                self._trans_worker.batch_progress.disconnect()
+                self._trans_worker.segment_translated.disconnect()
+                self._trans_worker.finished.disconnect()
+                self._trans_worker.error.disconnect()
+            except Exception:
+                pass
+                
+            # Attente maximale de 300ms, sinon interruption forcée pour éviter le plantage
+            if not self._trans_worker.wait(300):
+                self._trans_worker.terminate()
 
         self.workspace_view.cleanup_temp_files()
         self.workspace_view.load(QUrl("about:blank"))

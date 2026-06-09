@@ -194,7 +194,7 @@ class WorkspaceViewer(QWebEngineView):
                         if (iframeWin.PDFViewerApplication.pdfDocument) {{
                             clearInterval(checkInterval);
                             isPDFLoaded = true;
-                            iframeWin.PDFViewerApplication.pdfViewer.currentScaleValue = "60%";
+                            iframeWin.PDFViewerApplication.pdfViewer.currentScaleValue = "50%";
                         }}
 
                         iframeWin.PDFViewerApplication.eventBus.on('documentloaded', function() {{
