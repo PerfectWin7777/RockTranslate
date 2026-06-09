@@ -1,46 +1,44 @@
 # core/html_transformer.py
 
 import os
-import sys
-import zipfile
-import urllib.request
 import subprocess
 from bs4 import BeautifulSoup, NavigableString
 
-def check_and_download_pdf2htmlex(assets_dir: str = "./assets") -> str | None:
+# Importation découplée de notre nouvel utilitaire de téléchargement
+from utils.downloader import check_and_download_pdf2htmlex
+
+def convert_pdf_to_html(pdf_path: str) -> str | None:
     """
-    Vérifie la présence de pdf2htmlEX.exe localement dans le dossier assets.
-    S'il est absent, procède à son téléchargement automatique.
+    Convertit un fichier PDF en HTML brut en utilisant l'exécutable local pdf2htmlEX.
     """
-    pdfjs_dir = os.path.abspath(os.path.join(assets_dir, "pdf2htmlEX"))
-    local_exe = os.path.join(pdfjs_dir, "pdf2htmlEX.exe")
-    if os.path.exists(local_exe):
-        return local_exe
-        
-    print("📥 Téléchargement de pdf2htmlEX (v0.14.6)...")
-    url = "https://shuvomoy.github.io/blogs/assets/pdf2htmlEX/pdf2htmlEX-win32-0.14.6-with-poppler-data.zip"
-    os.makedirs(pdfjs_dir, exist_ok=True)
-    zip_path = os.path.join(pdfjs_dir, "pdfjs.zip")
-    
-    try:
-        def progress(count, block_size, total_size):
-            percent = int(count * block_size * 100 / total_size)
-            sys.stdout.write(f"\rProgression : {min(percent, 100)}%")
-            sys.stdout.flush()
-            
-        urllib.request.urlretrieve(url, zip_path, reporthook=progress)
-        print()
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(pdfjs_dir)
-        os.remove(zip_path)
-        
-        for root, dirs, files in os.walk(pdfjs_dir):
-            if "pdf2htmlEX.exe" in files:
-                return os.path.join(root, "pdf2htmlEX.exe")
-    except Exception as e:
-        print(f"❌ Échec du téléchargement de pdf2htmlEX : {e}")
+    pdf2htmlex_exe = check_and_download_pdf2htmlex()
+    if not pdf2htmlex_exe:
         return None
+
+    pdf_dir = os.path.dirname(os.path.abspath(pdf_path))
+    pdf_filename = os.path.basename(pdf_path)
+    html_filename = f"{os.path.splitext(pdf_filename)[0]}_raw.html"
+    output_html_path = os.path.join(pdf_dir, html_filename)
+
+    if os.path.exists(output_html_path):
+        return output_html_path # Évite de re-compiler si déjà présent
+
+    cmd = [
+        os.path.abspath(pdf2htmlex_exe),
+        "--zoom", "1.3",
+        pdf_filename,
+        html_filename
+    ]
+    
+    print(f"⚙️ Conversion haute fidélité du PDF en cours ({pdf_filename})...")
+    result = subprocess.run(
+        cmd, cwd=pdf_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=120
+    )
+    if result.returncode == 0 and os.path.exists(output_html_path):
+        print("✅ Fichier HTML brut généré.")
+        return output_html_path
     return None
+
 
 
 def convert_pdf_to_html(pdf_path: str, assets_dir: str = "./assets") -> str | None:

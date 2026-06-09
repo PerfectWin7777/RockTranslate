@@ -11,7 +11,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions
 from sauceclient import SauceClient
-from browser_tests import BrowserTests
+from assets.pdf2htmlEX.test.browser_tests import BrowserTests
 
 # Set your own environment variables
 USERNAME = os.environ.get('SAUCE_USERNAME')
