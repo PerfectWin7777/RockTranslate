@@ -151,18 +151,24 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
             display: inline-block;
         }
         
-        /* ── ANIMATIONS DU SQUELETTE ET DE L'APPARITION DU TEXTE INTERNE ── */
-        @keyframes shimmer {
-            0% { background-position: -200% 0; }
-            100% { background-position: 200% 0; }
+        /* ── ANIMATIONS VIVANTES DU SQUELETTE (SUR LA LIGNE ENTIÈRE) ── */
+        @keyframes loading-shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
         }
         
         .translated-skeleton {
-            color: transparent !important; /* Rend le texte original invisible */
             background: linear-gradient(90deg, #f1f5f9 25%, #cbd5e1 50%, #f1f5f9 75%) !important;
             background-size: 200% 100% !important;
-            animation: shimmer 1.8s infinite linear !important;
+            animation: loading-shimmer 1.8s infinite linear !important;
             border-radius: 4px !important;
+        }
+        
+        /* CORRECTIF DE SPÉCIFICITÉ : Rend absolument tous les sous-éléments transparents sous le Shimmer */
+        .translated-skeleton,
+        .translated-skeleton * {
+            color: transparent !important;
+            text-decoration: none !important;
         }
         
         .fade-in {
@@ -226,19 +232,17 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
             }
         }
 
-        // Phase d'initialisation : Activation des squelettes animés sur la ligne complète (row-wrapper) !
         window.onload = function() {
             var wrappers = document.querySelectorAll('.row-wrapper');
             wrappers.forEach(function(wrapper) {
                 var origWidth = wrapper.getBoundingClientRect().width;
                 wrapper.setAttribute('data-orig-width', origWidth);
                 
-                // Le Shimmer est appliqué sur la ligne entière, lui donnant une grande largeur pour vivre !
+                // Le Shimmer est appliqué sur la ligne entière
                 wrapper.classList.add('translated-skeleton');
             });
         };
     """
-    soup.body.append(script_tag)
     soup.body.append(script_tag)
 
     # 4. Enregistrement de l'espace de travail
