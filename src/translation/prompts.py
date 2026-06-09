@@ -3,6 +3,8 @@ prompts.py — System prompts centralisés pour RockTranslate
 Chemin : src/translation/prompts.py
 """
 
+import json
+
 # Langues supportées (affichage UI)
 SUPPORTED_LANGUAGES = {
     "fr": "French",
@@ -73,22 +75,22 @@ Rules:
 You receive a JSON array of paragraphs. Return ONLY a JSON array of the same
 length with translated texts. No explanation, no markdown, no preamble.
 
-Input:  [{{"id": 1, "text": "..."}}]
-Output: [{{"id": 1, "translated": "..."}}]
+Input structure:  [{{"id": "t-0", "text": "..."}}]
+Output structure: [{{"id": "t-0", "translated": "..."}}]
 
 The output must be valid JSON. Nothing else."""
 
 
-def get_user_message(batch: list[dict], context: str | None = None) -> str:
+def get_user_message(batch_segments: list[dict], context: str | None = None) -> str:
     """
     Formate le batch de paragraphes en message utilisateur JSON.
 
-    batch   : [{"id": int, "text": str}, ...]
+    batch_segments   : [{"id": str, "text": str}, ...]
     context : derniers paragraphes déjà traduits (contexte glissant inter-pages).
               Injecté en tête de message pour assurer la cohérence terminologique
               et stylistique. Le LLM ne doit PAS les retraduire.
     """
-    import json
+    
 
     if context:
         context_block = (
@@ -96,9 +98,9 @@ def get_user_message(batch: list[dict], context: str | None = None) -> str:
             f"[PREVIOUS CONTEXT — BEGIN]\n"
             f"{context}\n"
             f"[PREVIOUS CONTEXT — END]\n\n"
-            f"[PARAGRAPHS TO TRANSLATE]\n"
+            f"[SEGMENTS TO TRANSLATE]\n"
         )
     else:
         context_block = ""
 
-    return context_block + json.dumps(batch, ensure_ascii=False)
+    return context_block + json.dumps(batch_segments, ensure_ascii=False)
