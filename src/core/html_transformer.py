@@ -85,16 +85,16 @@ def wrap_text_nodes_recursively(soup, parent_element, trans_idx_ref, original_te
 def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]:
     """
     Analyse le fichier HTML de pdf2htmlEX, isole récursivement le texte,
-    et injecte vos animations Shimmer vivantes et d'apparitions d'origine.
+    et injecte vos animations Shimmer vivantes, le Glass dépoli et le Loader Circulaire.
     """
     with open(raw_html_path, "r", encoding="utf-8") as f:
         soup = BeautifulSoup(f.read(), "lxml")
 
+    # 1. Analyse récursive BeautifulSoup et injection des enveloppes d'isolations (row-wrapper & trans-span)
     text_divs = soup.find_all("div", class_="t")
     original_texts_map = {}
     trans_idx_ref = [0] # Passage par référence pour l'indexation récursive unique
 
-    # 1. Analyse récursive BeautifulSoup et injection des enveloppes d'isolations (row-wrapper & trans-span)
     for div in text_divs:
         children = list(div.contents)
         div.clear()
@@ -129,7 +129,61 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
             else:
                 wrapper.append(child)
 
-    # 2. Injection de vos styles originaux d'animation Shimmer dynamique et Fade-In d'écriture
+    # 2. INJECTION DE VOTRE GLASS DE POLI SUR TOUTES LES PAGES DU DOCUMENT (div.pf)
+    pages = soup.find_all("div", class_="pf")
+    for page_idx, page in enumerate(pages):
+        # Création du conteneur dépoli à haute spécificité graphique
+        glass_div = soup.new_tag("div", attrs={
+            "id": f"glass-overlay-t-{page_idx}",
+            "style": (
+                "position: absolute; "
+                "top: 5%; "
+                "left: 5%; "
+                "width: 90%; "
+                "height: 90%; "
+                "background: linear-gradient(135deg, rgba(255,255,255,0.45), rgba(255,255,255,0.15)); "
+                "backdrop-filter: blur(18px); "
+                "-webkit-backdrop-filter: blur(18px); "
+                "border: 1px solid rgba(255,255,255,0.5); "
+                "border-radius: 16px; "
+                "box-shadow: 0 8px 32px rgba(31,38,135,0.25), 0 0 1px rgba(255,255,255,0.5); "
+                "z-index: 1000; " # Se dessine par-dessus les éléments pdf2htmlEX
+                "display: flex; "
+                "justify-content: center; "
+                "align-items: center; "
+                "pointer-events: none;"
+            )
+        })
+
+        # Encadré interne blanc opaque
+        inner_div = soup.new_tag("div", attrs={
+            "style": (
+                "background: rgba(255,255,255,0.92); "
+                "padding: 24px 40px; "
+                "border-radius: 12px; "
+                "text-align: center; "
+                "box-shadow: 0 10px 30px rgba(0,0,0,0.15); "
+                "display: flex; "
+                "flex-direction: column; "
+                "align-items: center;"
+            )
+        })
+
+        # Injecter le chargeur circulaire
+        loader_div = soup.new_tag("div", attrs={"class": "circular-loader"})
+        inner_div.append(loader_div)
+
+        # Injecter le texte informatif
+        text_p = soup.new_tag("p", attrs={
+            "style": "color:#1e293b; font-size:14px; font-weight:600; margin:0; font-family: sans-serif;"
+        })
+        text_p.string = "En attente de traduction..."
+        inner_div.append(text_p)
+
+        glass_div.append(inner_div)
+        page.append(glass_div)
+
+    # 3. Injection de vos styles CSS (Squelettes shimmer & styles de lignes & spin circulaire)
     style_tag = soup.new_tag("style")
     style_tag.string = """
         /* ── MASQUAGE DE LA BARRE LATÉRALE pdf2htmlEX ET RECENTrage ── */
@@ -164,7 +218,6 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
             border-radius: 4px !important;
         }
         
-        /* CORRECTIF DE SPÉCIFICITÉ : Rend absolument tous les sous-éléments transparents sous le Shimmer */
         .translated-skeleton,
         .translated-skeleton * {
             color: transparent !important;
@@ -179,12 +232,53 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
             from { opacity: 0; transform: translateY(1px); }
             to   { opacity: 1; transform: translateY(0); }
         }
+
+        /* ── ANIMATION DU CHARGEMENT CIRCULAIRE DE VOTRE PROTOTYPE ── */
+        .circular-loader {
+            border: 4px solid #f3f4f6 !important;
+            border-top: 4px solid #4f8ef7 !important;
+            border-radius: 50% !important;
+            width: 36px !important;
+            height: 36px !important;
+            animation: spin 1s linear infinite !important;
+            margin-bottom: 12px !important;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     """
     soup.head.append(style_tag)
 
-    # 3. Injection du moteur JavaScript avec transition d'apparition Fade-In
+    # 4. Injection du JavaScript d'accompagnement (Streaming & initialisation de transition)
     script_tag = soup.new_tag("script")
     script_tag.string = """
+        // Étape 1 : Retirer le Glass Dépoli d'une page et basculer ses lignes en Squelettes (shimmers)
+        window.preparePageForTranslation = function(pageIdx) {
+            var glass = document.getElementById('glass-overlay-t-' + pageIdx);
+            if (glass) {
+                // Transition de fondu douce lors de la disparition
+                glass.style.transition = 'opacity 0.3s ease-out';
+                glass.style.opacity = '0';
+                setTimeout(function() { 
+                    glass.remove(); 
+                }, 300);
+            }
+
+            // Basculement de toutes les lignes (row-wrapper) de cette page en squelettes animés !
+            // pdf2htmlEX utilise les formats pf1, pf2, ..., pfa, pfb pour les ID de pages
+            var pageHex = (pageIdx + 1).toString(16);
+            var pageElement = document.getElementById('pf' + pageHex);
+            if (pageElement) {
+                var wrappers = pageElement.querySelectorAll('.row-wrapper');
+                wrappers.forEach(function(wrapper) {
+                    wrapper.classList.add('translated-skeleton');
+                });
+            }
+        };
+
+        // Étape 2 : Remplacement progressif mot par mot lors de la traduction reçue
         window.streamTranslatedElementById = function(transId, translatedText) {
             var el = document.querySelector('.trans-span[data-trans-id="' + transId + '"]');
             if (!el) return;
@@ -192,12 +286,11 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
             var wrapper = el.closest('.row-wrapper');
             var origWidth = parseFloat(wrapper.getAttribute('data-orig-width'));
 
-            // On retire le squelette de la ligne complète dès qu'un élément commence à s'écrire
+            // Retrait de la classe squelette de la ligne complète
             if (wrapper.classList.contains('translated-skeleton')) {
                 wrapper.classList.remove('translated-skeleton');
             }
 
-            // Application de la transition d'apparition fluide
             el.classList.add('fade-in');
             el.innerHTML = "";
 
@@ -232,20 +325,18 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
             }
         }
 
+        // Étape 3 : Mesure géométrique initiale à l'ouverture du document (Pas de squelette appliqué !)
         window.onload = function() {
             var wrappers = document.querySelectorAll('.row-wrapper');
             wrappers.forEach(function(wrapper) {
                 var origWidth = wrapper.getBoundingClientRect().width;
                 wrapper.setAttribute('data-orig-width', origWidth);
-                
-                // Le Shimmer est appliqué sur la ligne entière
-                wrapper.classList.add('translated-skeleton');
             });
         };
     """
     soup.body.append(script_tag)
 
-    # 4. Enregistrement de l'espace de travail
+    # 5. Enregistrement du fichier HTML instrumenté complet
     with open(output_html_path, "w", encoding="utf-8") as f:
         f.write(str(soup))
 

@@ -131,7 +131,7 @@ class MainWindow(QMainWindow):
         self._pdf_path = None
         self._instrumented_html_path = None
         self._original_texts = {}
-        self._zoom = 1.0
+        self._zoom = 0.6
 
         self._ext_worker = None
         self._trans_worker = None
@@ -163,6 +163,7 @@ class MainWindow(QMainWindow):
 
         # Remplacement de l'ancien splitter PyQt par notre WorkspaceViewer unifié à colonne unique Chromium !
         self.workspace_view = WorkspaceViewer(self)
+        self.workspace_view.set_zoom(self._zoom)
         work_layout.addWidget(self.workspace_view, 1)
 
         # Intégration de votre barre de progression intacte

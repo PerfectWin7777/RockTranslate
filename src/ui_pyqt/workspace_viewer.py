@@ -21,6 +21,7 @@ class WorkspaceViewer(QWebEngineView):
         super().__init__(parent)
         self._temp_dir = tempfile.mkdtemp()
         self._temp_workspace_path = None
+        self._zoom_factor = 1.0
         
         # Configuration stricte de sécurité pour autoriser la communication locale inter-iframes
         settings = self.settings()
@@ -66,7 +67,8 @@ class WorkspaceViewer(QWebEngineView):
             height: 100%; overflow: hidden; position: relative;
         }}
         #splitter {{
-            width: 6px; height: 100%; background: #2b2e3c; cursor: col-resize;
+            width: 8px; height: 100%; background: #fafafc; cursor: col-resize;
+            border: 1px; border-radius: 4px; border-color: #15151a; border-style: solid;
             position: relative; z-index: 100; transition: background 0.15s;
         }}
         #splitter:hover, #splitter.active {{
@@ -282,6 +284,11 @@ class WorkspaceViewer(QWebEngineView):
     def set_pane_layout(self, layout_mode: str):
         """Configure la disposition visuelle (both / pdf_only / trans_only)."""
         self.page().runJavaScript(f"setPaneLayout('{layout_mode}');")
+    
+    def set_zoom(self, zoom_factor: float):
+        """Force le zoom de manière standard et via l'API interne du viewport de Chrome."""
+        self._zoom_factor = zoom_factor
+        self.setZoomFactor(zoom_factor)
 
     def cleanup_temp_files(self):
         """Nettoie les anciens fichiers de l'espace de travail temporaire."""
