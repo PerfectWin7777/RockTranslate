@@ -380,6 +380,7 @@ class MainWindow(QMainWindow):
         
         self.a_start.setText("⏹  Arrêter la traduction")
         self._current_translating_page = -1
+        self.workspace_view.prepare_page(0) 
         self._trans_worker.start()
 
     def _on_segment_translated(self, trans_id: str, translated_text: str):
@@ -387,6 +388,7 @@ class MainWindow(QMainWindow):
         page_idx = self._tid_to_page.get(trans_id, 0)
         if page_idx != self._current_translating_page:
             self._current_translating_page = page_idx
+            print(f"🔔 prepare_page appelé pour page {page_idx}") 
             self.workspace_view.prepare_page(page_idx)
 
         self.workspace_view.stream_translation(trans_id, translated_text)

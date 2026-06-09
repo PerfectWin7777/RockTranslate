@@ -113,7 +113,7 @@ class LLMClient:
                 err_msg = str(e).lower()
                 is_rate_limit = any(
                     x in err_msg for x in [
-                        "rate_limit", "rate limit", "429", "overloaded",
+                        "rate_limit", "rate limit", "429", "overloaded", "RESOURCE_EXHAUSTED",
                         "resource_exhausted", "resource exhausted", "quota",
                         "UNAVAILABLE", "503", "timeout", "timed out", "connection error",
                     ]
