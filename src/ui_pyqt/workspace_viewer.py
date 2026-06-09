@@ -131,7 +131,7 @@ class WorkspaceViewer(QWebEngineView):
             }}
         }});
 
-        // ── 2. LOGIQUE D'AFFICHAGE EXCLUSIF (SET LAYOUT) ──
+        // ── 2. CORRECTIF DISPOSITION EXCLUSIVE : MASQUAGE PROPRE DES COLONNES ET RE-AJUSTEMENT GRID 1FR ──
         function setPaneLayout(layout) {{
             var leftPane = document.getElementById('left-pane');
             var rightPane = document.getElementById('right-pane');
@@ -139,14 +139,20 @@ class WorkspaceViewer(QWebEngineView):
             var workspace = document.getElementById('workspace');
             
             if (layout === 'both') {{
+                leftPane.style.display = 'block';
+                rightPane.style.display = 'block';
                 splitter.style.display = 'block';
                 workspace.style.gridTemplateColumns = '50% 6px 1fr';
             }} else if (layout === 'pdf_only') {{
+                leftPane.style.display = 'block';
+                rightPane.style.display = 'none';
                 splitter.style.display = 'none';
-                workspace.style.gridTemplateColumns = '100% 0px 0px';
+                workspace.style.gridTemplateColumns = '1fr';
             }} else if (layout === 'trans_only') {{
+                leftPane.style.display = 'none';
+                rightPane.style.display = 'block';
                 splitter.style.display = 'none';
-                workspace.style.gridTemplateColumns = '0px 0px 100%';
+                workspace.style.gridTemplateColumns = '1fr';
             }}
         }}
 
@@ -157,11 +163,9 @@ class WorkspaceViewer(QWebEngineView):
             
             try {{
                 var rightDoc = rightIframe.contentWindow;
-                // pdf2htmlEX utilise des identifiants de page en notation hexadécimale (pf1, pf2, ..., pfa, pfb)
                 var pageHex = (pageIndex + 1).toString(16);
                 var targetPage = rightDoc.document.getElementById('pf' + pageHex);
                 
-                // Fallback de sécurité si l'id hexadécimal diffère
                 if (!targetPage) {{
                     var pages = rightDoc.document.querySelectorAll('.pf');
                     if (pages[pageIndex]) {{
@@ -207,21 +211,24 @@ class WorkspaceViewer(QWebEngineView):
             }}, 100);
         }};
 
-        // ── 4. SYNCHRONISATION : DROITE (HTML) VERS GAUCHE (PDF) ──
+        // ── 4. CORRECTIF SYNCHRONISATION : ÉCOUTE DU SCROLL SUR LE CONTAINER NATION-SCALE DE pdf2htmlEX ──
         rightIframe.onload = function() {{
             var rightDocWindow = rightIframe.contentWindow;
             
-            rightDocWindow.addEventListener('scroll', function() {{
+            // C'est l'élément #page-container de pdf2htmlEX qui scrolle réellement, pas rightDocWindow !
+            var scrollContainer = rightDocWindow.document.getElementById('page-container') || rightDocWindow;
+            
+            scrollContainer.addEventListener('scroll', function() {{
                 if (isSyncing || !isPDFLoaded) return;
                 
                 var pages = rightDocWindow.document.querySelectorAll('.pf');
                 var maxVisible = 0;
                 var currentIdx = 0;
-                var paneHeight = rightIframe.clientHeight;
+                var paneHeight = rightIframe.clientHeight; // Hauteur visible du conteneur parent
 
                 pages.forEach(function(page, index) {{
                     var rect = page.getBoundingClientRect();
-                    // Intersection mathématique géométrique
+                    // Intersection mathématique géométrique dans le viewport de l'iframe
                     var visibleHeight = Math.max(0, Math.min(rect.bottom, paneHeight) - Math.max(rect.top, 0));
                     
                     if (visibleHeight > maxVisible) {{
