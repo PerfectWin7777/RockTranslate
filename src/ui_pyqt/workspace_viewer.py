@@ -39,7 +39,8 @@ class WorkspaceViewer(QWebEngineView):
         safe_pdf = os.path.abspath(pdf_path).replace("\\", "/")
         safe_html = os.path.abspath(instrumented_html_path).replace("\\", "/")
 
-        left_iframe_src = f"file:///{pdfjs_viewer}?file=file:///{safe_pdf}"
+        # CORRECTIF CHIRURGICAL : Ajout de #pagemode=none pour masquer le volet latéral PDF.js par défaut !
+        left_iframe_src = f"file:///{pdfjs_viewer}?file=file:///{safe_pdf}#pagemode=none"
         right_iframe_src = f"file:///{safe_html}"
 
         # Construction du template HTML maître avec séparation de la grille et du scroll synchrone

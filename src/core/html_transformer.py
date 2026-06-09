@@ -132,9 +132,20 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
     # 2. Injection de vos styles originaux d'animation Shimmer dynamique et Fade-In d'écriture
     style_tag = soup.new_tag("style")
     style_tag.string = """
+        /* ── MASQUAGE DE LA BARRE LATÉRALE pdf2htmlEX ET RECENTrage ── */
+        #sidebar { 
+            display: none !important; 
+        }
+        #page-container { 
+            left: 0 !important; 
+            margin: 0 auto !important; 
+        }
+
         .row-wrapper {
             display: inline-block !important;
             white-space: nowrap !important;
+            border-radius: 3px !important;
+            transition: transform 0.1s ease-out;
         }
         .trans-span {
             display: inline-block;
@@ -172,13 +183,17 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
             var el = document.querySelector('.trans-span[data-trans-id="' + transId + '"]');
             if (!el) return;
 
-            // Retrait du squelette et application de la transition d'apparition d'écriture
-            el.classList.remove('translated-skeleton');
-            el.classList.add('fade-in');
-            el.innerHTML = "";
-
             var wrapper = el.closest('.row-wrapper');
             var origWidth = parseFloat(wrapper.getAttribute('data-orig-width'));
+
+            // On retire le squelette de la ligne complète dès qu'un élément commence à s'écrire
+            if (wrapper.classList.contains('translated-skeleton')) {
+                wrapper.classList.remove('translated-skeleton');
+            }
+
+            // Application de la transition d'apparition fluide
+            el.classList.add('fade-in');
+            el.innerHTML = "";
 
             var words = translatedText.split(" ");
             var currentWordIdx = 0;
@@ -211,19 +226,19 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> dict[str, str]
             }
         }
 
+        // Phase d'initialisation : Activation des squelettes animés sur la ligne complète (row-wrapper) !
         window.onload = function() {
             var wrappers = document.querySelectorAll('.row-wrapper');
             wrappers.forEach(function(wrapper) {
                 var origWidth = wrapper.getBoundingClientRect().width;
                 wrapper.setAttribute('data-orig-width', origWidth);
-            });
-
-            var spans = document.querySelectorAll('.trans-span');
-            spans.forEach(function(el) {
-                el.classList.add('translated-skeleton');
+                
+                // Le Shimmer est appliqué sur la ligne entière, lui donnant une grande largeur pour vivre !
+                wrapper.classList.add('translated-skeleton');
             });
         };
     """
+    soup.body.append(script_tag)
     soup.body.append(script_tag)
 
     # 4. Enregistrement de l'espace de travail
