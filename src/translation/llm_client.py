@@ -156,27 +156,34 @@ class LLMClient:
         context: Optional[str] = None,
     ) -> Optional[List[Dict[str, str]]]:
         """Exécute l'appel de l'API via LiteLLM et parse la réponse JSON."""
-        system_prompt = get_system_prompt(self.target_lang)
-        user_message = get_user_message(batch_segments, context=context)
+        try :
+            system_prompt = get_system_prompt(self.target_lang)
+            user_message = get_user_message(batch_segments, context=context)
 
-        kwargs = {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
-            ],
-            "temperature": 0.1,  # Faible créativité requise pour de la traduction scientifique
-            "max_tokens": 16384, # Large budget pour éviter la troncature
-        }
+            kwargs = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+                "temperature": 0.1,  # Faible créativité requise pour de la traduction scientifique
+                "max_tokens": 16384, # Large budget pour éviter la troncature
+            }
 
-        if api_key:
-            kwargs["api_key"] = api_key
+            if api_key:
+                kwargs["api_key"] = api_key
 
-        # Appel LiteLLM
-        response = litellm.completion(**kwargs)
-        raw_text = response.choices[0].message.content.strip()
+            # Appel LiteLLM
+            response = litellm.completion(**kwargs)
+            raw_text = response.choices[0].message.content.strip()
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            logger.warning(f"Erreur lors de l'appel à l'API LLM : {e}")
+            return None
 
         return self._parse_json_response(raw_text)
+
+
 
     def _parse_json_response(self, raw: str) -> Optional[List[Dict[str, str]]]:
         """Nettoie le texte renvoyé par le LLM pour en extraire un JSON valide."""

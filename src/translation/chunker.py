@@ -103,7 +103,7 @@ def build_batches(
     current_tokens = 0
 
     # Sécurité : Pas plus de 60 lignes/segments par lot pour garantir la rigueur du JSON de l'IA
-    MAX_SEGMENTS_PER_BATCH = 80 
+    MAX_SEGMENTS_PER_BATCH = 100 
 
     for text_id, text in segments.items():
         # Filtrage systématique du bruit avant intégration
