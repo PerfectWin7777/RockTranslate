@@ -345,9 +345,10 @@ class MainWindow(QMainWindow):
     # ── LOGIQUE DE TRADUCTION IA ──
     def _toggle_translation(self):
         if self._trans_worker and self._trans_worker.isRunning():
+            self.status.showMessage("Arrêt de la traduction en cours...")
             self._trans_worker.stop()
-            self._trans_worker.wait()
-            self.a_start.setText("▶  Démarrer la traduction")
+            # self.a_start.setText("▶  Démarrer la traduction")
+            self.a_start.setEnabled(False)  # Désactive temporairement le bouton
             return
         self._start_translation()
 
@@ -396,9 +397,16 @@ class MainWindow(QMainWindow):
 
     def _on_translation_finished(self):
         self.a_start.setText("▶  Démarrer la traduction")
-        self.a_export.setEnabled(True)  # Activation du bouton d'exportation de fin
-        self.status.showMessage("Traduction terminée.")
-        QMessageBox.information(self, "Terminé", "Le document a été traduit avec succès !")
+        self.a_start.setEnabled(True)
+
+       # On vérifie si l'utilisateur a cliqué sur "Arrêter"
+        if self._trans_worker and self._trans_worker.is_stopped():
+            self.status.showMessage("❌ Traduction interrompue par l'utilisateur.")
+            self.a_export.setEnabled(True)  # Permet d'exporter ce qui a déjà été traduit
+        else:
+            self.status.showMessage("✅ Traduction terminée.")
+            self.a_export.setEnabled(True)
+            QMessageBox.information(self, "Terminé", "Le document a été traduit avec succès !")
 
     def _on_translation_error(self, err_msg: str):
         self.a_start.setText("▶  Démarrer la traduction")

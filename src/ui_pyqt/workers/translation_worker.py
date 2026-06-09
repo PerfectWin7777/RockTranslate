@@ -60,8 +60,10 @@ class TranslationWorker(QThread):
 
             # Étape C : Traduction séquentielle lot par lot
             for idx, batch in enumerate(batches):
+                # Vérification de l'arrêt demandé par l'utilisateur
                 if self._stop:
                     logger.info("Traduction interrompue par l'utilisateur.")
+                    self.status_update.emit("Traduction interrompue par l'utilisateur.")
                     break
 
                 self.batch_progress.emit(idx + 1, total_batches)
@@ -72,6 +74,13 @@ class TranslationWorker(QThread):
 
                 # Appel réel de la traduction pure
                 results = self.client.translate_batch(batch.segments, context=context_str)
+
+                # Une double vérification après l'appel réseau pour ne pas émettre
+                # de signaux si l'utilisateur a cliqué sur stop pendant la requête
+                if self._stop:
+                    self.status_update.emit("Traduction interrompue par l'utilisateur.")
+                    break
+
 
                 if results is None:
                     # En cas d'échec total persistant d'un lot, on affiche un message d'erreur
@@ -106,3 +115,7 @@ class TranslationWorker(QThread):
     def stop(self):
         """Méthode d'interruption sécurisée du thread."""
         self._stop = True
+
+    def is_stopped(self) -> bool:
+        """Permet de savoir si le thread a été interrompu volontairement."""
+        return self._stop
