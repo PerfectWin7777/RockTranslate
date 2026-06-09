@@ -1,8 +1,8 @@
 import pypdfium2 as pdfium
 import pypdfium2.raw as pdfium_c
 import ctypes
-from core.pdf_extractor import PDFExtractor
-from core.spatial_clusterers import SpatialClusterer
+from old.pdf_extractor import PDFExtractor
+from old.spatial_clusterers import SpatialClusterer
 
 def draw_rect(page_raw, bounds, color=(255, 0, 0), thickness=1):
     """Dessine un rectangle creux (Stroke) via l'API C."""
@@ -93,6 +93,6 @@ def generate_visual_diagnostic(pdf_path, output_path):
 
 if __name__ == "__main__":
     generate_visual_diagnostic(
-        r"D:\Projets\RockTranslate\Nsangou Ngapna et al._ASR_2024.pdf",
-        "Nsangou_DIAGNOSTIC.pdf"
+        r"D:\Projets\RockTranslate\1_PDFsam_5_PDFsam_Nsangou Ngapna et al._ASR_2024.pdf",
+        "DIAGNOSTIC.pdf"
     )
