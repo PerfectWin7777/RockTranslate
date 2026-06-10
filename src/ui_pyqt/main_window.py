@@ -3,6 +3,7 @@
 import os
 import sys
 import shutil
+import datetime
 import tempfile
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
@@ -383,6 +384,10 @@ class MainWindow(QMainWindow):
         self._tid_to_page = {}
         self._current_translating_page = -1
 
+        # ── MÉMOIRE DE TRADUCTION ACTIVE PAGE PAR PAGE ──
+        self._translated_pages = {}  # Structure : { page_idx: { seg_id: texte_traduit } }
+
+
         # Sécurité : Vérification et téléchargement des moteurs web en tâche de fond au démarrage
         check_and_download_pdfjs()
         check_and_download_pdf2htmlex()
@@ -639,14 +644,34 @@ class MainWindow(QMainWindow):
 
         # Réinitialisation de votre barre de progression sur le nombre exact de segments à traduire !
         # Calcul du nombre total de pages à partir de la carte d'extraction
+         # Calcul du nombre de pages d'origine
         total_pages = max(self._tid_to_page.values()) + 1 if self._tid_to_page else 1
-        
-        # Initialisation du panneau avec les deux métriques
-        self.progress_panel.reset(total_pages, len(self._original_texts))
 
-        # Initialisation et démarrage du nouveau worker de traduction asynchrone
+        # ── REPRISE INTELLIGENTE : Collecter les IDs déjà traduits en mémoire ──
+        already_translated_ids = set()
+        for page_data in self._translated_pages.values():
+            already_translated_ids.update(page_data.keys())
+
+        # Filtrer la liste pour ne traduire QUE ce qui est manquant
+        untranslated_texts = {
+            k: v for k, v in self._original_texts.items()
+            if k not in already_translated_ids
+        }
+
+        if not untranslated_texts:
+            self.status.showMessage("✅ Tous les segments sont déjà traduits.")
+            self.a_export.setEnabled(True)
+
+            return
+
+        # Initialiser le panneau de progression
+        self.progress_panel.reset(total_pages, len(self._original_texts))
+        # Débuter la barre verte au niveau des segments déjà enregistrés
+        self.progress_panel.set_segments(len(already_translated_ids))
+
+        # Initialisation et démarrage du worker sur les segments manquants uniquement
         self._trans_worker = TranslationWorker(
-            self._original_texts,
+            untranslated_texts,  # On ne passe que les textes restants à traduire !
             self._current_model,
             api_key,
             self._current_lang
@@ -659,8 +684,14 @@ class MainWindow(QMainWindow):
         
         self.a_start.setText("⏹  Arrêter la traduction")
         self._current_translating_page = -1
-        self.workspace_view.prepare_page(0) 
+        
+        # On prépare la page correspondant au premier segment manquant
+        first_missing_id = next(iter(untranslated_texts.keys()))
+        first_missing_page = self._tid_to_page.get(first_missing_id, 0)
+        self.workspace_view.prepare_page(first_missing_page)
+        
         self._trans_worker.start()
+        
 
     def _on_segment_translated(self, trans_id: str, translated_text: str):
         """Reçoit une traduction progressive et l'injecte en temps réel dans l'HTML de droite."""
@@ -685,14 +716,29 @@ class MainWindow(QMainWindow):
         # ── NETTOYAGE ULTRA-PROPRE DES SQUELETTES RESTANTS ──
         self.workspace_view.clean_up_all_skeletons()
 
-       # On vérifie si l'utilisateur a cliqué sur "Arrêter"
-        if self._trans_worker and self._trans_worker.is_stopped():
-            self.status.showMessage("❌ Traduction interrompue par l'utilisateur.")
-            self.a_export.setEnabled(True)  # Permet d'exporter ce qui a déjà été traduit
-        else:
+        # Si le traitement s'est terminé sans interruption volontaire
+        if self._trans_worker and not self._trans_worker.is_stopped():
             self.status.showMessage("✅ Traduction terminée.")
-            self.a_export.setEnabled(True)
+            
+            # ── ABSORPTION DES SKELETONS ORPHELINS : Forcer la progression à 100% ──
+            self.progress_panel.local_progress.update_values(
+                len(self._original_texts), len(self._original_texts), "Terminé ✓"
+            )
+            
+            # On s'assure que toutes les pages et tous les segments manquants/orphelins 
+            # de la page active soient marqués comme résolus en mémoire de traduction.
+            for p_idx in range(self.progress_panel._total_pages):
+                if p_idx not in self._translated_pages:
+                    self._translated_pages[p_idx] = {}
+                for k, v in self._original_texts.items():
+                    if self._tid_to_page.get(k, 0) == p_idx and k not in self._translated_pages[p_idx]:
+                        self._translated_pages[p_idx][k] = v
+            
             QMessageBox.information(self, "Terminé", "Le document a été traduit avec succès !")
+        else:
+            self.status.showMessage("❌ Traduction interrompue par l'utilisateur.")
+
+
 
     def _on_translation_error(self, err_msg: str):
         self.a_start.setText("▶  Démarrer la traduction")
@@ -857,14 +903,18 @@ class MainWindow(QMainWindow):
             return
 
         # Construction des métadonnées de traduction uniques de RockTranslate
-        done_segments = self.progress_panel._done_segments
+        # Calculer le nombre réel de segments traduits depuis la mémoire de traduction
+        already_translated_ids = set()
+        for page_data in self._translated_pages.values():
+            already_translated_ids.update(page_data.keys())
+        done_segments = len(already_translated_ids)
         total_segments = len(self._original_texts)
         
         trans_status = "Non traduit"
         trans_date = "Inconnue"
         if done_segments >= total_segments and total_segments > 0:
             trans_status = "Traduit d'origine 💎"
-            import datetime
+            
             trans_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         elif done_segments > 0:
             trans_status = "Traduction partielle en cours"
@@ -911,6 +961,7 @@ class MainWindow(QMainWindow):
         self._pdf_path = None
         self._instrumented_html_path = None
         self._original_texts = {}
+        self._translated_pages = {}
         
         self.a_close.setEnabled(False)
         self.a_start.setEnabled(False)
