@@ -398,7 +398,10 @@ class MainWindow(QMainWindow):
     def _on_translation_finished(self):
         self.a_start.setText("▶  Démarrer la traduction")
         self.a_start.setEnabled(True)
-
+        
+        # ── NETTOYAGE ULTRA-PROPRE DES SQUELETTES RESTANTS ──
+        self.workspace_view.clean_up_all_skeletons()
+        
        # On vérifie si l'utilisateur a cliqué sur "Arrêter"
         if self._trans_worker and self._trans_worker.is_stopped():
             self.status.showMessage("❌ Traduction interrompue par l'utilisateur.")

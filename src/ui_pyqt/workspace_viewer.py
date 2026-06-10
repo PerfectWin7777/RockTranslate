@@ -307,6 +307,21 @@ class WorkspaceViewer(QWebEngineView):
         """)
 
 
+    def clean_up_all_skeletons(self):
+        """
+        Supprime toutes les classes de shimmer restantes dans l'HTML à la fin de la traduction.
+        """
+        js = """
+        var iframe = document.getElementById('html-iframe');
+        if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.document.querySelectorAll('.shimmer-line').forEach(function(el) {
+                el.classList.remove('shimmer-line');
+            });
+        }
+        """
+        self.page().runJavaScript(js)
+
+
     def set_pane_layout(self, layout_mode: str):
         """Configure la disposition visuelle (both / pdf_only / trans_only)."""
         self.page().runJavaScript(f"setPaneLayout('{layout_mode}');")
