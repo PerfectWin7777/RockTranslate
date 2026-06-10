@@ -25,6 +25,7 @@ from ui_pyqt.widget.workspace_viewer import WorkspaceViewer
 from ui_pyqt.widget.progress_panel import ProgressPanel
 from ui_pyqt.widget.zoom_widget import ZoomWidget
 from ui_pyqt.widget.properties_dialog import DocumentPropertiesDialog
+from ui_pyqt.widget.api_config_dialog import APIConfigDialog
 from ui_pyqt.workers.extraction_worker import ExtractionWorker
 from ui_pyqt.workers.translation_worker import TranslationWorker
 from utils.pdf_metadata import get_pdf_metadata
@@ -137,6 +138,7 @@ class RecentFileItem(QFrame):
         if event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit(self.file_path)
         super().mousePressEvent(event)
+
 
 # ── Welcome Dashboard (Drag & Drop Frame) ────────────────────────────────────
 
@@ -300,67 +302,6 @@ class WelcomeDashboard(QFrame):
 
 
 
-class WelcomeDashboardS(QFrame):
-    """Écran d'accueil élégant affiché au démarrage."""
-    file_dropped = pyqtSignal(str)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setAcceptDrops(True)
-        self.setStyleSheet("""
-            WelcomeDashboard {
-                background-color: #1e202c;
-                border: 2px dashed #4f5b66;
-                border-radius: 12px;
-                margin: 40px;
-            }
-        """)
-        self._build_ui()
-
-    def _build_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.setSpacing(20)
-
-        title = QLabel("RockTranslate 1.0", self)
-        title.setFont(QFont("Segoe UI", 24, QFont.Weight.Bold))
-        title.setStyleSheet("color: #ffffff;")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        subtitle = QLabel("Glissez-déposez votre PDF scientifique ici pour commencer", self)
-        subtitle.setFont(QFont("Segoe UI", 12))
-        subtitle.setStyleSheet("color: #a0aec0;")
-        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        self.lbl_status = QLabel(self)
-        self.lbl_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._check_api_keys()
-
-        layout.addWidget(title)
-        layout.addWidget(subtitle)
-        layout.addWidget(self.lbl_status)
-
-    def _check_api_keys(self):
-        gemini = os.getenv("GEMINI_API_KEY")
-        openai = os.getenv("OPENAI_API_KEY")
-        if gemini or openai:
-            self.lbl_status.setText("● Clé API détectée (Zéro-Configuration active)")
-            self.lbl_status.setStyleSheet("color: #48bb78; font-weight: bold; font-size: 11px;")
-        else:
-            self.lbl_status.setText("○ Aucune clé API trouvée (Veuillez configurer GEMINI_API_KEY dans votre .env)")
-            self.lbl_status.setStyleSheet("color: #f56565; font-size: 11px;")
-
-    def dragEnterEvent(self, event):
-        if event.mimeData().hasUrls():
-            event.acceptProposedAction()
-
-    def dropEvent(self, event):
-        for url in event.mimeData().urls():
-            file_path = url.toLocalFile()
-            if file_path.lower().endswith(".pdf"):
-                self.file_dropped.emit(file_path)
-                break
-
 
 # ── MainWindow Orchestrator ──────────────────────────────────────────────────
 class MainWindow(QMainWindow):
@@ -487,6 +428,11 @@ class MainWindow(QMainWindow):
 
         m_trans.addSeparator()
 
+        # Action d'ouverture de notre configuration d'IA type Cline
+        self.a_api_config = QAction("Configuration de l'API & Modèles...", self)
+        self.a_api_config.triggered.connect(self._show_api_configuration)
+        m_trans.addAction(self.a_api_config)
+
         m_lang = m_trans.addMenu("Langue cible")
         self._lang_actions = {}
         for display, code in LANGUAGES:
@@ -575,7 +521,15 @@ class MainWindow(QMainWindow):
         self.a_layout_trans.triggered.connect(self._apply_layout_trans_only)
         self.layout_group.addAction(self.a_layout_trans)
         m_view.addAction(self.a_layout_trans)
-
+    
+    def _show_api_configuration(self):
+        """Ouvre l'interface de paramétrage d'IA et rafraîchit les indicateurs."""
+        dialog = APIConfigDialog(self)
+        if dialog.exec():
+            # Lors d'une validation réussie, on rafraîchit la détection d'API du tableau d'accueil
+            self.welcome_screen._check_api_keys()
+            self.status.showMessage("Configuration d'API enregistrée avec succès.")
+            
     # ── LOGIQUE DES ACTIONS D'OUVERTURE ET DE SÉLECTION ──
     def _open_pdf_dialog(self):
         path, _ = QFileDialog.getOpenFileName(self, "Ouvrir un PDF", "", "PDF (*.pdf)")

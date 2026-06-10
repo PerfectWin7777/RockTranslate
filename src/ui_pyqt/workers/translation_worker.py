@@ -8,7 +8,7 @@ from translation.chunker import build_batches, Batch
 from translation.llm_client import LLMClient
 
 # Nombre d'éléments traduits à mémoriser pour assurer la cohérence sémantique inter-pages
-_SLIDING_CONTEXT_MAX_SIZE = 10
+_SLIDING_CONTEXT_MAX_SIZE = 5
 
 
 class TranslationWorker(QThread):

@@ -173,7 +173,7 @@ class LLMClient:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message},
                 ],
-                "temperature": 0.1,  # Faible créativité requise pour de la traduction scientifique
+                "temperature": 1.0,  # Faible créativité requise pour de la traduction scientifique
                 "max_tokens": 16384, # Large budget pour éviter la troncature
             }
 
