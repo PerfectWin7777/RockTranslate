@@ -13,71 +13,275 @@ DEFAULT_PROVIDERS = {
     "Google Gemini": {
         "prefix": "gemini/",
         "key_env": "GEMINI_API_KEY",
-        "models": ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-1.5-pro"]
+        "models": [
+            "gemini-3.5-flash",
+            "gemini-3.1-flash-lite",
+            "gemini-2.5-flash-lite",
+            "gemini-3-flash-preview",
+            "gemini-3.1-pro",
+            "gemini-2.5-flash",
+            "gemini-2.5-pro",
+            "gemini-2.0-flash",
+            "gemini-2.0-flash-lite",
+            "gemini-1.5-pro",
+            "gemini-1.5-flash",
+            "gemini-exp-1206"
+        ]
     },
+
     "OpenAI": {
         "prefix": "openai/",
         "key_env": "OPENAI_API_KEY",
-        "models": ["gpt-4o-mini", "gpt-4o"]
+        "models": [
+            "gpt-5",
+            "gpt-5-mini",
+            "gpt-5-nano",
+            "gpt-5.5",
+            "gpt-5.4",
+            "gpt-4.1",
+            "gpt-4.1-mini",
+            "gpt-4.1-nano",
+            "gpt-4o",
+            "gpt-4o-mini",
+            "chatgpt-4o-latest",
+            "o1",
+            "o1-mini",
+            "o1-preview",
+            "o3",
+            "o3-mini",
+            "o4-mini"
+        ]
     },
-    "DeepSeek": {
-        "prefix": "deepseek/",
-        "key_env": "DEEPSEEK_API_KEY",
-        "models": ["deepseek-chat", "deepseek-reasoner"]
-    },
+
     "Anthropic": {
         "prefix": "anthropic/",
         "key_env": "ANTHROPIC_API_KEY",
-        "models": ["claude-3-5-haiku-20241022", "claude-3-5-sonnet-20241022"]
-    },
-    "OpenRouter (Modèles Chinois etc.)": {
-        "prefix": "openrouter/",
-        "key_env": "OPENROUTER_API_KEY",
         "models": [
-            "openrouter/deepseek/deepseek-chat",
-            "openrouter/qwen/qwen-2.5-72b-instruct",
-            "openrouter/google/gemini-2.5-flash"
+            "claude-4.8-opus",           
+            "claude-4.6-sonnet",         
+            "claude-4.5-haiku",
+            "claude-4-opus",
+            "claude-4-sonnet",
+            "claude-3-7-sonnet",
+            "claude-3-5-sonnet-20241022",
+            "claude-3-5-haiku-20241022",
+            "claude-3-opus-20240229",
+            "claude-3-sonnet-20240229",
+            "claude-3-haiku-20240307"
         ]
     },
+
+    "DeepSeek": {
+        "prefix": "deepseek/",
+        "key_env": "DEEPSEEK_API_KEY",
+        "models": [
+            "deepseek-v4-flash",
+            "deepseek-v4-pro",
+            "deepseek-chat",
+            "deepseek-reasoner",
+            "deepseek-v3",
+            "deepseek-r1"
+        ]
+    },
+
     "Mistral AI": {
         "prefix": "mistral/",
         "key_env": "MISTRAL_API_KEY",
-        "models": ["mistral-large-latest", "open-mistral-nemo"]
+        "models": [
+            "mistral-medium-3.5",        # Modèle dense unifié de 128B (général, vision, code)
+            "mistral-small-latest",
+            "mistral-large-latest",
+            "mistral-medium-latest",
+            "mistral-small-latest",
+            "pixtral-large-latest",
+            "pixtral-12b",
+            "ministral-8b-latest",
+            "ministral-3b-latest",
+            "open-mistral-nemo",
+            "open-mixtral-8x22b",
+            "open-mixtral-8x7b"
+        ]
     },
-    "Moonshot (Kimi)": {
-        "prefix": "moonshot/",
-        "key_env": "MOONSHOT_API_KEY",
-        "models": ["moonshot-v1-8k", "moonshot-v1-32k"]
-    },
-    "Alibaba DashScope (Qwen)": {
-        "prefix": "dashscope/",
-        "key_env": "DASHSCOPE_API_KEY",
-        "models": ["qwen-turbo", "qwen-plus", "qwen-max"]
-    },
-    "Zhipu AI (GLM)": {
-        "prefix": "zai/",
-        "key_env": "ZAI_API_KEY",
-        "models": ["glm-4.7", "glm-4.5"]
-    },
-    "Together AI": {
-        "prefix": "together_ai/",
-        "key_env": "TOGETHERAI_API_KEY",
-        "models": ["togethercomputer/llama-2-70b-chat", "meta-llama/Llama-3-70b-chat-hf"]
-    },
+
     "Groq": {
         "prefix": "groq/",
         "key_env": "GROQ_API_KEY",
-        "models": ["llama3-70b-8192", "mixtral-8x7b-32768"]
+        "models": [
+            "llama-4-scout-groq",        
+            "llama-3.3-70b-versatile",   
+            "llama3-70b-8192",
+            "llama-3.3-70b-versatile",
+            "llama-3.1-70b-versatile",
+            "llama-3.1-8b-instant",
+            "mixtral-8x7b-32768",
+            "gemma2-9b-it",
+            "qwen-qwq-32b",
+            "deepseek-r1-distill-llama-70b"
+        ]
     },
+
+    "Together AI": {
+        "prefix": "together_ai/",
+        "key_env": "TOGETHERAI_API_KEY",
+        "models": [
+            "meta-llama/Llama-4-Maverick",         
+            "meta-llama/Llama-4-Scout",            
+            "meta-llama/Meta-Llama-3.1-405B-Instruct",
+            "meta-llama/Meta-Llama-3.3-70B-Instruct",
+            "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            "meta-llama/Llama-3.1-405B-Instruct-Turbo",
+            "meta-llama/Llama-3.1-70B-Instruct-Turbo",
+            "meta-llama/Llama-3.1-8B-Instruct-Turbo",
+            "Qwen/Qwen3-235B-A22B",
+            "Qwen/Qwen3-32B",
+            "Qwen/Qwen2.5-72B-Instruct",
+            "deepseek-ai/DeepSeek-V4-Pro",
+            "deepseek-ai/DeepSeek-R1",
+            "deepseek-ai/DeepSeek-V3",
+            "mistralai/Mixtral-8x7B-Instruct-v0.1",
+             "mistralai/Mixtral-8x22B-Instruct-v0.1",
+            "moonshotai/Kimi-K2",
+            "zai-org/GLM-4.7"
+        ]
+    },
+
+    "Moonshot (Kimi)": {
+        "prefix": "moonshot/",
+        "key_env": "MOONSHOT_API_KEY",
+        "models": [
+            "kimi-k2.6",                 
+            "kimi-k2.5",              
+            "kimi-k2",
+            "kimi-k2-instruct",
+            "moonshot-v1-8k",
+            "moonshot-v1-32k",
+            "moonshot-v1-128k"
+        ]
+    },
+
+    "Alibaba DashScope (Qwen)": {
+        "prefix": "dashscope/",
+        "key_env": "DASHSCOPE_API_KEY",
+        "models": [
+            "qwen3.7-max-preview",       
+            "qwen3.5-plus",                  
+            "qwen-max",                  
+            "qwen-plus",
+            "qwen-turbo"
+            "qwen-max",
+            "qwen-plus",
+            "qwen-turbo",
+            "qwen-long",
+            "qwen2.5-72b-instruct",
+            "qwen2.5-32b-instruct",
+            "qwen2.5-14b-instruct",
+            "qwen2.5-7b-instruct",
+            "qwen3-235b-a22b",
+            "qwen3-32b",
+            "qwq-32b"
+        ]
+    },
+
+    "Zhipu AI (GLM)": {
+        "prefix": "zai/",
+        "key_env": "ZAI_API_KEY",
+        "models": [
+            "glm-5.1",                   
+            "glm-5",                   
+            "glm-4.7",
+            "glm-4.5"
+            "glm-4.7",
+            "glm-4.6",
+            "glm-4.5",
+            "glm-4-air",
+            "glm-4-airx",
+            "glm-4-plus",
+            "glm-4-long"
+        ]
+    },
+
     "xAI (Grok)": {
         "prefix": "xai/",
         "key_env": "XAI_API_KEY",
-        "models": ["grok-2-1212", "grok-beta"]
+        "models": [
+            "grok-4",
+            "grok-3",
+            "grok-3-mini",
+            "grok-2-1212",
+            "grok-beta"
+        ]
     },
+
+    "OpenRouter": {
+        "prefix": "openrouter/",
+        "key_env": "OPENROUTER_API_KEY",
+        "models": [
+            "openai/gpt-5",
+            "openai/gpt-5-mini",
+            "openai/gpt-4.1",
+            "openai/gpt-4o",
+
+            "anthropic/claude-4-opus",
+            "anthropic/claude-4-sonnet",
+            "anthropic/claude-4.6-sonnet",
+            "anthropic/claude-4.8-opus",
+            "anthropic/claude-4.5-haiku",
+            "anthropic/claude-3.7-sonnet",
+
+            "google/gemini-2.5-pro",
+            "google/gemini-2.5-flash",
+            "google/gemini-3.5-flash",
+            "google/gemini-3.1-flash-lite",
+
+
+            "deepseek/deepseek-r1",
+            "deepseek/deepseek-chat",
+            "deepseek/deepseek-v3",
+            "deepseek/deepseek-v4-flash",
+            "deepseek/deepseek-v4-pro",
+
+            "x-ai/grok-4",
+            "x-ai/grok-3",
+
+            "qwen/qwen3-235b-a22b",
+            "qwen/qwen2.5-72b-instruct",
+            "qwen/qwen-3.5-397b-instruct",
+
+            "meta-llama/llama-3.3-70b-instruct",
+            "meta-llama/llama-3.1-405b-instruct",
+
+            "mistralai/mistral-large",
+            "mistralai/mistral-medium-3.5"
+            "moonshotai/kimi-k2",
+            "z-ai/glm-4.7"
+        ]
+    },
+
     "Ollama (Local)": {
         "prefix": "ollama/",
         "key_env": "",
-        "models": ["qwen2.5", "llama3", "mistral"]
+        "models": [
+            "llama3",
+            "llama3.1",
+            "llama3.2",
+            "llama3.3",
+            "deepseek-v4-flash",
+            "qwen2.5",
+            "qwen3",
+            "qwen3.6-27b",
+            "deepseek-r1",
+            "deepseek-v3",
+            "mistral",
+            "mixtral",
+            "codestral",
+            "gemma2",
+            "phi4",
+            "phi3",
+            "command-r",
+            "command-r-plus",
+            "yi",
+            "granite3.3"
+        ]
     }
 }
 
@@ -99,7 +303,7 @@ class APIConfigDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Configuration de l'API")
-        self.resize(500, 360)
+        self.resize(700, 360)
         self.setStyleSheet("""
             QDialog {
                 background-color: #f7fafc;
@@ -127,7 +331,23 @@ class APIConfigDialog(QDialog):
                 font-size: 11px;
                 color: #4a5568;
             }
+           /* Style épuré pour le bouton de suppression rouge */
+            QPushButton#DeleteBtn {
+                background-color: #fff5f5;
+                border: 1px solid #feb2b2;
+                border-radius: 4px;
+                color: #c53030;
+                padding: 6px 12px;
+                font-family: 'Segoe UI', sans-serif;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            QPushButton#DeleteBtn:hover {
+                background-color: #fed7d7;
+            }
+                           
         """)
+
         self._load_settings()
         self._build_ui()
         self._on_provider_changed(self.combo_provider.currentText())
@@ -167,7 +387,25 @@ class APIConfigDialog(QDialog):
         self.edit_key = ApiKeyLineEdit(self)
         self.edit_key.setEchoMode(QLineEdit.EchoMode.Password)
         # self.edit_key.setPlaceholderText("Entrez votre clé API")
-        form.addRow(self.lbl_key, self.edit_key)
+        # Bouton rouge de suppression
+        self.btn_delete_key = QPushButton("🗑️ Supprimer", self)
+        self.btn_delete_key.setObjectName("DeleteBtn")
+        self.btn_delete_key.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_delete_key.clicked.connect(self._on_delete_key)
+        
+        key_layout = QHBoxLayout()
+        key_layout.setContentsMargins(0, 0, 0, 0)
+        key_layout.addWidget(self.edit_key, 1)
+        key_layout.addWidget(self.btn_delete_key)
+        
+        form.addRow(self.lbl_key, key_layout)
+
+        # Message de retour visuel vert de réussite (masqué par défaut)
+        self.lbl_success_msg = QLabel(self)
+        self.lbl_success_msg.setStyleSheet("color: #38a169; font-weight: bold; font-size: 11px; background: transparent; border: none;")
+        self.lbl_success_msg.setVisible(False)
+        form.addRow("", self.lbl_success_msg)
+
 
         # 3. Activation d'un point d'accès personnalisé (Custom Base URL)
         self.chk_custom_base = QCheckBox("Use custom base URL", self)
@@ -222,6 +460,9 @@ class APIConfigDialog(QDialog):
 
     def _on_provider_changed(self, provider_name):
         """Met à jour dynamiquement les formulaires selon le fournisseur d'API."""
+        # Masquer le message vert de réussite de l'ancienne suppression
+        self.lbl_success_msg.setVisible(False)
+        
         config = DEFAULT_PROVIDERS[provider_name]
         
         # Gérer la visibilité de la clé d'API (Masqué pour Ollama Local)
@@ -253,6 +494,30 @@ class APIConfigDialog(QDialog):
     def _on_custom_base_toggled(self, checked):
         """Affiche ou masque le champ de l'adresse IP de base."""
         self.edit_base_url.setVisible(checked)
+    
+    def _on_delete_key(self):
+        """Supprime de manière sécurisée la clé d'API de la mémoire et du système."""
+        provider_name = self.combo_provider.currentText()
+        config = DEFAULT_PROVIDERS[provider_name]
+        
+        # 1. Vider le champ de texte visuellement
+        self.edit_key.clear()
+        
+        # 2. Supprimer la clé du dictionnaire en mémoire vive
+        if provider_name in self.keys_dict:
+            self.keys_dict.pop(provider_name, None)
+            
+        # 3. Enregistrer le dictionnaire vidé de manière persistante sur le disque
+        self.settings.setValue("api_keys_by_provider", json.dumps(self.keys_dict))
+        
+        # 4. Supprimer la clé de la variable d'environnement système active
+        if config["key_env"] and config["key_env"] in os.environ:
+            os.environ.pop(config["key_env"], None)
+            
+        # 5. Afficher le message vert de réussite
+        self.lbl_success_msg.setText(f"✓ Clé API pour '{provider_name}' supprimée avec succès.")
+        self.lbl_success_msg.setVisible(True)
+
 
     def _on_save_settings(self):
         """Valide et enregistre la configuration."""
