@@ -83,6 +83,11 @@ Rules:
 3. The 'id' keys are strictly system routing keys. NEVER translate, modify, split, omit, or duplicate an 'id' key.
 4. Keep the exact same mapping order: if the input is `[{{"id": "g-5", "text": "A"}}, {{"id": "g-6", "text": "B"}}]`, 
    the output MUST be `[{{"id": "g-5", "translated": "A_trans"}}, {{"id": "g-6", "translated": "B_trans"}}]`.
+5. WARNING: NEVER perform content swaps or positional shifts between different IDs.
+   Even if the input segments appear visually scrambled, disconnected, or represent header metadata
+   mixed with footer citations, translate each segment independently within its assigned ID.
+   NEVER merge the translation of "id": "g-X" into "id": "g-Y", and NEVER swap their positions.
+   The translation of "text" in "g-X" must reside STRICTLY in the output object of "g-X".
 
 
 

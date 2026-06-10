@@ -1,57 +1,90 @@
-# core/html_transformer.py
+"""
+RockTranslate — High-Fidelity Geometry-Based HTML Parser and Transformer
+Path: core/html_transformer.py
 
-import os, re
+This module executes high-fidelity semantic reconstruction of PDF layouts:
+1. Converts PDF documents to raw HTML utilizing local pdf2htmlEX engines.
+2. Parses unscaled CSS transform matrices and dynamic spacer properties.
+3. Applies a scaled hybrid grouping algorithm to prevent word fragmentation:
+   - Identifies structural table breaks (scaled spaces >= THRESHOLD_PX).
+   - Identifies real word spaces (2.5px <= scaled spaces < THRESHOLD_PX).
+   - Identifies kerning/accent positioning (scaled spaces < 2.5px or negative),
+     merging diacritics (like Moïse, Sébastien) cleanly without injecting gaps.
+
+Author: RockTranslate Contributors
+License: MIT License
+Version: 1.0.0
+"""
+
+import os
+import re
 import subprocess
-from typing import Callable
+from typing import Callable, Optional, Dict, Tuple, List, Set, Any
 from bs4 import BeautifulSoup, NavigableString
+from loguru import logger
 
-# Importation découplée de notre nouvel utilitaire de téléchargement
-from utils.downloader import check_and_download_pdf2htmlex, DEFAULT_ASSETS_DIR
-
-ACCENTS_TO_IGNORE = {'´', '`', '¨', 'ˆ', '˜', '¸', 'ˇ', '¯', '˘', '˙', '˚', '˝', '˛', '⇑', '⇓'}
+# Safe fallback imports supporting both standard package modules and direct scripts
+try:
+    from core.constants import DEFAULT_ASSETS_DIR, THRESHOLD_PX, ACCENTS_TO_IGNORE
+    from utils.downloader import check_and_download_pdf2htmlex
+except ImportError:
+    from src.core.constants import DEFAULT_ASSETS_DIR, THRESHOLD_PX, ACCENTS_TO_IGNORE
+    from src.utils.downloader import check_and_download_pdf2htmlex
 
 
 def convert_pdf_to_html(
     pdf_path: str, 
     assets_dir: str = DEFAULT_ASSETS_DIR, 
-    on_progress: Callable[[int, int], None] = None
-) -> str | None:
+    on_progress: Optional[Callable[[int, int], None]] = None
+) -> Optional[str]:
     """
-    Convertit un fichier PDF en HTML brut en utilisant l'exécutable local pdf2htmlEX
-    en lisant en direct la progression des pages.
+    Converts a source PDF into raw HTML using the local pdf2htmlEX executable,
+    tracking page compilation progress in real-time.
+
+    Args:
+        pdf_path: The filesystem path to the target PDF file.
+        assets_dir: Assets folder storing the external pdf2htmlEX compiler.
+        on_progress: Optional callback progress tracker (current_page, total_pages).
+
+    Returns:
+        Optional[str]: Absolute path to the generated raw HTML, or None.
     """
     pdf2htmlex_exe = check_and_download_pdf2htmlex(assets_dir)
     if not pdf2htmlex_exe:
+        logger.error("pdf2htmlEX executable could not be resolved.")
         return None
 
-    pdf_dir = os.path.dirname(os.path.abspath(pdf_path))
-    pdf_filename = os.path.basename(pdf_path)
-    html_filename = f"{os.path.splitext(pdf_filename)[0]}_raw.html"
-    output_html_path = os.path.join(pdf_dir, html_filename)
+    pdf_dir: str = os.path.dirname(os.path.abspath(pdf_path))
+    pdf_filename: str = os.path.basename(pdf_path)
+    html_filename: str = f"{os.path.splitext(pdf_filename)[0]}_raw.html"
+    output_html_path: str = os.path.join(pdf_dir, html_filename)
 
+    # Bypass compilation if raw HTML is already generated on disk
     if os.path.exists(output_html_path):
-        return output_html_path # Évite de re-compiler si déjà présent
+        logger.info(f"Raw HTML already exists. Skipping compilation for: {pdf_filename}")
+        return output_html_path
 
-    cmd = [
+    cmd: List[str] = [
         os.path.abspath(pdf2htmlex_exe),
         "--zoom", "1.3",
         pdf_filename,
         html_filename
     ]
     
-    print(f"⚙️ Conversion haute fidélité du PDF en cours ({pdf_filename})...")
-    # On utilise Popen pour pouvoir lire la sortie de progression en temps réel
+    logger.info(f"Starting high-fidelity conversion of PDF: {pdf_filename}")
+    
+    # Execute pdf2htmlEX in a background process
     process = subprocess.Popen(
         cmd, cwd=pdf_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
     )
 
-    # Lecture en direct du flux stderr de pdf2htmlEX
+    # Read the stderr stream in real-time to intercept page processing progress
     while True:
-        line = process.stderr.readline()
+        line = process.stderr.readline() if process.stderr else ""
         if not line and process.poll() is not None:
             break
         
-        # pdf2htmlEX écrit sa progression sous la forme : "Working: 1/12"
+        # Intercept pdf2htmlEX syntax output: "Working: 1/12"
         if "Working:" in line:
             match = re.search(r"Working:\s*(\d+)/(\d+)", line)
             if match and on_progress:
@@ -61,137 +94,126 @@ def convert_pdf_to_html(
 
     process.wait()
     if process.returncode == 0 and os.path.exists(output_html_path):
-        print("✅ Fichier HTML brut généré.")
+        logger.info("Raw HTML file generated successfully.")
         return output_html_path
+        
+    logger.error(f"pdf2htmlEX exited with error code: {process.returncode}")
     return None
 
-    
-# DEPRACATED
-def wrap_text_nodes_recursively(soup, parent_element, trans_idx_ref, original_texts_map) -> None: # DEPRACATED
+
+def parse_matrix_classes(soup: BeautifulSoup) -> Dict[str, Tuple[float, float]]:
     """
-    Parcourt récursivement les nœuds enfants d'un élément pour envelopper tous les textes bruts,
-    tout en préservant les spacers d'origine sans les altérer.
+    Parses unscaled CSS transform matrix properties from style tags.
+    (e.g., .m0 { transform: matrix(0.125, 0, 0, 0.125, 0, 0); } -> {'m0': (0.125, 0.125)})
+
+    Args:
+        soup: BeautifulSoup object parsed from raw HTML.
+
+    Returns:
+        Dict[str, Tuple[float, float]]: Mapping of matrix classes to (scaleX, scaleY) factors.
     """
-    children = list(parent_element.contents)
-    parent_element.clear()
-
-    for child in children:
-        if isinstance(child, NavigableString):
-            # C'est du texte brut : on l'enveloppe pour la traduction
-            text_val = str(child)
-            if text_val.strip():
-                text_id = f"t-{trans_idx_ref[0]}"
-                original_texts_map[text_id] = text_val
-                
-                new_span = soup.new_tag("span", attrs={
-                    "class": "trans-span",
-                    "data-trans-id": text_id,
-                    "data-orig-text": text_val
-                })
-                new_span.string = text_val
-                parent_element.append(new_span)
-                trans_idx_ref[0] += 1
-            else:
-                parent_element.append(child)
-                
-        elif child.name == "span" and child.get("class") and any(c.startswith("_") for c in child.get("class")):
-            # C'est une balise d'espacement (spacer) de pdf2htmlEX : on la conserve strictement intacte
-            parent_element.append(child)
-            
-        elif child.name in ["span", "a", "b", "i", "sup", "sub", "em", "strong"]:
-            # C'est un conteneur stylisé ou un lien : on descend récursivement à l'intérieur
-            wrap_text_nodes_recursively(soup, child, trans_idx_ref, original_texts_map)
-            parent_element.append(child)
-            
-        else:
-            # Sécurité pour tout autre type d'élément HTML
-            parent_element.append(child)
-
-# DEPRACATED
-def _wrap_children_recursively(soup, element, idx, original_texts_map, tid_to_page, page_idx, sx_orig, sy_orig):# DEPRACATED
-    """
-    Descend récursivement dans les éléments imbriqués d'une div.t
-    pour wrapper tous les TextNodes, sans row-wrapper ni style complexe.
-    Préserve intacts les spacers pdf2htmlEX (class="_").
-    """
-    for child in list(element.children):
-        if isinstance(child, NavigableString) and child.strip():
-            tid = f"t-{idx[0]}"
-            original_texts_map[tid] = str(child)
-            tid_to_page[tid] = page_idx
-
-            span = soup.new_tag("span", attrs={
-                "data-trans-id": tid,
-                "data-sx": str(sx_orig),
-                "data-sy": str(sy_orig),
-                "style": "display:inline;"
-            })
-            span.string = str(child)
-            child.replace_with(span)
-            idx[0] += 1
-
-        elif hasattr(child, "get"):
-            classes = child.get("class", [])
-            # Spacer pdf2htmlEX → ne pas toucher
-            if "_" in classes:
-                continue
-            elif child.name in ["span", "a", "b", "i", "sup", "sub", "em", "strong"]:
-                _wrap_children_recursively(soup, child, idx, original_texts_map, tid_to_page, page_idx, sx_orig, sy_orig)
-
-
-
-def parse_matrix_classes(soup) -> dict:
-    matrix_map = {}
+    matrix_map: Dict[str, Tuple[float, float]] = {}
     for style_tag in soup.find_all("style"):
         text = style_tag.string or ""
         for m in re.finditer(
             r'\.(m\w+)\{transform:matrix\(([\d.]+),[\d.]+,[\d.]+,([\d.]+),', text
         ):
-            cls = m.group(1)
-            sx  = float(m.group(2))
-            sy  = float(m.group(3))
+            cls: str = m.group(1)
+            sx: float = float(m.group(2))
+            sy: float = float(m.group(3))
             matrix_map[cls] = (sx, sy)
     return matrix_map
 
 
-def parse_spacer_widths(soup) -> dict:
+def parse_spacer_widths(soup: BeautifulSoup) -> Dict[str, float]:
     """
-    Analyse les classes d'espacement de pdf2htmlEX pour extraire la largeur
-    physique en pixels de chaque spacer (ex: ._19 { width: 85.123px; } -> {"19": 85.123})
+    Parses spacer widths from raw CSS style tags.
+    Corrected pattern to support negative values (e.g., ._19 { width: -15.123px; }).
+
+    Args:
+        soup: BeautifulSoup object parsed from raw HTML.
+
+    Returns:
+        Dict[str, float]: Mapping of spacer class indices to raw width values.
     """
-    spacer_map = {}
+    spacer_map: Dict[str, float] = {}
     for style_tag in soup.find_all("style"):
         text = style_tag.string or ""
-        for m in re.finditer(r'\._(\w+)\s*\{\s*width\s*:\s*([\d\.]+)\s*px\s*;?\s*\}', text):
-            cls = m.group(1)
-            width = float(m.group(2))
+        # Added optional sign '-?' to capture negative diacritics reposition spacers
+        for m in re.finditer(r'\._(\w+)\s*\{\s*width\s*:\s*(-?[\d\.]+)\s*px\s*;?\s*\}', text):
+            cls: str = m.group(1)
+            width: float = float(m.group(2))
             spacer_map[cls] = width
     return spacer_map
 
 
-
-def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, dict]:
+def parse_position_classes(soup: BeautifulSoup) -> Tuple[Dict[str, float], Dict[str, float]]:
     """
-    Analyse le fichier HTML brut, applique l'algorithme de regroupement hybride
-    basé sur l'espacement pour regrouper les phrases et isoler les colonnes de tableaux,
-    puis injecte les styles de transition et l'écouteur de messages.
+    Parses unscaled CSS coordinates from style tags to understand visual layout.
+    Extracts x classes (.x1 { left: 85px; }) and y classes (.y1 { bottom: 234px; })
+    """
+    x_map: Dict[str, float] = {}
+    y_map: Dict[str, float] = {}
+    for style_tag in soup.find_all("style"):
+        text = style_tag.string or ""
+        for m in re.finditer(r'\.(x\w+)\s*\{\s*(?:left|margin-left)\s*:\s*([\d\.-]+)\s*px', text):
+            x_map[m.group(1)] = float(m.group(2))
+        for m in re.finditer(r'\.(y\w+)\s*\{\s*(?:bottom|top|margin-bottom|margin-top)\s*:\s*([\d\.-]+)\s*px', text):
+            y_map[m.group(1)] = float(m.group(2))
+    return x_map, y_map
+
+
+
+def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str, str], Dict[str, int]]:
+    """
+    Instruments the raw HTML layout by applying the high-fidelity scaled grouping algorithm.
+    Groups words into sentences, segregates table columns, and embeds loading screens.
+
+    Args:
+        raw_html_path: Path to the raw compiled HTML file.
+        output_html_path: Path where the instrumented HTML should be saved.
+
+    Returns:
+        Tuple[Dict[str, str], Dict[str, int]]:
+            - original_texts_map: Map of unique translation IDs to unified text strings.
+            - tid_to_page: Map of unique translation IDs to their zero-based page index.
     """
     with open(raw_html_path, "r", encoding="utf-8") as f:
         soup = BeautifulSoup(f.read(), "lxml")
 
-    matrix_map = parse_matrix_classes(soup)
-    spacer_map = parse_spacer_widths(soup)
+    matrix_map: Dict[str, Tuple[float, float]] = parse_matrix_classes(soup)
+    spacer_map: Dict[str, float] = parse_spacer_widths(soup)
+    x_map, y_map = parse_position_classes(soup)
     pages_list = soup.find_all("div", class_="pf")
-
-    original_texts_map = {}
-    tid_to_page = {}
-    idx = [0]
     
-    # Seuil de coupure (20 pixels) : au-dessus, c'est un tableau ou un grand saut structurel
-    THRESHOLD_PX = 20.0
+
+    original_texts_map: Dict[str, str] = {}
+    tid_to_page: Dict[str, int] = {}
+    idx: List[int] = [0]
 
     for page_idx, page_el in enumerate(pages_list):
-        for div_t in page_el.find_all("div", class_="t"):
+        # 1. Collecter toutes les lignes de texte div_t de cette page
+        div_t_elements = page_el.find_all("div", class_="t")
+        
+        # 2. Fonction d'aide pour extraire les coordonnées réelles de tri
+        def get_div_sort_key(div_t_node: Any) -> Tuple[float, float]:
+            classes = div_t_node.get("class", [])
+            x_val = 0.0
+            y_val = 0.0
+            for cls in classes:
+                if cls in x_map:
+                    x_val = x_map[cls]
+                if cls in y_map:
+                    y_val = y_map[cls]
+            # pdf2htmlEX utilise 'bottom' pour Y (le bas de page = 0).
+            # Trier par -y_val ascendant permet d'obtenir un flux parfait de haut en bas.
+            return -y_val, x_val
+
+        # 3. Trier spatialement les lignes de texte (de haut en bas, de gauche à droite)
+        sorted_div_t = sorted(div_t_elements, key=get_div_sort_key)
+
+        # 4. Exécuter l'analyse géométrique dans l'ordre chronologique de lecture
+        for div_t in sorted_div_t:
             # Déterminer les coefficients d'échelle d'origine (sx, sy) de la ligne
             classes = div_t.get("class", [])
             sx_orig, sy_orig = 1.0, 1.0
@@ -203,33 +225,31 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
             children = list(div_t.contents)
             div_t.clear()
 
-            current_group_text = []
-            current_group_elements = []
+            current_group_text: List[str] = []
+            current_group_elements: List[Any] = []
 
-            def commit_group():
+            def commit_group() -> None:
                 nonlocal current_group_text, current_group_elements
                 if not current_group_elements:
                     return
 
-                # Fusionner le texte brut contenu dans ce groupe
+                # Fuse the textual values gathered in the current group
                 merged_text = "".join(current_group_text).strip()
-                # print(f"🔍 Extraction de Groupe : {current_group_text} ➡️ Fusionné en : '{merged_text}'")
                 if merged_text:
                     gid = f"g-{idx[0]}"
                     original_texts_map[gid] = merged_text
                     tid_to_page[gid] = page_idx
 
-                    # ── DÉTECTION DES COULEURS ET DES LIENS D'ORIGINE ──
+                    # Copy font styles and color attributes from the children
                     inherited_classes = ["trans-span"]
                     for el in current_group_elements:
                         if hasattr(el, "get"):
                             el_classes = el.get("class", [])
-                            # On copie les classes de couleurs (fc1, fc2 etc.) et de polices
                             for cls in el_classes:
                                 if cls.startswith("fc") or cls.startswith("sc"):
                                     inherited_classes.append(cls)
 
-                    # Création du conteneur de groupe sémantique avec héritage de style
+                    # Wrap the unified group in a single localizable span
                     group_span = soup.new_tag("span", attrs={
                         "class": " ".join(inherited_classes),
                         "data-trans-id": gid,
@@ -242,19 +262,18 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
                     div_t.append(group_span)
                     idx[0] += 1
                 else:
-                    # En cas d'espaces vides ou nœuds sans texte, on les restitue tels quels
+                    # Fallback for empty spaces or layout floats
                     for el in current_group_elements:
                         div_t.append(el)
 
                 current_group_text.clear()
                 current_group_elements.clear()
 
-            # Analyse et répartition géométrique de chaque nœud enfant
+            # Iterate through DOM elements to apply scaled grouping
             for child in children:
-                # Récupérer le texte nettoyé du nœud pour vérification
                 child_text = child.get_text().strip() if hasattr(child, "get_text") else str(child).strip()
                 
-                # Si c'est un accent flottant parasite du PDF, on l'élimine pour éviter de couper notre groupe
+                # Silently skip legacy PDF floating accents
                 if child_text in ACCENTS_TO_IGNORE:
                     continue
 
@@ -271,16 +290,22 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
                                 break
 
                 if is_spacer:
-                    if width >= THRESHOLD_PX:
-                        # Grand espace (Tableau ou Colonne) -> On valide le groupe actuel et on coupe
+                    # --- SCALED WIDTH CALCULATION (Core geometry fix) ---
+                    scaled_width = width * sx_orig
+                    
+                    if scaled_width >= THRESHOLD_PX:
+                        # Case 1: Structural spacing -> Commit active group and append Red Cut marker
                         commit_group()
-                        div_t.append(child)  # On conserve le spacer de structure intact dans la div
-                    else:
-                        # Petit espace (Espace entre deux mots) -> On l'accumule dans le groupe
+                        div_t.append(child)
+                    elif scaled_width >= 2.5:
+                        # Case 2: Real word spacing -> Accumulate space and continue
                         current_group_elements.append(child)
                         current_group_text.append(" ")
+                    else:
+                        # Case 3: Kerning / Accent adjustments -> Accumulate elements WITHOUT any space!
+                        current_group_elements.append(child)
                 else:
-                    # Texte brut ou balise de style inline classique (b, i, span etc)
+                    # Normal styled text spans or strings
                     if isinstance(child, str):
                         current_group_text.append(str(child))
                         current_group_elements.append(child)
@@ -288,14 +313,10 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
                         current_group_text.append(child.get_text())
                         current_group_elements.append(child)
 
-            # Ne pas oublier de valider le groupe résiduel de la ligne
             commit_group()
 
-
-                    
-    # 2. INJECTION DE VOTRE GLASS DE POLI SUR TOUTES LES PAGES DU DOCUMENT (div.pf)
+    # ── 2. EMBED GLASS OVERLAYS ON ALL PAGES ──
     for p_idx, page in enumerate(pages_list):
-        # Création du conteneur dépoli à haute spécificité graphique
         glass_div = soup.new_tag("div", attrs={
             "id": f"glass-overlay-t-{p_idx}",
             "style": (
@@ -310,7 +331,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
                 "border: 1px solid rgba(255,255,255,0.5); "
                 "border-radius: 16px; "
                 "box-shadow: 0 8px 32px rgba(31,38,135,0.25), 0 0 1px rgba(255,255,255,0.5); "
-                "z-index: 1000; " # Se dessine par-dessus les éléments pdf2htmlEX
+                "z-index: 1000; "
                 "display: flex; "
                 "justify-content: center; "
                 "align-items: center; "
@@ -318,7 +339,6 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
             )
         })
 
-        # Encadré interne blanc opaque
         inner_div = soup.new_tag("div", attrs={
             "style": (
                 "background: rgba(255,255,255,0.92); "
@@ -332,11 +352,9 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
             )
         })
 
-        # Injecter le chargeur circulaire
         loader_div = soup.new_tag("div", attrs={"class": "circular-loader"})
         inner_div.append(loader_div)
 
-        # Injecter le texte informatif
         text_p = soup.new_tag("p", attrs={
             "style": "color:#1e293b; font-size:14px; font-weight:600; margin:0; font-family: sans-serif;"
         })
@@ -346,14 +364,12 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
         glass_div.append(inner_div)
         page.append(glass_div)
 
-    # 3. Injection de vos styles CSS (Squelettes shimmer & styles de lignes & spin circulaire)
-    style_tag = soup.new_tag("style")
+    # ── 3. INJECT STYLESHEET RULES (Shimmers, Spinners) ──
     style_tag = soup.new_tag("style")
     style_tag.string = """
         #sidebar { display: none !important; }
         #page-container { left: 0 !important; margin: 0 auto !important; }
 
-        /* Force l'espacement des mots traduits pour contourner les polices PDF à 0-width space */
         span[data-trans-id] {
             word-spacing: 0.25em !important;
         }
@@ -363,15 +379,14 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
             100% { background-position: -200% 0; }
         }
         
-        /* CIBLAGE ULTRA-PRÉCIS : Le Shimmer est appliqué aux spans individuels, pas aux lignes */
         .shimmer-line {
-            display: inline-block !important; /* Force l'affichage pour porter le dégradé de chargement */
+            display: inline-block !important;
             background: linear-gradient(90deg, #f1f5f9 25%, #cbd5e1 50%, #f1f5f9 75%) !important;
             background-size: 200% 100% !important;
             animation: loading-shimmer 1.8s infinite linear !important;
             border-radius: 2px !important;
             color: transparent !important;
-            min-width: 15px; /* Évite l'effondrement visuel des petits blocs */
+            min-width: 15px;
         }
         .shimmer-line * { color: transparent !important; }
 
@@ -390,7 +405,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
     """
     soup.head.append(style_tag)
 
-    # 4. Injection du JavaScript d'accompagnement (Streaming & initialisation de transition)
+    # ── 4. INJECT CLIENT JAVASCRIPT ACTIONS (DOM streams & dynamic page resets) ──
     script_tag = soup.new_tag("script")
     script_tag.string = """
         window.applyTranslation = function(transId, translatedText) {
@@ -413,10 +428,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
             var sx     = parseFloat(divT.getAttribute('data-sx-orig'));
             var sy     = parseFloat(divT.getAttribute('data-sy-orig'));
 
-            // Remplacer le contenu du groupe sémantique par la traduction
             span.textContent = translatedText;
-
-            // CIBLAGE ULTRA-PRÉCIS : Retirer le Shimmer uniquement sur le span concerné
             span.classList.remove('shimmer-line');
 
             var newSW = divT.scrollWidth;
@@ -436,27 +448,23 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
             if (glass) {
                 glass.style.transition = 'opacity 0.3s ease-out';
                 glass.style.opacity = '0';
-                setTimeout(function() { glass.remove(); }, 300);
+                setTimeout(function() { glass.style.display = 'none'; }, 300);
             }
 
-            // CIBLAGE ULTRA-PRÉCIS : On applique le Shimmer uniquement aux spans data-trans-id de la page
             page.querySelectorAll('span[data-trans-id]').forEach(function(span) {
                 span.classList.add('shimmer-line');
             });
         };
-        
-        // --- Réinitialisation chirurgicale d'une seule page ---
+
         window.resetPageToWaiting = function(pageIdx) {
             var pages = document.querySelectorAll('.pf');
             var page = pages[pageIdx];
             if (!page) return;
 
-            // 1. Retirer la classe shimmer de tous les spans de cette page pour ré-afficher le texte d'origine
             page.querySelectorAll('span[data-trans-id]').forEach(function(span) {
                 span.classList.remove('shimmer-line');
             });
 
-            // 2. Re-créer dynamiquement le panneau de verre dépoli s'il a été supprimé
             var glass = document.getElementById('glass-overlay-t-' + pageIdx);
             if (!glass) {
                 glass = document.createElement('div');
@@ -483,8 +491,6 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
             }
         };
 
-
-        // Écouteur de messages cross-iframe sécurisé
         window.addEventListener('message', function(event) {
             var msg = event.data;
             if (!msg) return;
@@ -498,10 +504,9 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
             }
         });
     """
-
     soup.body.append(script_tag)
 
-    # 5. Enregistrement du fichier HTML instrumenté complet
+    # ── 5. SAVE INSTRUMENTED HTML ──
     with open(output_html_path, "w", encoding="utf-8") as f:
         f.write(str(soup))
 

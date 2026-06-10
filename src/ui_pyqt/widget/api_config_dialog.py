@@ -232,22 +232,34 @@ class APIConfigDialog(QDialog):
         """ Updates visual components dynamically to match the selected API provider. """
         self.lbl_success_msg.setVisible(False)
         config: Dict[str, Any] = DEFAULT_PROVIDERS[provider_name]
+
+        # --- FIX: Load the basic URL option in a way that is specific to EACH provider ---
+        use_custom_base = self.settings.value(f"use_custom_base_{provider_name}", False, type=bool)
+        custom_base_url = self.settings.value(
+            f"custom_base_url_{provider_name}", 
+            "http://localhost:11434" if provider_name == "Ollama (Local)" else ""
+        )
         
         if provider_name == "Ollama (Local)":
             self.lbl_key.setVisible(False)
             self.edit_key.setVisible(False)
             self.chk_custom_base.setChecked(True)
             self.chk_custom_base.setEnabled(False)  # Enforce custom endpoint for Ollama
+            # Forcer l'URL d'Ollama
+            self.edit_base_url.setText(custom_base_url if custom_base_url else "http://localhost:11434")
             self.edit_base_url.setVisible(True)
             self.btn_delete_key.setVisible(False)
         else:
             self.lbl_key.setVisible(True)
             self.lbl_key.setText(self.tr("{provider_name} API Key").format(provider_name=provider_name))
             self.edit_key.setVisible(True)
+            
+            # Load the specific settings for this third-party provider
             self.chk_custom_base.setEnabled(True)
+            self.chk_custom_base.setChecked(use_custom_base)
+            self.edit_base_url.setText(custom_base_url)
+            self.edit_base_url.setVisible(use_custom_base)
             self.btn_delete_key.setVisible(True)
-            # self.edit_base_url.setVisible(False)
-            self.chk_custom_base.setChecked(self.chk_custom_base.isChecked())
             
             # Load locally active key
             saved_key = self.keys_dict.get(provider_name, "")
@@ -311,9 +323,15 @@ class APIConfigDialog(QDialog):
 
         # Update persisted fields
         self.settings.setValue("provider", provider_name)
+        self.settings.setValue(f"last_model_{provider_name}", model_name)
+
+        # --- FIX: Save in ISOLATION per API provider ---
+        self.settings.setValue(f"use_custom_base_{provider_name}", use_custom_base)
+        self.settings.setValue(f"custom_base_url_{provider_name}", base_url)
+        
+        # Doublons de secours pour la lecture globale par les Workers actifs
         self.settings.setValue("use_custom_base", use_custom_base)
         self.settings.setValue("custom_base_url", base_url)
-        self.settings.setValue(f"last_model_{provider_name}", model_name)
 
         if provider_name != "Ollama (Local)":
             self.keys_dict[provider_name] = api_key
