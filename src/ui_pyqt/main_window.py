@@ -15,10 +15,10 @@ from PyQt6.QtGui import QFont, QKeySequence, QAction, QActionGroup
 from PyQt6.QtWebEngineCore import QWebEngineSettings, QWebEngineProfile
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 
-# Charge les variables d'environnement (.env)
-load_dotenv()
+# # Charge les variables d'environnement (.env)
+# load_dotenv()
 
 # Importations de notre nouvelle architecture découplée
 from ui_pyqt.widget.workspace_viewer import WorkspaceViewer
@@ -257,14 +257,36 @@ class WelcomeDashboard(QFrame):
         self.refresh_recent_files()
 
     def _check_api_keys(self):
-        gemini = os.getenv("GEMINI_API_KEY")
-        openai = os.getenv("OPENAI_API_KEY")
-        if gemini or openai:
-            self.lbl_status.setText("● Clé API détectée (Zéro-Configuration active)")
+        """
+        Vérifie dynamiquement si le fournisseur actif dans QSettings est configuré.
+        """
+        settings = QSettings("RockTranslate", "APIConfig")
+        provider = settings.value("provider", "Google Gemini")
+        
+        # Récupérer les clés d'API enregistrées pour chaque fournisseur
+        keys_dict_raw = settings.value("api_keys_by_provider", "{}")
+        try:
+            keys_dict = json.loads(keys_dict_raw) if isinstance(keys_dict_raw, str) else keys_dict_raw
+        except Exception:
+            keys_dict = {}
+        active_key = keys_dict.get(provider, "")
+
+        # Récupérer le modèle actif de ce fournisseur
+        fallback_model = DEFAULT_PROVIDERS[provider]["models"][0]
+        active_model = settings.value(f"last_model_{provider}", fallback_model)
+
+        # Mettre à jour l'indicateur d'état visuel en fonction du choix réel de l'utilisateur
+        if provider == "Ollama (Local)":
+            self.lbl_status.setText(f"● Mode Local Actif (Ollama : {active_model})")
+            self.lbl_status.setStyleSheet("color: #38a169; font-weight: bold; font-size: 11px; border: none; background: transparent;")
+        elif active_key:
+            self.lbl_status.setText(f"● IA Active : {provider} ({active_model})")
             self.lbl_status.setStyleSheet("color: #38a169; font-weight: bold; font-size: 11px; border: none; background: transparent;")
         else:
-            self.lbl_status.setText("○ Aucune clé API trouvée (Veuillez configurer .env)")
+            self.lbl_status.setText(f"○ Configuration requise : Clé manquante pour {provider}")
             self.lbl_status.setStyleSheet("color: #e53e3e; font-size: 11px; border: none; background: transparent;")
+
+
 
     def refresh_recent_files(self):
         """Recharge la liste des récents persistés dans les réglages système."""
