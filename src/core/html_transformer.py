@@ -187,14 +187,25 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
 
                 # Fusionner le texte brut contenu dans ce groupe
                 merged_text = "".join(current_group_text).strip()
-                print(f"🔍 Extraction de Groupe : {current_group_text} ➡️ Fusionné en : '{merged_text}'")
+                # print(f"🔍 Extraction de Groupe : {current_group_text} ➡️ Fusionné en : '{merged_text}'")
                 if merged_text:
                     gid = f"g-{idx[0]}"
                     original_texts_map[gid] = merged_text
                     tid_to_page[gid] = page_idx
 
-                    # Création du conteneur de groupe sémantique
+                    # ── DÉTECTION DES COULEURS ET DES LIENS D'ORIGINE ──
+                    inherited_classes = ["trans-span"]
+                    for el in current_group_elements:
+                        if hasattr(el, "get"):
+                            el_classes = el.get("class", [])
+                            # On copie les classes de couleurs (fc1, fc2 etc.) et de polices
+                            for cls in el_classes:
+                                if cls.startswith("fc") or cls.startswith("sc"):
+                                    inherited_classes.append(cls)
+
+                    # Création du conteneur de groupe sémantique avec héritage de style
                     group_span = soup.new_tag("span", attrs={
+                        "class": " ".join(inherited_classes),
                         "data-trans-id": gid,
                         "data-sx": str(sx_orig),
                         "data-sy": str(sy_orig),

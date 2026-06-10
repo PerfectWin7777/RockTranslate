@@ -10,18 +10,15 @@ MODEL_TOKEN_LIMITS: dict[str, int] = {
     # Modèles Lite / Mini (max 1000 tokens ≈ 4000 caractères, idéal pour les gros volumes)
     "gemini/gemini-3.1-flash-lite":      1000,
     "gemini/gemini-2.5-flash-lite":      1000,
-    "gpt-4o-mini":                       1000,
-    "claude-haiku-4-5-20251001":         1000,
+    "gemini/gemini-3-flash-preview":      1000,
     
     # Modèles standard Flash (max 1500 tokens)
     "gemini/gemini-2.5-flash":          1500,
-    "gemini/gemini-2.0-flash":          1500,
     "ollama/mistral":                     800,
     "ollama/llama3":                      800,
 
     # Modèles Pro / Large (max 2500 tokens, idéal pour les paragraphes complexes)
     "gemini/gemini-2.5-pro":            2500,
-    "gemini/gemini-1.5-pro":            2500,
     "gpt-4o":                            2500,
     "claude-sonnet-4-20250514":          2500,
 }
@@ -58,7 +55,11 @@ def should_translate(text: str) -> bool:
         return False
 
     # Élimine les éléments trop courts de bruit (ex: "a", "x", "by")
-    if len(text) < 2:
+    # if len(text) < 2:
+    #     return False
+    
+    # MODIFICATION CIBLÉE : On garde les mots d'une seule lettre (comme "a" ou "I")
+    if len(text) == 1 and not text.isalpha():
         return False
 
     return True

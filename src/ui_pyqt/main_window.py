@@ -29,9 +29,9 @@ SUPPORTED_MODELS = {
     "Google Gemini": [
         "gemini/gemini-3.1-flash-lite",
         "gemini/gemini-2.5-flash-lite",
+        "gemini/gemini-3-flash-preview",
         "gemini/gemini-2.5-flash",
-        "gemini/gemini-2.0-flash",
-        "gemini/gemini-1.5-pro",
+        "gemini/gemini-2.5-pro",
     ],
     "OpenAI": [
         "gpt-4o",
@@ -401,7 +401,7 @@ class MainWindow(QMainWindow):
         
         # ── NETTOYAGE ULTRA-PROPRE DES SQUELETTES RESTANTS ──
         self.workspace_view.clean_up_all_skeletons()
-        
+
        # On vérifie si l'utilisateur a cliqué sur "Arrêter"
         if self._trans_worker and self._trans_worker.is_stopped():
             self.status.showMessage("❌ Traduction interrompue par l'utilisateur.")

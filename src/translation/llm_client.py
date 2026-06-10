@@ -99,10 +99,10 @@ class LLMClient:
 
                 # Appel réel de l'API LLM
                 results = self._call_llm(batch_segments, model=current_model, api_key=current_key, context=context)
-                print(f"🤖 Réponse IA pour le lot : Reçu {len(results) if results else 0} segments sur {len(batch_segments)} demandés.")
+                # print(f"🤖 Réponse IA pour le lot : Reçu {len(results) if results else 0} segments sur {len(batch_segments)} demandés.")
 
-                print("batch_segments :",batch_segments)
-                print("results :",results)
+                # print("batch_segments :",batch_segments)
+                # print("results :",results)
                 
                 if results is not None:
                     # Vérification de l'intégrité du retour
@@ -224,13 +224,11 @@ class LLMClient:
     def _get_fallback_model(self, current_model: str) -> Optional[str]:
         """Détermine un modèle de secours logique en cas de saturation de l'API principale."""
         fallback_chain = [
-            "gemini/gemini-2.5-flash-lite",
-            "gemini/gemini-3.1-flash-lite",
             "gemini/gemini-2.5-flash",
-            "gemini/gemini-2.0-flash",
-            "gpt-4o-mini",
-            "gemini/gemini-1.5-pro",
-            "gpt-4o"
+            "gemini/gemini-3.1-flash-lite",
+            "gemini/gemini-2.5-flash-lite",
+            "gemini/gemini-3-flash-preview",
+            
         ]
         try:
             current_idx = fallback_chain.index(current_model)
