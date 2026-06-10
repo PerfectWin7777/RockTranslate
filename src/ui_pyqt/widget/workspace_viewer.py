@@ -5,8 +5,20 @@ import json
 import tempfile
 import shutil
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtWebEngineCore import QWebEngineSettings
+from PyQt6.QtWebEngineCore import QWebEngineSettings, QWebEnginePage
 from PyQt6.QtCore import QUrl
+
+
+class SilentWebEnginePage(QWebEnginePage):
+    """
+    Page Web personnalisée filtrant les avertissements internes de PDF.js.
+    """
+    def javaScriptConsoleMessage(self, level, message, lineNumber, sourceId):
+        # On ignore silencieusement les messages d'Alt-Text et d'initialisation précoce
+        if "editor_alt_text" in message or "scrollPageIntoView" in message:
+            return  # Silence complet
+        super().javaScriptConsoleMessage(level, message, lineNumber, sourceId)
+
 
 class WorkspaceViewer(QWebEngineView):
     """
@@ -22,6 +34,10 @@ class WorkspaceViewer(QWebEngineView):
         self._temp_dir = tempfile.mkdtemp()
         self._temp_workspace_path = None
         self._zoom_factor = 1.0
+
+        # Associer notre page silencieuse à l'afficheur
+        self.setPage(SilentWebEnginePage(self))
+        
         
         # Configuration stricte de sécurité pour autoriser la communication locale inter-iframes
         settings = self.settings()
@@ -245,8 +261,13 @@ class WorkspaceViewer(QWebEngineView):
                     isSyncing = true;
                     
                     try {{
-                        if (leftIframe.contentWindow.PDFViewerApplication) {{
-                            leftIframe.contentWindow.PDFViewerApplication.page = currentIdx + 1; // 1-based
+                        var leftWin = leftIframe.contentWindow;
+                        // SÉCURITÉ : On vérifie que PDF.js est prêt et a déjà instancié ses pages
+                        if (leftWin.PDFViewerApplication && 
+                            leftWin.PDFViewerApplication.pdfViewer && 
+                            leftWin.PDFViewerApplication.pdfViewer.pagesCount > 0) {{
+                            
+                            leftWin.PDFViewerApplication.page = Number(currentIdx) + 1;
                         }}
                     }} catch(e) {{}}
                     

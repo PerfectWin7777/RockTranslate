@@ -66,8 +66,8 @@ def convert_pdf_to_html(
     return None
 
     
-
-def wrap_text_nodes_recursively(soup, parent_element, trans_idx_ref, original_texts_map) -> None:
+# DEPRACATED
+def wrap_text_nodes_recursively(soup, parent_element, trans_idx_ref, original_texts_map) -> None: # DEPRACATED
     """
     Parcourt récursivement les nœuds enfants d'un élément pour envelopper tous les textes bruts,
     tout en préservant les spacers d'origine sans les altérer.
@@ -107,8 +107,8 @@ def wrap_text_nodes_recursively(soup, parent_element, trans_idx_ref, original_te
             # Sécurité pour tout autre type d'élément HTML
             parent_element.append(child)
 
-
-def _wrap_children_recursively(soup, element, idx, original_texts_map, tid_to_page, page_idx, sx_orig, sy_orig):
+# DEPRACATED
+def _wrap_children_recursively(soup, element, idx, original_texts_map, tid_to_page, page_idx, sx_orig, sy_orig):# DEPRACATED
     """
     Descend récursivement dans les éléments imbriqués d'une div.t
     pour wrapper tous les TextNodes, sans row-wrapper ni style complexe.
