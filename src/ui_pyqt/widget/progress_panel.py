@@ -140,9 +140,20 @@ class ProgressPanel(QWidget):
         """Met à jour l'avancement de la page active sur la barre globale."""
         self._done_pages = page_num
         self.global_progress.update_values(self._done_pages, self._total_pages)
+    
+    def set_segments(self, done_segments: int):
+        """
+        Met à jour le nombre de segments déjà traités de manière absolue (pour la reprise).
+        """
+        self._done_segments = done_segments
+        batch_info = f"Lot {self._batches_done}/{self._batches_total}" if self._batches_total else ""
+        self.local_progress.update_values(self._done_segments, self._total_segments, batch_info)
+
 
     def increment_segment(self):
-        """Incrémente un segment traduit sur la barre locale."""
+        """
+        Incrémente d'un segment traduit sur la barre locale (Verte) et met à jour l'ETA.
+        """
         self._done_segments += 1
         
         batch_info = f"Lot {self._batches_done}/{self._batches_total}" if self._batches_total else ""
@@ -152,6 +163,9 @@ class ProgressPanel(QWidget):
             self._timer.stop()
             self.global_progress.lbl_right.setText("Terminé ✓")
             self.global_progress.update_values(self._total_pages, self._total_pages)
+        else:
+            self._update_eta()
+            
 
     def set_batches(self, done_batches: int, total_batches: int):
         """Met à jour l'indicateur de lot et la vitesse estimée."""

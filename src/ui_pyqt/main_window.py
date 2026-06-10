@@ -664,11 +664,29 @@ class MainWindow(QMainWindow):
             if k not in already_translated_ids
         }
 
+        # ── INTERACTIVITÉ : GESTION DE LA RÉ-INITIALISATION DE LA TRADUCTION ──
         if not untranslated_texts:
-            self.status.showMessage("✅ Tous les segments sont déjà traduits.")
-            self.a_export.setEnabled(True)
-
-            return
+            # On demande poliment à l'utilisateur s'il souhaite tout re-traduire
+            reply = QMessageBox.question(
+                self,
+                "Document déjà traduit",
+                "Toutes les pages de ce document ont déjà été traduites avec succès.\n\n"
+                "Souhaitez-vous effacer la mémoire de traduction et tout re-traduire depuis le début ?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.Yes:
+                # L'utilisateur souhaite tout refaire : on vide la mémoire active
+                self._translated_pages = {}
+                already_translated_ids = set()
+                # On remet l'intégralité des textes d'origine à traduire
+                untranslated_texts = self._original_texts.copy()
+            else:
+                # L'utilisateur annule : on le laisse exporter son travail
+                self.status.showMessage("✅ Traduction déjà complétée.")
+                self.a_export.setEnabled(True)
+                return
 
         # Initialiser le panneau de progression
         self.progress_panel.reset(total_pages, len(self._original_texts))
