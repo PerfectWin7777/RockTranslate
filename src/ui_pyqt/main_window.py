@@ -19,8 +19,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Importations de notre nouvelle architecture découplée
-from ui_pyqt.workspace_viewer import WorkspaceViewer
-from ui_pyqt.progress_panel import ProgressPanel
+from ui_pyqt.widget.workspace_viewer import WorkspaceViewer
+from ui_pyqt.widget.progress_panel import ProgressPanel
+from ui_pyqt.widget.zoom_widget import ZoomWidget
 from ui_pyqt.workers.extraction_worker import ExtractionWorker
 from ui_pyqt.workers.translation_worker import TranslationWorker
 from utils.downloader import check_and_download_pdfjs, check_and_download_pdf2htmlex, DEFAULT_ASSETS_DIR
@@ -178,7 +179,15 @@ class MainWindow(QMainWindow):
 
         self.status = QStatusBar()
         self.setStatusBar(self.status)
+        
+        # Ajout du composant de zoom permanent en bas à droite
+        self.zoom_widget = ZoomWidget(self)
+        self.zoom_widget.set_zoom_factor(self._zoom)
+        self.zoom_widget.zoom_changed.connect(self._on_slider_zoom_changed)
+        self.status.addPermanentWidget(self.zoom_widget)
+        
         self.status.showMessage("Prêt. Glissez-déposez un PDF pour commencer.")
+
 
     def _build_menu(self):
         mb = self.menuBar()
@@ -365,7 +374,11 @@ class MainWindow(QMainWindow):
         self.a_export.setEnabled(False)
 
         # Réinitialisation de votre barre de progression sur le nombre exact de segments à traduire !
-        self.progress_panel.reset(len(self._original_texts))
+        # Calcul du nombre total de pages à partir de la carte d'extraction
+        total_pages = max(self._tid_to_page.values()) + 1 if self._tid_to_page else 1
+        
+        # Initialisation du panneau avec les deux métriques
+        self.progress_panel.reset(total_pages, len(self._original_texts))
 
         # Initialisation et démarrage du nouveau worker de traduction asynchrone
         self._trans_worker = TranslationWorker(
@@ -388,13 +401,18 @@ class MainWindow(QMainWindow):
     def _on_segment_translated(self, trans_id: str, translated_text: str):
         """Reçoit une traduction progressive et l'injecte en temps réel dans l'HTML de droite."""
         page_idx = self._tid_to_page.get(trans_id, 0)
+        # Si nous changeons de page de traduction, nous mettons à jour la barre globale (Bleue)
         if page_idx != self._current_translating_page:
             self._current_translating_page = page_idx
-            print(f"🔔 prepare_page appelé pour page {page_idx}") 
             self.workspace_view.prepare_page(page_idx)
+            self.progress_panel.set_page(page_idx + 1)
 
         self.workspace_view.stream_translation(trans_id, translated_text)
-        self.progress_panel.increment()
+        
+        # Nous incrémentons le suivi local des segments (Verte)
+        self.progress_panel.increment_segment()
+
+
 
     def _on_translation_finished(self):
         self.a_start.setText("▶  Démarrer la traduction")
@@ -516,8 +534,14 @@ class MainWindow(QMainWindow):
             self._zoom = 1.0
         else:
             self._zoom = max(0.5, min(2.5, self._zoom + delta))
-        self.workspace_view.setZoomFactor(self._zoom)
+        self.workspace_view.set_zoom(self._zoom)
+        self.zoom_widget.set_zoom_factor(self._zoom)  # Synchronise le slider
         self.status.showMessage(f"Zoom appliqué : {int(self._zoom * 100)}%")
+    
+    def _on_slider_zoom_changed(self, factor: float):
+        """Applique de manière synchronisée le zoom aux deux documents de l'affichage."""
+        self._zoom = factor
+        self.workspace_view.set_zoom(factor)
 
     def toggle_fullscreen(self):
         if self.isFullScreen():

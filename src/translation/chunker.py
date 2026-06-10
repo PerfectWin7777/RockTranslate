@@ -108,8 +108,8 @@ def build_batches(
 
     for text_id, text in segments.items():
         # Filtrage systématique du bruit avant intégration
-        if not should_translate(text):
-            continue
+        # if not should_translate(text):
+        #     continue
 
         tokens = _estimate_tokens(text)
         item = {"id": text_id, "text": text}

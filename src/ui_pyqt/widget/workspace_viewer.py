@@ -1,4 +1,4 @@
-# ui_pyqt/workspace_viewer.py
+# src/ui_pyqt/widget/workspace_viewer.py
 
 import os
 import json

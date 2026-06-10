@@ -1,6 +1,6 @@
 """
 progress_panel.py — Barre de progression + stats temps réel
-Chemin : D:/Projets/RockTranslate/src/ui/progress_panel.py
+src/ui_pyqt/widget/progress_panel.py
 """
 
 import time
@@ -78,11 +78,13 @@ class ProgressPanel(QWidget):
         super().__init__()
         # On augmente légèrement la hauteur à 90px pour donner de l'espace à nos deux widgets labellisés
         self.setFixedHeight(90)
-        self._total     = 0
-        self._done      = 0
-        self._batches_done  = 0
-        self._batches_total = 0
-        self._start_time    = None
+        self._total_pages     = 1
+        self._done_pages      = 0
+        self._total_segments  = 0
+        self._done_segments   = 0
+        self._batches_done    = 0
+        self._batches_total   = 0
+        self._start_time      = None
 
         self._build_ui()
 
@@ -96,7 +98,7 @@ class ProgressPanel(QWidget):
         layout.setContentsMargins(12, 6, 12, 6)
         layout.setSpacing(8)
 
-        # 1. Barre Globale (Bleu #4f8ef7) pour le document entier
+        # 1. Barre Globale (Bleu) dédiée aux Pages du document
         self.global_progress = LabeledProgressBar(
             title_template="Progression du document : {done} / {total} pages traduites",
             bar_color="#4f8ef7",
@@ -104,60 +106,65 @@ class ProgressPanel(QWidget):
         )
         layout.addWidget(self.global_progress)
 
-        # 2. Barre Locale (Verte #48bb78) pour la page en cours de traduction
+        # 2. Barre Locale (Verte) dédiée aux Segments et Lots
         self.local_progress = LabeledProgressBar(
-            title_template="Analyse de la page active : lot {done} / {total} traités",
+            title_template="Progression locale : {done} / {total} segments traduits",
             bar_color="#48bb78",
             bar_height=5
         )
         layout.addWidget(self.local_progress)
 
-    def reset(self, total: int):
-        self._total          = total
-        self._done           = 0
-        self._batches_done   = 0
-        self._batches_total  = 0
-        self._start_time     = time.time()
+    def reset(self, total_pages: int, total_segments: int):
+        self._total_pages     = total_pages
+        self._done_pages      = 0
+        self._total_segments  = total_segments
+        self._done_segments   = 0
+        self._batches_done    = 0
+        self._batches_total   = 0
+        self._start_time      = time.time()
 
-        self.global_progress.update_values(0, total, "Calcul en cours...")
-        self.local_progress.update_values(0, 1, "Vitesse : --")
+        self.global_progress.update_values(0, total_pages, "Calcul en cours...")
+        self.local_progress.update_values(0, total_segments, "Vitesse : --")
         self._timer.start()
 
-    def increment(self):
-        self._done += 1
-        pct = int((self._done / max(self._total, 1)) * 100)
-        self.global_progress.update_values(self._done, self._total)
+    def set_page(self, page_num: int):
+        """Met à jour l'avancement de la page active sur la barre globale."""
+        self._done_pages = page_num
+        self.global_progress.update_values(self._done_pages, self._total_pages)
+
+    def increment_segment(self):
+        """Incrémente un segment traduit sur la barre locale."""
+        self._done_segments += 1
         
-        if self._done >= self._total:
+        batch_info = f"Lot {self._batches_done}/{self._batches_total}" if self._batches_total else ""
+        self.local_progress.update_values(self._done_segments, self._total_segments, batch_info)
+        
+        if self._done_segments >= self._total_segments:
             self._timer.stop()
             self.global_progress.lbl_right.setText("Terminé ✓")
-            self.local_progress.update_values(self._batches_total, self._batches_total, "Vitesse : --")
+            self.global_progress.update_values(self._total_pages, self._total_pages)
 
-    def set_batches(self, done: int, total: int):
-        self._batches_done  = done
-        self._batches_total = total
+    def set_batches(self, done_batches: int, total_batches: int):
+        """Met à jour l'indicateur de lot et la vitesse estimée."""
+        self._batches_done  = done_batches
+        self._batches_total = total_batches
         
-        # Calcul de la vitesse estimée de traitement
         elapsed = time.time() - (self._start_time or time.time())
-        lines_done = (self._done * 30) + (done * 4)  # estimation arbitraire du nombre de lignes
-        speed = lines_done / max(elapsed, 0.1)
+        speed = self._done_segments / max(elapsed, 0.1)
         
-        self.local_progress.update_values(done, total, f"Vitesse : {speed:.1f} l/sec")
+        batch_info = f"Lot {done_batches}/{total_batches}"
+        self.local_progress.update_values(self._done_segments, self._total_segments, f"{batch_info} | {speed:.1f} seg/sec")
 
     def _update_eta(self):
-        if not self._start_time or self._done == 0:
+        if not self._start_time or self._done_segments == 0:
             return
         elapsed = time.time() - self._start_time
-        rate    = self._done / elapsed
-        remaining = (self._total - self._done) / max(rate, 0.001)
+        rate    = self._done_segments / elapsed
+        remaining = (self._total_segments - self._done_segments) / max(rate, 0.001)
 
         mins = int(remaining // 60)
         secs = int(remaining % 60)
         
-        if mins > 0:
-            eta_str = f"~{mins}m {secs:02d}s restantes"
-        else:
-            eta_str = f"~{secs}s restantes"
-
-        pct = int((self._done / max(self._total, 1)) * 100)
-        self.global_progress.lbl_right.setText(f"{eta_str} | {pct}%")
+        eta_str = f"~{mins}m {secs:02d}s" if mins > 0 else f"~{secs}s"
+        pct = int((self._done_segments / max(self._total_segments, 1)) * 100)
+        self.global_progress.lbl_right.setText(f"{eta_str} restantes | {pct}%")
