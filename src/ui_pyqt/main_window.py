@@ -2,7 +2,7 @@
 
 import os
 import sys
-import shutil
+import json
 import datetime
 import tempfile
 from PyQt6.QtWidgets import (
@@ -26,6 +26,7 @@ from ui_pyqt.widget.progress_panel import ProgressPanel
 from ui_pyqt.widget.zoom_widget import ZoomWidget
 from ui_pyqt.widget.properties_dialog import DocumentPropertiesDialog
 from ui_pyqt.widget.api_config_dialog import APIConfigDialog
+from ui_pyqt.widget.api_config_dialog import DEFAULT_PROVIDERS
 from ui_pyqt.workers.extraction_worker import ExtractionWorker
 from ui_pyqt.workers.translation_worker import TranslationWorker
 from utils.pdf_metadata import get_pdf_metadata
@@ -444,25 +445,25 @@ class MainWindow(QMainWindow):
             m_lang.addAction(a)
             self._lang_actions[code] = a
 
-        m_model = m_trans.addMenu("Modèle LLM")
-        self._model_actions = {}
-        first = True
-        for provider, models in SUPPORTED_MODELS.items():
-            if not first:
-                m_model.addSeparator()
-            first = False
-            title = QAction(f"── {provider} ──", self)
-            title.setEnabled(False)
-            m_model.addAction(title)
+        # m_model = m_trans.addMenu("Modèle LLM")
+        # self._model_actions = {}
+        # first = True
+        # for provider, models in SUPPORTED_MODELS.items():
+        #     if not first:
+        #         m_model.addSeparator()
+        #     first = False
+        #     title = QAction(f"── {provider} ──", self)
+        #     title.setEnabled(False)
+        #     m_model.addAction(title)
 
-            for model in models:
-                a = QAction(model, self, checkable=True)
-                a.setData(model)
-                a.triggered.connect(self._on_model_selected)
-                if model == self._current_model:
-                    a.setChecked(True)
-                m_model.addAction(a)
-                self._model_actions[model] = a
+        #     for model in models:
+        #         a = QAction(model, self, checkable=True)
+        #         a.setData(model)
+        #         a.triggered.connect(self._on_model_selected)
+        #         if model == self._current_model:
+        #             a.setChecked(True)
+        #         m_model.addAction(a)
+        #         self._model_actions[model] = a
 
         # ── Affichage ──
         m_view = mb.addMenu("Affichage")
@@ -529,7 +530,7 @@ class MainWindow(QMainWindow):
             # Lors d'une validation réussie, on rafraîchit la détection d'API du tableau d'accueil
             self.welcome_screen._check_api_keys()
             self.status.showMessage("Configuration d'API enregistrée avec succès.")
-            
+
     # ── LOGIQUE DES ACTIONS D'OUVERTURE ET DE SÉLECTION ──
     def _open_pdf_dialog(self):
         path, _ = QFileDialog.getOpenFileName(self, "Ouvrir un PDF", "", "PDF (*.pdf)")
@@ -607,9 +608,34 @@ class MainWindow(QMainWindow):
             )
             return
 
-        api_key = os.getenv("GEMINI_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
-        if not api_key and "ollama" not in self._current_model:
-            QMessageBox.warning(self, "Configuration requise", "Clé API manquante dans votre environnement ou fichier .env")
+        # ── CHARGEMENT DYNAMIQUE DE LA CONFIGURATION DE L'IA SAVEGARDÉE ──
+        api_settings = QSettings("RockTranslate", "APIConfig")
+        provider = api_settings.value("provider", "Google Gemini")
+        
+        # Récupérer le modèle de ce fournisseur (avec repli sur le premier modèle par défaut)
+        
+        fallback_model = DEFAULT_PROVIDERS[provider]["models"][0]
+        active_model = api_settings.value(f"last_model_{provider}", fallback_model)
+        
+        # Récupérer la clé d'API correspondante
+        keys_dict_raw = api_settings.value("api_keys_by_provider", "{}")
+        try:
+            keys_dict = json.loads(keys_dict_raw) if isinstance(keys_dict_raw, str) else keys_dict_raw
+        except Exception:
+            keys_dict = {}
+        active_api_key = keys_dict.get(provider, "")
+        
+        # Récupérer l'URL de base personnalisée (notamment pour Ollama ou proxies)
+        use_custom_base = api_settings.value("use_custom_base", False, type=bool)
+        active_base_url = api_settings.value("custom_base_url", "") if use_custom_base else None
+
+        # Sécurité d'IHM pour la clé d'API (sauf pour Ollama local)
+        if provider != "Ollama (Local)" and not active_api_key:
+            QMessageBox.warning(
+                self, "Clé manquante", 
+                f"Veuillez configurer votre clé d'API pour '{provider}' avant de démarrer."
+            )
+            self._show_api_configuration()
             return
 
         self.a_export.setEnabled(False)
@@ -662,9 +688,10 @@ class MainWindow(QMainWindow):
         # Initialisation et démarrage du worker sur les segments manquants uniquement
         self._trans_worker = TranslationWorker(
             untranslated_texts,  # On ne passe que les textes restants à traduire !
-            self._current_model,
-            api_key,
-            self._current_lang
+            active_model,
+            active_api_key,
+            self._current_lang,
+            custom_base_url=active_base_url  
         )
         self._trans_worker.status_update.connect(self.status.showMessage)
         self._trans_worker.batch_progress.connect(self.progress_panel.set_batches)

@@ -39,12 +39,14 @@ class LLMClient:
         api_key: Optional[str] = None,
         target_lang: str = DEFAULT_LANG_NAME,
         max_tokens: Optional[int] = None,
+        custom_base_url : str = None,
         on_status: Optional[Callable[[str], None]] = None,
     ):
         self.model = model
         self.api_key = api_key or self._get_api_key_from_env(model)
         self.target_lang = target_lang
         self.max_tokens = max_tokens
+        self.custom_base_url = custom_base_url
         self.on_status = on_status
 
         if litellm is None:
@@ -179,6 +181,10 @@ class LLMClient:
 
             if api_key:
                 kwargs["api_key"] = api_key
+            
+            # ── ROUTAGE LITELLM DYNAMIQUE DE L'URL DE BASE (Ollama, OpenRouter etc.) ──
+            if self.custom_base_url:
+                kwargs["api_base"] = self.custom_base_url
 
             # Appel LiteLLM
             response = litellm.completion(**kwargs)
