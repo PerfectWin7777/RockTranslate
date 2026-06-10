@@ -75,8 +75,8 @@ Rules:
 1. The output MUST be a valid JSON array of the EXACT SAME LENGTH as the input array.
 2. Every object in your output array MUST contain the exact same 'id' key as the corresponding object in the input array.
 3. The 'id' keys are strictly system routing keys. NEVER translate, modify, split, omit, or duplicate an 'id' key.
-4. Keep the exact same mapping order: if the input is `[{{"id": "t-5", "text": "A"}}, {{"id": "t-6", "text": "B"}}]`, 
-   the output MUST be `[{{"id": "t-5", "translated": "A_trans"}}, {{"id": "t-6", "translated": "B_trans"}}]`.
+4. Keep the exact same mapping order: if the input is `[{{"id": "g-5", "text": "A"}}, {{"id": "g-6", "text": "B"}}]`, 
+   the output MUST be `[{{"id": "g-5", "translated": "A_trans"}}, {{"id": "g-6", "translated": "B_trans"}}]`.
 
 
 
@@ -84,8 +84,8 @@ Rules:
 You receive a JSON array of paragraphs. Return ONLY a JSON array of the same
 length with translated texts. No explanation, no markdown, no preamble.
 
-Input structure:  [{{"id": "t-0", "text": "..."}}]
-Output structure: [{{"id": "t-0", "translated": "..."}}]
+Input structure:  [{{"id": "g-0", "text": "..."}}]
+Output structure: [{{"id": "g-0", "translated": "..."}}]
 
 The output must be valid JSON. Nothing else."""
 

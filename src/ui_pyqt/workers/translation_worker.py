@@ -56,6 +56,24 @@ class TranslationWorker(QThread):
                 return
 
             logger.info(f"Départ de la traduction : {total_batches} lots identifiés.")
+            
+            # ── ÉTAPE B.2 : RÉVÉLATION INSTANTANÉE DES FORMULES ET TEXTES IGNORÉS ──
+            # On extrait tous les identifiants qui vont être envoyés à l'IA
+            translatable_ids = set()
+            for batch in batches:
+                translatable_ids.update(batch.ids)
+            
+            # Tous les autres identifiants du document sont des formules ou des chiffres ignorés
+            skipped_ids = set(self.original_texts.keys()) - translatable_ids
+            logger.info(f"Révélation instantanée de {len(skipped_ids)} segments ignorés (formules/chiffres).")
+            
+            # On émet immédiatement leur texte d'origine pour retirer leur Shimmer et les afficher
+            for skipped_id in skipped_ids:
+                print(f"🚫 Ignoré (Affiché de suite) : {skipped_id} ➡️ '{self.original_texts[skipped_id]}'")
+                orig_text = self.original_texts[skipped_id]
+                self.segment_translated.emit(skipped_id, orig_text)
+            # ───────────────────────────────────────────────────────────────────────
+
             sliding_context = []
 
             # Étape C : Traduction séquentielle lot par lot

@@ -128,63 +128,132 @@ def parse_matrix_classes(soup) -> dict:
     return matrix_map
 
 
+def parse_spacer_widths(soup) -> dict:
+    """
+    Analyse les classes d'espacement de pdf2htmlEX pour extraire la largeur
+    physique en pixels de chaque spacer (ex: ._19 { width: 85.123px; } -> {"19": 85.123})
+    """
+    spacer_map = {}
+    for style_tag in soup.find_all("style"):
+        text = style_tag.string or ""
+        for m in re.finditer(r'\._(\w+)\s*\{\s*width\s*:\s*([\d\.]+)\s*px\s*;?\s*\}', text):
+            cls = m.group(1)
+            width = float(m.group(2))
+            spacer_map[cls] = width
+    return spacer_map
+
+
 
 def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, dict]:
     """
-    Analyse le fichier HTML de pdf2htmlEX, isole récursivement le texte,
-    et injecte vos animations Shimmer vivantes, le Glass dépoli et le Loader Circulaire.
+    Analyse le fichier HTML brut, applique l'algorithme de regroupement hybride
+    basé sur l'espacement pour regrouper les phrases et isoler les colonnes de tableaux,
+    puis injecte les styles de transition et l'écouteur de messages.
     """
     with open(raw_html_path, "r", encoding="utf-8") as f:
         soup = BeautifulSoup(f.read(), "lxml")
 
-    # 1. Analyse récursive BeautifulSoup et injection des enveloppes d'isolations (row-wrapper & trans-span)
     matrix_map = parse_matrix_classes(soup)
+    spacer_map = parse_spacer_widths(soup)
     pages_list = soup.find_all("div", class_="pf")
 
     original_texts_map = {}
     tid_to_page = {}
     idx = [0]
+    
+    # Seuil de coupure (20 pixels) : au-dessus, c'est un tableau ou un grand saut structurel
+    THRESHOLD_PX = 20.0
 
-    for div_t in soup.find_all("div", class_="t"):
-        # Trouver le (sx, sy) de cette div
-        classes = div_t.get("class", [])
-        sx_orig, sy_orig = 1.0, 1.0
-        for cls in classes:
-            if cls in matrix_map:
-                sx_orig, sy_orig = matrix_map[cls]
-                break
+    for page_idx, page_el in enumerate(pages_list):
+        for div_t in page_el.find_all("div", class_="t"):
+            # Déterminer les coefficients d'échelle d'origine (sx, sy) de la ligne
+            classes = div_t.get("class", [])
+            sx_orig, sy_orig = 1.0, 1.0
+            for cls in classes:
+                if cls in matrix_map:
+                    sx_orig, sy_orig = matrix_map[cls]
+                    break
 
-        # Trouver la page parente
-        page_el = div_t.find_parent("div", class_="pf")
-        page_idx = pages_list.index(page_el) if page_el in pages_list else 0
+            children = list(div_t.contents)
+            div_t.clear()
 
-        for child in list(div_t.children):
-            if isinstance(child, NavigableString) and child.strip():
-                tid = f"t-{idx[0]}"
-                original_texts_map[tid] = str(child)
-                tid_to_page[tid] = page_idx
+            current_group_text = []
+            current_group_elements = []
 
-                span = soup.new_tag("span", attrs={
-                    "data-trans-id": tid,
-                    "data-sx": str(sx_orig),
-                    "data-sy": str(sy_orig),
-                    "style": "display:inline;"
-                })
-                span.string = str(child)
-                child.replace_with(span)
-                idx[0] += 1
-            
-            elif hasattr(child, "get"):
-                child_classes  = child.get("class", [])
-                if "_" not in child_classes  and child.name in ["span", "a", "b", "i", "sup", "sub", "em", "strong"]:
-                    _wrap_children_recursively(soup, child, idx, original_texts_map, tid_to_page, page_idx, sx_orig, sy_orig)
+            def commit_group():
+                nonlocal current_group_text, current_group_elements
+                if not current_group_elements:
+                    return
+
+                # Fusionner le texte brut contenu dans ce groupe
+                merged_text = "".join(current_group_text).strip()
+                print(f"🔍 Extraction de Groupe : {current_group_text} ➡️ Fusionné en : '{merged_text}'")
+                if merged_text:
+                    gid = f"g-{idx[0]}"
+                    original_texts_map[gid] = merged_text
+                    tid_to_page[gid] = page_idx
+
+                    # Création du conteneur de groupe sémantique
+                    group_span = soup.new_tag("span", attrs={
+                        "data-trans-id": gid,
+                        "data-sx": str(sx_orig),
+                        "data-sy": str(sy_orig),
+                        "style": "display:inline;"
+                    })
+                    for el in current_group_elements:
+                        group_span.append(el)
+                    div_t.append(group_span)
+                    idx[0] += 1
+                else:
+                    # En cas d'espaces vides ou nœuds sans texte, on les restitue tels quels
+                    for el in current_group_elements:
+                        div_t.append(el)
+
+                current_group_text.clear()
+                current_group_elements.clear()
+
+            # Analyse et répartition géométrique de chaque nœud enfant
+            for child in children:
+                is_spacer = False
+                width = 0.0
+
+                if child.name == "span" and child.get("class"):
+                    child_classes = child.get("class")
+                    if "_" in child_classes:
+                        is_spacer = True
+                        for cls in child_classes:
+                            if cls.startswith("_") and len(cls) > 1:
+                                width = spacer_map.get(cls[1:], 0.0)
+                                break
+
+                if is_spacer:
+                    if width >= THRESHOLD_PX:
+                        # Grand espace (Tableau ou Colonne) -> On valide le groupe actuel et on coupe
+                        commit_group()
+                        div_t.append(child)  # On conserve le spacer de structure intact dans la div
+                    else:
+                        # Petit espace (Espace entre deux mots) -> On l'accumule dans le groupe
+                        current_group_elements.append(child)
+                        current_group_text.append(" ")
+                else:
+                    # Texte brut ou balise de style inline classique (b, i, span etc)
+                    if isinstance(child, str):
+                        current_group_text.append(str(child))
+                        current_group_elements.append(child)
+                    else:
+                        current_group_text.append(child.get_text())
+                        current_group_elements.append(child)
+
+            # Ne pas oublier de valider le groupe résiduel de la ligne
+            commit_group()
+
+
                     
     # 2. INJECTION DE VOTRE GLASS DE POLI SUR TOUTES LES PAGES DU DOCUMENT (div.pf)
-    pages = soup.find_all("div", class_="pf")
-    for page_idx, page in enumerate(pages):
+    for p_idx, page in enumerate(pages_list):
         # Création du conteneur dépoli à haute spécificité graphique
         glass_div = soup.new_tag("div", attrs={
-            "id": f"glass-overlay-t-{page_idx}",
+            "id": f"glass-overlay-t-{p_idx}",
             "style": (
                 "position: absolute; "
                 "top: 5%; "
@@ -235,20 +304,30 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
 
     # 3. Injection de vos styles CSS (Squelettes shimmer & styles de lignes & spin circulaire)
     style_tag = soup.new_tag("style")
+    style_tag = soup.new_tag("style")
     style_tag.string = """
         #sidebar { display: none !important; }
         #page-container { left: 0 !important; margin: 0 auto !important; }
+
+        /* Force l'espacement des mots traduits pour contourner les polices PDF à 0-width space */
+        span[data-trans-id] {
+            word-spacing: 0.25em !important;
+        }
 
         @keyframes loading-shimmer {
             0%   { background-position: 200% 0; }
             100% { background-position: -200% 0; }
         }
+        
+        /* CIBLAGE ULTRA-PRÉCIS : Le Shimmer est appliqué aux spans individuels, pas aux lignes */
         .shimmer-line {
+            display: inline-block !important; /* Force l'affichage pour porter le dégradé de chargement */
             background: linear-gradient(90deg, #f1f5f9 25%, #cbd5e1 50%, #f1f5f9 75%) !important;
             background-size: 200% 100% !important;
             animation: loading-shimmer 1.8s infinite linear !important;
             border-radius: 2px !important;
             color: transparent !important;
+            min-width: 15px; /* Évite l'effondrement visuel des petits blocs */
         }
         .shimmer-line * { color: transparent !important; }
 
@@ -270,11 +349,14 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
     # 4. Injection du JavaScript d'accompagnement (Streaming & initialisation de transition)
     script_tag = soup.new_tag("script")
     script_tag.string = """
-        window.applyTranslation = function(transId, translatedText, sxOrig, syOrig) {
+        window.applyTranslation = function(transId, translatedText) {
             var span = document.querySelector('[data-trans-id="' + transId + '"]');
             if (!span) return;
             var divT = span.closest('div.t');
             if (!divT) return;
+
+            var sxOrig = parseFloat(span.getAttribute('data-sx') || '1');
+            var syOrig = parseFloat(span.getAttribute('data-sy') || '1');
 
             if (!divT.hasAttribute('data-orig-sw')) {
                 divT.style.transform = 'matrix(' + sxOrig + ',0,0,' + syOrig + ',0,0)';
@@ -286,14 +368,13 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
             var origSW = parseFloat(divT.getAttribute('data-orig-sw'));
             var sx     = parseFloat(divT.getAttribute('data-sx-orig'));
             var sy     = parseFloat(divT.getAttribute('data-sy-orig'));
-            
-            // Insertion du texte traduit
+
+            // Remplacer le contenu du groupe sémantique par la traduction
             span.textContent = translatedText;
 
-            // ── OPTIMISATION : SUPPRESSION DU SKELETON POUR RÉVÉLER LE TEXTE TRADUIT ──
-            divT.classList.remove('shimmer-line');
+            // CIBLAGE ULTRA-PRÉCIS : Retirer le Shimmer uniquement sur le span concerné
+            span.classList.remove('shimmer-line');
 
-            // Ajustement de la largeur (scaleX) si le texte traduit est plus long
             var newSW = divT.scrollWidth;
             if (newSW > 0 && origSW > 0) {
                 var newSx = sx * (origSW / newSW);
@@ -314,12 +395,13 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
                 setTimeout(function() { glass.remove(); }, 300);
             }
 
-            page.querySelectorAll('div.t').forEach(function(divT) {
-                divT.classList.add('shimmer-line');
+            // CIBLAGE ULTRA-PRÉCIS : On applique le Shimmer uniquement aux spans data-trans-id de la page
+            page.querySelectorAll('span[data-trans-id]').forEach(function(span) {
+                span.classList.add('shimmer-line');
             });
         };
 
-        // ÉCOUTEUR DE MESSAGES SÉCURISÉ POUR FRANCHIR LA BARRIÈRE DE L'IFRAME
+        // Écouteur de messages cross-iframe sécurisé
         window.addEventListener('message', function(event) {
             var msg = event.data;
             if (!msg) return;
@@ -330,9 +412,8 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
                 window.preparePageForTranslation(msg.pageIdx);
             }
         });
-    
-    
     """
+
     soup.body.append(script_tag)
 
     # 5. Enregistrement du fichier HTML instrumenté complet
