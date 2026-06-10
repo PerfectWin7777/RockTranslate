@@ -466,6 +466,12 @@ class MainWindow(QMainWindow):
         m_file.addAction(self.a_properties)
         m_file.addSeparator()
 
+        # Sous-menu Fichiers récents
+        self.m_recent = m_file.addMenu("Fichiers récents")
+        self.m_recent.aboutToShow.connect(self._populate_recent_menu)
+
+        m_file.addSeparator()
+
         a_quit = QAction("Quitter", self)
         a_quit.triggered.connect(self.close)
         m_file.addAction(a_quit)
@@ -884,6 +890,39 @@ class MainWindow(QMainWindow):
             act.setChecked(False)
         a.setChecked(True)
     
+    def _populate_recent_menu(self):
+        """Remplit dynamiquement le sous-menu Fichiers récents."""
+        self.m_recent.clear()
+        
+        settings = QSettings("RockTranslate", "RecentFiles")
+        recent_list = settings.value("recent_list", [])
+        
+        if not recent_list:
+            empty_action = QAction("Aucun document récent", self)
+            empty_action.setEnabled(False)
+            self.m_recent.addAction(empty_action)
+            return
+        
+        for file_path in recent_list:
+            if os.path.exists(file_path):
+                # Affiche le nom du fichier avec le chemin complet en bulle d'info
+                action = QAction(os.path.basename(file_path), self)
+                action.setToolTip(file_path)  # Affiche le chemin complet au survol
+                action.triggered.connect(lambda checked, path=file_path: self._open_pdf_by_path(path))
+                self.m_recent.addAction(action)
+        
+        if recent_list:
+            self.m_recent.addSeparator()
+            clear_action = QAction("Effacer l'historique", self)
+            clear_action.triggered.connect(self._clear_recent_files)
+            self.m_recent.addAction(clear_action)
+
+    def _clear_recent_files(self):
+        """Efface l'historique des fichiers récents."""
+        settings = QSettings("RockTranslate", "RecentFiles")
+        settings.setValue("recent_list", [])
+        self.welcome_screen.refresh_recent_files()
+
     def _add_to_recent_files(self, file_path: str):
         """Enregistre le chemin complet du document de manière persitée dans les réglages système."""
         settings = QSettings("RockTranslate", "RecentFiles")
