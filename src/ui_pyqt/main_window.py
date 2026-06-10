@@ -74,28 +74,37 @@ class RecentFileItem(QFrame):
         self.setObjectName("RecentItem")
         self.setStyleSheet("""
             #RecentItem {
-                background-color: #1a1c24;
-                border: 1px solid #2d313f;
+                background-color: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
                 padding: 10px;
                 margin-bottom: 4px;
             }
             #RecentItem:hover {
-                background-color: #232530;
+                background-color: #f7fafc;
                 border-color: #4f8ef7;
             }
+            /* CORRECTIF : Empêche l'héritage de bordures et arrondis sur les textes et icônes enfants */
+            #RecentItem QLabel {
+                border: none !important;
+                background: transparent !important;
+                border-radius: 0px !important;
+            }
             QLabel[class="name"] {
-                color: #ffffff;
+                color: #2d3748;
                 font-weight: bold;
                 font-size: 11px;
                 font-family: 'Segoe UI', sans-serif;
             }
             QLabel[class="path"] {
-                color: #a0aec0;
+                color: #718096;
                 font-size: 9px;
                 font-family: 'Segoe UI', sans-serif;
             }
         """)
         self._build_ui()
+
+
 
     def _build_ui(self):
         layout = QHBoxLayout(self)
@@ -141,7 +150,7 @@ class WelcomeDashboard(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAcceptDrops(True)
-        self.setStyleSheet("WelcomeDashboard { background-color: #1e202c; border: none; }")
+        self.setStyleSheet("WelcomeDashboard { background-color: #f7fafc; border: none; }")
         self._build_ui()
 
     def _build_ui(self):
@@ -153,9 +162,9 @@ class WelcomeDashboard(QFrame):
         self.drop_panel = QFrame(self)
         self.drop_panel.setStyleSheet("""
             QFrame {
-                border: 2px dashed #4f5b66;
+                border: 2px dashed #cbd5e0;
                 border-radius: 12px;
-                background: #14151f;
+                background: #ffffff;
             }
         """)
         drop_layout = QVBoxLayout(self.drop_panel)
@@ -164,7 +173,7 @@ class WelcomeDashboard(QFrame):
 
         title = QLabel("RockTranslate", self)
         title.setFont(QFont("Segoe UI", 24, QFont.Weight.Bold))
-        title.setStyleSheet("color: #ffffff; border: none; background: transparent;")
+        title.setStyleSheet("color: #2d3748; border: none; background: transparent;")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         subtitle = QLabel("Glissez-déposez votre PDF scientifique ici", self)
@@ -208,9 +217,9 @@ class WelcomeDashboard(QFrame):
         self.recent_panel.setFixedWidth(400)
         self.recent_panel.setStyleSheet("""
             QFrame {
-                background: #14151f;
+                background: #ffffff;
                 border-radius: 12px;
-                border: 1px solid #2d313f;
+                border: 1px solid #e2e8f0;
             }
         """)
         recent_layout = QVBoxLayout(self.recent_panel)
@@ -219,13 +228,15 @@ class WelcomeDashboard(QFrame):
 
         recent_title = QLabel("Documents récents", self)
         recent_title.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
-        recent_title.setStyleSheet("color: #ffffff; border: none; background: transparent;")
+        recent_title.setStyleSheet("color: #2d3748; border: none; background: transparent;")
         recent_layout.addWidget(recent_title)
 
         # ScrollArea pour la liste des récents
         self.scroll = QScrollArea(self)
         self.scroll.setWidgetResizable(True)
         self.scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded )
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         
         self.scroll_content = QWidget()
         self.scroll_content.setStyleSheet("background: transparent;")
@@ -246,10 +257,10 @@ class WelcomeDashboard(QFrame):
         openai = os.getenv("OPENAI_API_KEY")
         if gemini or openai:
             self.lbl_status.setText("● Clé API détectée (Zéro-Configuration active)")
-            self.lbl_status.setStyleSheet("color: #48bb78; font-weight: bold; font-size: 11px; border: none;")
+            self.lbl_status.setStyleSheet("color: #38a169; font-weight: bold; font-size: 11px; border: none; background: transparent;")
         else:
             self.lbl_status.setText("○ Aucune clé API trouvée (Veuillez configurer .env)")
-            self.lbl_status.setStyleSheet("color: #f56565; font-size: 11px; border: none;")
+            self.lbl_status.setStyleSheet("color: #e53e3e; font-size: 11px; border: none; background: transparent;")
 
     def refresh_recent_files(self):
         """Recharge la liste des récents persistés dans les réglages système."""
@@ -264,7 +275,8 @@ class WelcomeDashboard(QFrame):
         
         if not recent_list:
             empty_lbl = QLabel("Aucun document récent.", self)
-            empty_lbl.setStyleSheet("color: #a0aec0; border: none; font-size: 11px; background: transparent;")
+            empty_lbl.setStyleSheet("color: #718096; border: none; font-size: 11px; background: transparent;")
+            # empty_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.scroll_layout.addWidget(empty_lbl)
             return
 

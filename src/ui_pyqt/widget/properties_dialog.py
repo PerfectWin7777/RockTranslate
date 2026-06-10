@@ -14,16 +14,16 @@ class DocumentPropertiesDialog(QDialog):
         self.resize(550, 420)
         self.setStyleSheet("""
             QDialog {
-                background-color: #1e202c;
+                background-color: #f7fafc;
             }
             QTabWidget::pane {
-                border: 1px solid #2d313f;
-                background: #14151f;
+                border: 1px solid #e2e8f0;
+                background: #ffffff;
                 border-radius: 4px;
             }
             QTabBar::tab {
-                background: #1e202c;
-                color: #a0aec0;
+                background: #f7fafc;
+                color: #718096;
                 padding: 8px 16px;
                 border-top-left-radius: 4px;
                 border-top-right-radius: 4px;
@@ -31,19 +31,19 @@ class DocumentPropertiesDialog(QDialog):
                 font-size: 11px;
             }
             QTabBar::tab:selected {
-                background: #14151f;
-                color: #ffffff;
-                border: 1px solid #2d313f;
-                border-bottom-color: #14151f;
+                background: #ffffff;
+                color: #2d3748;
+                border: 1px solid #e2e8f0;
+                border-bottom-color: #ffffff;
             }
             QLabel {
                 font-family: 'Segoe UI', sans-serif;
                 font-size: 12px;
-                color: #ffffff;
+                color: #2d3748;
             }
             QLabel[class="title"] {
                 font-weight: bold;
-                color: #a0aec0;
+                color: #4a5568;
             }
         """)
         self.metadata = metadata
@@ -110,15 +110,18 @@ class DocumentPropertiesDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok, self)
         buttons.setStyleSheet("""
             QPushButton {
-                background-color: #2d313f;
-                border: 1px solid #4a5568;
+                background-color: #edf2f7;
+                border: 1px solid #cbd5e0;
                 border-radius: 4px;
-                color: #ffffff;
+                color: #2d3748;
                 padding: 6px 16px;
                 font-family: 'Segoe UI', sans-serif;
+                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #4f8ef7;
+                color: white;
+                border-color: #4f8ef7;
             }
         """)
         buttons.accepted.connect(self.accept)
