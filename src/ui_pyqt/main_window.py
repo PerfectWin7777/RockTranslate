@@ -11,45 +11,23 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,QScrollArea, QPushButton
 )
 from PyQt6.QtCore import Qt, QTimer, QUrl, pyqtSignal, QSettings
-from PyQt6.QtGui import QFont, QKeySequence, QAction, QActionGroup
-from PyQt6.QtWebEngineCore import QWebEngineSettings, QWebEngineProfile
+from PyQt6.QtGui import QFont, QKeySequence, QAction, QActionGroup, QPixmap
+from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 
-# from dotenv import load_dotenv
-
-# # Charge les variables d'environnement (.env)
-# load_dotenv()
 
 # Importations de notre nouvelle architecture découplée
 from ui_pyqt.widget.workspace_viewer import WorkspaceViewer
 from ui_pyqt.widget.progress_panel import ProgressPanel
 from ui_pyqt.widget.zoom_widget import ZoomWidget
 from ui_pyqt.widget.properties_dialog import DocumentPropertiesDialog
-from ui_pyqt.widget.api_config_dialog import APIConfigDialog
-from ui_pyqt.widget.api_config_dialog import DEFAULT_PROVIDERS
+from ui_pyqt.widget.api_config_dialog import APIConfigDialog, DEFAULT_PROVIDERS
 from ui_pyqt.workers.extraction_worker import ExtractionWorker
 from ui_pyqt.workers.translation_worker import TranslationWorker
 from utils.pdf_metadata import get_pdf_metadata
 from utils.downloader import check_and_download_pdfjs, check_and_download_pdf2htmlex, DEFAULT_ASSETS_DIR
 
 # ── Configuration Constants ──────────────────────────────────────────────────
-SUPPORTED_MODELS = {
-    "Google Gemini": [
-        "gemini/gemini-3.1-flash-lite",
-        "gemini/gemini-2.5-flash-lite",
-        "gemini/gemini-3-flash-preview",
-        "gemini/gemini-2.5-flash",
-        "gemini/gemini-2.5-pro",
-    ],
-    "OpenAI": [
-        "gpt-4o",
-        "gpt-4o-mini",
-    ],
-    "Ollama (local)": [
-        "ollama/mistral",
-        "ollama/llama3",
-    ]
-}
 
 LANGUAGES = [
     ("Français", "French"),
@@ -175,10 +153,29 @@ class WelcomeDashboard(QFrame):
         drop_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         drop_layout.setSpacing(15)
 
-        title = QLabel("RockTranslate", self)
-        title.setFont(QFont("Segoe UI", 24, QFont.Weight.Bold))
-        title.setStyleSheet("color: #2d3748; border: none; background: transparent;")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+         # ── LOGO OU TITRE DYNAMIQUE ──
+        self.lbl_logo = QLabel(self)
+        self.lbl_logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_logo.setStyleSheet("border: none; background: transparent;")
+        
+        # Recherche du logo dans le dossier d'assets de production
+        logo_path = os.path.join(DEFAULT_ASSETS_DIR, "logo.png")
+        if os.path.exists(logo_path):
+            pixmap = QPixmap(logo_path)
+            # Redimensionnement propre et lissé à 280px de large
+            scaled_pixmap = pixmap.scaled(
+                280, 140, 
+                Qt.AspectRatioMode.KeepAspectRatio, 
+                Qt.TransformationMode.SmoothTransformation
+            )
+            self.lbl_logo.setPixmap(scaled_pixmap)
+        else:
+            # Fallback textuel si l'image n'est pas encore présente
+            self.lbl_logo.setText("RockTranslate")
+            self.lbl_logo.setFont(QFont("Segoe UI", 24, QFont.Weight.Bold))
+            self.lbl_logo.setStyleSheet("color: #2d3748; border: none; background: transparent;")
+
+        # title.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         subtitle = QLabel("Glissez-déposez votre PDF scientifique ici", self)
         subtitle.setFont(QFont("Segoe UI", 12))
@@ -209,7 +206,7 @@ class WelcomeDashboard(QFrame):
         self.lbl_status.setStyleSheet("border: none; background: transparent;")
         self._check_api_keys()
 
-        drop_layout.addWidget(title)
+        drop_layout.addWidget(self.lbl_logo)
         drop_layout.addWidget(subtitle)
         drop_layout.addWidget(self.btn_open_file)
         drop_layout.addWidget(self.lbl_status)
@@ -342,7 +339,7 @@ class MainWindow(QMainWindow):
         self._ext_worker = None
         self._trans_worker = None
         
-        self._current_model = SUPPORTED_MODELS["Google Gemini"][0]
+        self._current_model = None
         self._current_lang = "French"
 
         self._tid_to_page = {}
@@ -467,26 +464,6 @@ class MainWindow(QMainWindow):
             m_lang.addAction(a)
             self._lang_actions[code] = a
 
-        # m_model = m_trans.addMenu("Modèle LLM")
-        # self._model_actions = {}
-        # first = True
-        # for provider, models in SUPPORTED_MODELS.items():
-        #     if not first:
-        #         m_model.addSeparator()
-        #     first = False
-        #     title = QAction(f"── {provider} ──", self)
-        #     title.setEnabled(False)
-        #     m_model.addAction(title)
-
-        #     for model in models:
-        #         a = QAction(model, self, checkable=True)
-        #         a.setData(model)
-        #         a.triggered.connect(self._on_model_selected)
-        #         if model == self._current_model:
-        #             a.setChecked(True)
-        #         m_model.addAction(a)
-        #         self._model_actions[model] = a
-
         # ── Affichage ──
         m_view = mb.addMenu("Affichage")
 
@@ -553,7 +530,7 @@ class MainWindow(QMainWindow):
                 font-family: 'Segoe UI', sans-serif;
                 font-weight: bold;
                 font-size: 11px;
-                margin-right: 15px;
+                margin-right: 30px;
                 background: transparent;
                 border: none;
             }
@@ -670,9 +647,15 @@ class MainWindow(QMainWindow):
         provider = api_settings.value("provider", "Google Gemini")
         
         # Récupérer le modèle de ce fournisseur (avec repli sur le premier modèle par défaut)
-        
+        config = DEFAULT_PROVIDERS[provider]
         fallback_model = DEFAULT_PROVIDERS[provider]["models"][0]
         active_model = api_settings.value(f"last_model_{provider}", fallback_model)
+
+        # ── FORMULER LE NOM DE MODÈLE DE ROUTAGE DYNAMIQUE LITELLM ──
+        # Si le modèle ne commence pas déjà par le préfixe requis (ex: gemini/), on l'ajoute
+        llm_model_name = active_model
+        if config["prefix"] and not llm_model_name.startswith(config["prefix"]):
+            llm_model_name = f"{config['prefix']}{llm_model_name}"
         
         # Récupérer la clé d'API correspondante
         keys_dict_raw = api_settings.value("api_keys_by_provider", "{}")
@@ -745,12 +728,13 @@ class MainWindow(QMainWindow):
         # Initialisation et démarrage du worker sur les segments manquants uniquement
         self._trans_worker = TranslationWorker(
             untranslated_texts,  # On ne passe que les textes restants à traduire !
-            active_model,
+            llm_model_name,
             active_api_key,
             self._current_lang,
             custom_base_url=active_base_url,
             all_keys=keys_dict 
         )
+        self._current_model = llm_model_name
         self._trans_worker.status_update.connect(self.status.showMessage)
         self._trans_worker.batch_progress.connect(self.progress_panel.set_batches)
         self._trans_worker.segment_translated.connect(self._on_segment_translated)
@@ -952,12 +936,6 @@ class MainWindow(QMainWindow):
             act.setChecked(False)
         a.setChecked(True)
 
-    def _on_model_selected(self):
-        a = self.sender()
-        self._current_model = a.data()
-        for act in self._model_actions.values():
-            act.setChecked(False)
-        a.setChecked(True)
     
     def _populate_recent_menu(self):
         """Remplit dynamiquement le sous-menu Fichiers récents."""

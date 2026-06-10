@@ -25,20 +25,8 @@ tmp/
 
 
 ROADMAP.md
+comand.txt
 
-structure_page_0.json
-extractor_test.py
-reconstructor_test.py
-smart_pdf_test_2.py
-smart_pdf_test.py
-
-test_translation.py
-surgeon_test.py 
-test_conversion.py
-test_coords.html
-test_detect_tables.py
-test_pdfplumber.py
-test_searchfor.py
 
 src/ui_pyqt/main_windowSS.py
 
@@ -48,15 +36,10 @@ src/rocktranslate.egg-info
 .vscode/
 .idea/
 
-table_detector/
-old/
-src/core/spatial_clusterers.py
-src/core/table_detectors.py
-src/core/formula_detectors.py
-
-output_files
-rocktranslate_output
-
+old_pdfium/
+old_pymupdf/
+tests_latex/
+tests/
 # OS
 .DS_Store
 Thumbs.db
