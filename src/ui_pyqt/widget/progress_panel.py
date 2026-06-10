@@ -135,7 +135,25 @@ class ProgressPanel(QWidget):
         self.global_progress.update_values(0, total_pages, "Calcul en cours...")
         self.local_progress.update_values(0, total_segments, "Vitesse : --")
         self._timer.start()
+    
+    def clear(self):
+        """
+        Remet instantanément le panneau de progression à blanc (valeurs à zéro).
+        """
+        self._timer.stop()
+        self._total_pages     = 1
+        self._done_pages      = 0
+        self._total_segments  = 0
+        self._done_segments   = 0
+        self._batches_done    = 0
+        self._batches_total   = 0
+        self._start_time      = None
 
+        # Réinitialisation visuelle des deux barres à zéro
+        self.global_progress.update_values(0, 1, "")
+        self.local_progress.update_values(0, 1, "")
+
+        
     def set_page(self, page_num: int):
         """Met à jour l'avancement de la page active sur la barre globale."""
         self._done_pages = page_num
@@ -165,7 +183,7 @@ class ProgressPanel(QWidget):
             self.global_progress.update_values(self._total_pages, self._total_pages)
         else:
             self._update_eta()
-            
+
 
     def set_batches(self, done_batches: int, total_batches: int):
         """Met à jour l'indicateur de lot et la vitesse estimée."""

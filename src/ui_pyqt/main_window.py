@@ -605,6 +605,10 @@ class MainWindow(QMainWindow):
         self._instrumented_html_path = instrumented_html_path
         self._original_texts = original_texts_map
         self._tid_to_page = tid_to_page
+        
+        # ── REMISE À ZÉRO COMPLÈTE À L'OUVERTURE D'UN NOUVEAU DOCUMENT ──
+        self._translated_pages = {}
+        self.progress_panel.clear()
 
         # Enregistrement du fichier dans l'historique des récents
         self._add_to_recent_files(self._pdf_path)
@@ -638,7 +642,15 @@ class MainWindow(QMainWindow):
         self._start_translation()
 
     def _start_translation(self):
+        # Sécurité : Si le PDF ne contient aucun texte traduisible (ex: PDF scanné sans OCR)
         if not self._original_texts:
+            QMessageBox.warning(
+                self, 
+                "Aucun texte détecté", 
+                "Aucun texte traduisible n'a été détecté dans ce document.\n\n"
+                "S'il s'agit d'un PDF scanné (image), veuillez d'abord appliquer un OCR sur votre fichier.",
+                QMessageBox.StandardButton.Ok
+            )
             return
 
         api_key = os.getenv("GEMINI_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
@@ -1018,7 +1030,9 @@ class MainWindow(QMainWindow):
         self._pdf_path = None
         self._instrumented_html_path = None
         self._original_texts = {}
+        # ── REMISE À ZÉRO COMPLÈTE À LA FERMETURE ──
         self._translated_pages = {}
+        self.progress_panel.clear()
         
         self.a_close.setEnabled(False)
         self.a_start.setEnabled(False)
