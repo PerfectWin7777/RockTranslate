@@ -1,56 +1,88 @@
-# ui_pyqt/main_window.py
+"""
+RockTranslate — Core Window Orchestrator and Workspace Controller
+Path: ui_pyqt/main_window.py
+
+This module implements the primary Desktop application window, managing:
+1. Dynamic drag-and-drop dashboard interfaces.
+2. Dual-pane synchronous WebEngine viewports.
+3. Event-driven progress bars, zoom widgets, and dynamic menu maps.
+4. Asynchronous worker thread operations (extraction, LLM translation).
+
+Author: RockTranslate Contributors
+License: MIT License
+Version: 1.0.0
+"""
 
 import os
 import sys
-import json
-import datetime
-import tempfile
+
+# ── DYNAMIC SYSTEM PATH RESOLUTION ──
+# Resolves search paths so that subscripts run directly without ModuleNotFound errors
+current_dir = os.path.dirname(os.path.abspath(__file__))  # src/ui_pyqt
+src_dir = os.path.dirname(current_dir)                    # src
+project_root = os.path.dirname(src_dir)                   # Project root
+
+if src_dir not in sys.path:
+    sys.path.insert(0, src_dir)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+# ────────────────────────────────────
+
+import datetime, json
+from typing import Optional, Dict, List, Any
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
     QFileDialog, QMessageBox, QLabel, QStatusBar, QStackedWidget, QFrame,
-    QHBoxLayout,QScrollArea, QPushButton
+    QHBoxLayout, QScrollArea, QPushButton
 )
 from PyQt6.QtCore import Qt, QTimer, QUrl, pyqtSignal, QSettings
 from PyQt6.QtGui import QFont, QKeySequence, QAction, QActionGroup, QPixmap
-from PyQt6.QtWebEngineCore import QWebEngineSettings
-from PyQt6.QtWebEngineWidgets import QWebEngineView
 
+# Modular, decoupled imports representing the clean open-source architecture
+try:
+    from core.constants import DEFAULT_PROVIDERS, DEFAULT_ASSETS_DIR
+    from ui_pyqt.widget.workspace_viewer import WorkspaceViewer
+    from ui_pyqt.widget.progress_panel import ProgressPanel
+    from ui_pyqt.widget.zoom_widget import ZoomWidget
+    from ui_pyqt.widget.properties_dialog import DocumentPropertiesDialog
+    from ui_pyqt.widget.api_config_dialog import APIConfigDialog
+    from ui_pyqt.workers.extraction_worker import ExtractionWorker
+    from ui_pyqt.workers.translation_worker import TranslationWorker
+    from ui_pyqt.utils.pdf_exporter import PDFExporter
+    from utils.pdf_metadata import get_pdf_metadata
+    from src.ui_pyqt.utils.recent_files_manager import RecentFilesManager
+    from utils.downloader import check_and_download_pdfjs, check_and_download_pdf2htmlex
+except ImportError:
+    from src.core.constants import DEFAULT_PROVIDERS, DEFAULT_ASSETS_DIR
+    from src.ui_pyqt.widget.workspace_viewer import WorkspaceViewer
+    from src.ui_pyqt.widget.progress_panel import ProgressPanel
+    from src.ui_pyqt.widget.zoom_widget import ZoomWidget
+    from src.ui_pyqt.widget.properties_dialog import DocumentPropertiesDialog
+    from src.ui_pyqt.widget.api_config_dialog import APIConfigDialog
+    from src.ui_pyqt.workers.extraction_worker import ExtractionWorker
+    from src.ui_pyqt.workers.translation_worker import TranslationWorker
+    from src.ui_pyqt.utils.pdf_exporter import PDFExporter
+    from src.utils.pdf_metadata import get_pdf_metadata
+    from src.ui_pyqt.utils.recent_files_manager import RecentFilesManager
+    from src.utils.downloader import check_and_download_pdfjs, check_and_download_pdf2htmlex
 
-# Importations de notre nouvelle architecture découplée
-from ui_pyqt.widget.workspace_viewer import WorkspaceViewer
-from ui_pyqt.widget.progress_panel import ProgressPanel
-from ui_pyqt.widget.zoom_widget import ZoomWidget
-from ui_pyqt.widget.properties_dialog import DocumentPropertiesDialog
-from ui_pyqt.widget.api_config_dialog import APIConfigDialog, DEFAULT_PROVIDERS
-from ui_pyqt.workers.extraction_worker import ExtractionWorker
-from ui_pyqt.workers.translation_worker import TranslationWorker
-from utils.pdf_metadata import get_pdf_metadata
-from utils.downloader import check_and_download_pdfjs, check_and_download_pdf2htmlex, DEFAULT_ASSETS_DIR
-
-# ── Configuration Constants ──────────────────────────────────────────────────
-
-LANGUAGES = [
-    ("Français", "French"),
-    ("Español", "Spanish"),
-    ("English", "English"),
-    ("Deutsch", "German"),
-    ("العربية", "Arabic"),
-    ("中文", "Chinese (Simplified)"),
-    ("Português", "Portuguese"),
-    ("Italiano", "Italian"),
-    ("日本語", "Japanese"),
-    ("Русский", "Russian"),
-]
 
 class RecentFileItem(QFrame):
     """
-    Élément individuel représentant un document récent interactif avec chemin complet.
+    Individual card representing a verified, interactive recent document link.
     """
     clicked = pyqtSignal(str)
 
-    def __init__(self, file_path: str, parent=None):
+    def __init__(self, file_path: str, parent: Optional[QWidget] = None) -> None:
+        """
+        Initializes the file card.
+
+        Args:
+            file_path: Absolute validated filesystem path.
+            parent: Optional parent QWidget container.
+        """
         super().__init__(parent)
-        self.file_path = file_path
+        self.file_path: str = file_path
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setObjectName("RecentItem")
         self.setStyleSheet("""
@@ -65,7 +97,6 @@ class RecentFileItem(QFrame):
                 background-color: #f7fafc;
                 border-color: #4f8ef7;
             }
-            /* CORRECTIF : Empêche l'héritage de bordures et arrondis sur les textes et icônes enfants */
             #RecentItem QLabel {
                 border: none !important;
                 background: transparent !important;
@@ -85,14 +116,11 @@ class RecentFileItem(QFrame):
         """)
         self._build_ui()
 
-
-
-    def _build_ui(self):
+    def _build_ui(self) -> None:
         layout = QHBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(10)
 
-        # Icône PDF épurée
         icon = QLabel("📄", self)
         icon.setFont(QFont("Segoe UI", 16))
         icon.setFixedWidth(24)
@@ -113,34 +141,43 @@ class RecentFileItem(QFrame):
         layout.addWidget(icon)
         layout.addLayout(text_layout)
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event: Any) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit(self.file_path)
         super().mousePressEvent(event)
 
 
-# ── Welcome Dashboard (Drag & Drop Frame) ────────────────────────────────────
-
 class WelcomeDashboard(QFrame):
     """
-    Écran d'accueil divisé :
-      - À gauche : Zone Drag & Drop ou ouverture manuelle.
-      - À droite : Liste interactive des documents récents persistés.
+    Main opening landing interface featuring:
+    - Left side: Drag & Drop active zones or manual browse triggers.
+    - Right side: Dynamic synchronized lists of recently accessed documents.
     """
     file_dropped = pyqtSignal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, recent_manager: RecentFilesManager, parent: Optional[QWidget] = None) -> None:
+        """
+        Initializes the Welcome Dashboard.
+
+        Args:
+            recent_manager: Centralized, synchronized recent history manager.
+            parent: Optional parent QWidget.
+        """
         super().__init__(parent)
+        self.recent_manager: RecentFilesManager = recent_manager
         self.setAcceptDrops(True)
         self.setStyleSheet("WelcomeDashboard { background-color: #f7fafc; border: none; }")
         self._build_ui()
+        
+        # Re-sync lists automatically when historical values are mutated elsewhere
+        self.recent_manager.history_changed.connect(self.refresh_recent_files)
 
-    def _build_ui(self):
+    def _build_ui(self) -> None:
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(30, 30, 30, 30)
         main_layout.setSpacing(30)
 
-        # ── PANNEAU GAUCHE : Zone active d'ouverture et de Drag & Drop ──
+        # ── LEFT PANE: Active Open File / Drop Area ──
         self.drop_panel = QFrame(self)
         self.drop_panel.setStyleSheet("""
             QFrame {
@@ -153,16 +190,13 @@ class WelcomeDashboard(QFrame):
         drop_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         drop_layout.setSpacing(15)
 
-         # ── LOGO OU TITRE DYNAMIQUE ──
         self.lbl_logo = QLabel(self)
         self.lbl_logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_logo.setStyleSheet("border: none; background: transparent;")
         
-        # Recherche du logo dans le dossier d'assets de production
         logo_path = os.path.join(DEFAULT_ASSETS_DIR, "logo.png")
         if os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
-            # Redimensionnement propre et lissé à 280px de large
             scaled_pixmap = pixmap.scaled(
                 280, 140, 
                 Qt.AspectRatioMode.KeepAspectRatio, 
@@ -170,20 +204,16 @@ class WelcomeDashboard(QFrame):
             )
             self.lbl_logo.setPixmap(scaled_pixmap)
         else:
-            # Fallback textuel si l'image n'est pas encore présente
             self.lbl_logo.setText("RockTranslate")
             self.lbl_logo.setFont(QFont("Segoe UI", 24, QFont.Weight.Bold))
             self.lbl_logo.setStyleSheet("color: #2d3748; border: none; background: transparent;")
 
-        # title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        subtitle = QLabel("Glissez-déposez votre PDF scientifique ici", self)
+        subtitle = QLabel(self.tr("Drag & Drop your scientific PDF here"), self)
         subtitle.setFont(QFont("Segoe UI", 12))
         subtitle.setStyleSheet("color: #a0aec0; border: none; background: transparent;")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # Bouton d'ouverture classique
-        self.btn_open_file = QPushButton("Ouvrir un fichier...", self)
+        self.btn_open_file = QPushButton(self.tr("Open File..."), self)
         self.btn_open_file.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_open_file.setStyleSheet("""
             QPushButton {
@@ -213,7 +243,7 @@ class WelcomeDashboard(QFrame):
 
         main_layout.addWidget(self.drop_panel, 1)
 
-        # ── PANNEAU DROIT : Liste interactive des documents récents ──
+        # ── RIGHT PANE: Recent Files List ──
         self.recent_panel = QFrame(self)
         self.recent_panel.setFixedWidth(400)
         self.recent_panel.setStyleSheet("""
@@ -227,17 +257,14 @@ class WelcomeDashboard(QFrame):
         recent_layout.setContentsMargins(15, 15, 15, 15)
         recent_layout.setSpacing(10)
 
-        recent_title = QLabel("Documents récents", self)
+        recent_title = QLabel(self.tr("Recent Documents"), self)
         recent_title.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         recent_title.setStyleSheet("color: #2d3748; border: none; background: transparent;")
         recent_layout.addWidget(recent_title)
 
-        # ScrollArea pour la liste des récents
         self.scroll = QScrollArea(self)
         self.scroll.setWidgetResizable(True)
         self.scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
-        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded )
-        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         
         self.scroll_content = QWidget()
         self.scroll_content.setStyleSheet("background: transparent;")
@@ -253,165 +280,161 @@ class WelcomeDashboard(QFrame):
         
         self.refresh_recent_files()
 
-    def _check_api_keys(self):
-        """
-        Vérifie dynamiquement si le fournisseur actif dans QSettings est configuré.
-        """
+    def _check_api_keys(self) -> None:
+        """ Verifies configuration states and displays live API connection feedback labels. """
         settings = QSettings("RockTranslate", "APIConfig")
         provider = settings.value("provider", "Google Gemini")
         
-        # Récupérer les clés d'API enregistrées pour chaque fournisseur
-        keys_dict_raw = settings.value("api_keys_by_provider", "{}")
+        raw_keys = settings.value("api_keys_by_provider", "{}")
         try:
-            keys_dict = json.loads(keys_dict_raw) if isinstance(keys_dict_raw, str) else keys_dict_raw
+            keys_dict = json.loads(raw_keys) if isinstance(raw_keys, str) else raw_keys
         except Exception:
             keys_dict = {}
-        active_key = keys_dict.get(provider, "")
+        active_key: str = keys_dict.get(provider, "")
 
-        # Récupérer le modèle actif de ce fournisseur
-        fallback_model = DEFAULT_PROVIDERS[provider]["models"][0]
-        active_model = settings.value(f"last_model_{provider}", fallback_model)
+        fallback_model: str = DEFAULT_PROVIDERS[provider]["models"][0]
+        active_model: str = settings.value(f"last_model_{provider}", fallback_model)
 
-        # Mettre à jour l'indicateur d'état visuel en fonction du choix réel de l'utilisateur
         if provider == "Ollama (Local)":
-            self.lbl_status.setText(f"● Mode Local Actif (Ollama : {active_model})")
+            self.lbl_status.setText(self.tr("● Local Mode Active (Ollama: {model})").format(model=active_model))
             self.lbl_status.setStyleSheet("color: #38a169; font-weight: bold; font-size: 11px; border: none; background: transparent;")
         elif active_key:
-            self.lbl_status.setText(f"● IA Active : {provider} ({active_model})")
+            self.lbl_status.setText(self.tr("● AI Active: {provider} ({model})").format(provider=provider, model=active_model))
             self.lbl_status.setStyleSheet("color: #38a169; font-weight: bold; font-size: 11px; border: none; background: transparent;")
         else:
-            self.lbl_status.setText(f"○ Configuration requise : Clé manquante pour {provider}")
+            self.lbl_status.setText(self.tr("○ Setup Required: Missing API key for {provider}").format(provider=provider))
             self.lbl_status.setStyleSheet("color: #e53e3e; font-size: 11px; border: none; background: transparent;")
 
-
-
-    def refresh_recent_files(self):
-        """Recharge la liste des récents persistés dans les réglages système."""
-        # Vider la liste existante
+    def refresh_recent_files(self) -> None:
+        """ Rebuilds file historical card grids. """
         while self.scroll_layout.count():
             child = self.scroll_layout.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
 
-        settings = QSettings("RockTranslate", "RecentFiles")
-        recent_list = settings.value("recent_list", [])
+        recent_list: List[str] = self.recent_manager.get_recent_files()
         
         if not recent_list:
-            empty_lbl = QLabel("Aucun document récent.", self)
+            empty_lbl = QLabel(self.tr("No recent documents found."), self)
             empty_lbl.setStyleSheet("color: #718096; border: none; font-size: 11px; background: transparent;")
-            # empty_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.scroll_layout.addWidget(empty_lbl)
             return
 
         for path in recent_list:
-            if os.path.exists(path):
-                item = RecentFileItem(path, self)
-                item.clicked.connect(self.file_dropped.emit)
-                self.scroll_layout.addWidget(item)
+            item = RecentFileItem(path, self)
+            item.clicked.connect(self.file_dropped.emit)
+            self.scroll_layout.addWidget(item)
 
-    def dragEnterEvent(self, event):
+    def dragEnterEvent(self, event: Any) -> None:
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
 
-    def dropEvent(self, event):
+    def dropEvent(self, event: Any) -> None:
         for url in event.mimeData().urls():
-            file_path = url.toLocalFile()
+            file_path: str = url.toLocalFile()
             if file_path.lower().endswith(".pdf"):
                 self.file_dropped.emit(file_path)
                 break
 
 
-
-
-# ── MainWindow Orchestrator ──────────────────────────────────────────────────
 class MainWindow(QMainWindow):
+    """
+    Main orchestrator window managing multi-pane states, action bars,
+    worker synchronizations, and menu setups.
+    """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("RockTranslate")
         self.resize(1440, 900)
 
-        self._pdf_path = None
-        self._instrumented_html_path = None
-        self._original_texts = {}
-        self._zoom = 0.8
+        # Unified Application State Map
+        self._pdf_path: Optional[str] = None
+        self._instrumented_html_path: Optional[str] = None
+        self._original_texts: Dict[str, str] = {}
+        self._zoom: float = 0.8
 
-        self._ext_worker = None
-        self._trans_worker = None
+        self._ext_worker: Optional[ExtractionWorker] = None
+        self._trans_worker: Optional[TranslationWorker] = None
         
-        self._current_model = None
-        self._current_lang = "French"
+        self._current_model: Optional[str] = None
+        self._current_lang: str = "French"
 
-        self._tid_to_page = {}
-        self._current_translating_page = -1
+        self._tid_to_page: Dict[str, int] = {}
+        self._current_translating_page: int = -1
+        self._translated_pages: Dict[int, Dict[str, str]] = {}
 
-        # ── MÉMOIRE DE TRADUCTION ACTIVE PAGE PAR PAGE ──
-        self._translated_pages = {}  # Structure : { page_idx: { seg_id: texte_traduit } }
+        # ── INITIALIZE PERSISTENCE MANAGERS ──
+        self.recent_manager = RecentFilesManager(self)
 
-
-        # Sécurité : Vérification et téléchargement des moteurs web en tâche de fond au démarrage
+        # Trigger automatic download verifications silently on startup
         check_and_download_pdfjs()
         check_and_download_pdf2htmlex()
 
         self._build_menu()
         self._build_ui()
+        
+        # Connect dynamic triggers
+        self.recent_manager.history_changed.connect(self._populate_recent_menu)
 
-    def _build_ui(self):
+    def _build_ui(self) -> None:
         self.stacked_widget = QStackedWidget()
         self.setCentralWidget(self.stacked_widget)
 
-        # Page 0 : Écran d'accueil
-        self.welcome_screen = WelcomeDashboard(self)
+        # Dashboard Landing Screen (Page 0)
+        self.welcome_screen = WelcomeDashboard(self.recent_manager, self)
         self.welcome_screen.file_dropped.connect(self._open_pdf_by_path)
         self.welcome_screen.btn_open_file.clicked.connect(self._open_pdf_dialog)
         self.stacked_widget.addWidget(self.welcome_screen)
 
-        # Page 1 : Espace de travail unifié
+        # Main Workspace Container (Page 1)
         workspace = QWidget()
         work_layout = QVBoxLayout(workspace)
         work_layout.setContentsMargins(0, 0, 0, 0)
         work_layout.setSpacing(0)
 
-        # Remplacement de l'ancien splitter PyQt par notre WorkspaceViewer unifié à colonne unique Chromium !
+        # Setup browser dual-view splits
         self.workspace_view = WorkspaceViewer(self)
         self.workspace_view.set_zoom(self._zoom)
         work_layout.addWidget(self.workspace_view, 1)
 
-        # Intégration de votre barre de progression intacte
-        self.progress_panel = ProgressPanel()
+        # Setup decoupled high-fidelity PDF vector exporter
+        self.pdf_exporter = PDFExporter(self, self.workspace_view, self.status_message_callback)
+
+        # Bottom real-time progress panel
+        self.progress_panel = ProgressPanel(self)
         work_layout.addWidget(self.progress_panel)
 
         self.stacked_widget.addWidget(workspace)
 
+        # Setup status bars and zoom control sliders
         self.status = QStatusBar()
         self.setStatusBar(self.status)
         
-        # Ajout du composant de zoom permanent en bas à droite
         self.zoom_widget = ZoomWidget(self)
         self.zoom_widget.set_zoom_factor(self._zoom)
         self.zoom_widget.zoom_changed.connect(self._on_slider_zoom_changed)
         self.status.addPermanentWidget(self.zoom_widget)
         
-        self.status.showMessage("Prêt. Glissez-déposez un PDF pour commencer.")
+        self.status.showMessage(self.tr("Ready. Open or drag a PDF document to begin."))
 
-
-    def _build_menu(self):
+    def _build_menu(self) -> None:
         mb = self.menuBar()
 
-        # ── Fichier ──
-        m_file = mb.addMenu("Fichier")
+        # ── File Menu ──
+        m_file = mb.addMenu(self.tr("File"))
 
-        self.a_open = QAction("Ouvrir PDF…", self)
+        self.a_open = QAction(self.tr("Open PDF..."), self)
         self.a_open.setShortcut(QKeySequence("Ctrl+O"))
         self.a_open.triggered.connect(self._open_pdf_dialog)
         m_file.addAction(self.a_open)
 
-        self.a_close = QAction("Fermer le document", self)
+        self.a_close = QAction(self.tr("Close Document"), self)
         self.a_close.setEnabled(False)
         self.a_close.triggered.connect(self._close_document)
         m_file.addAction(self.a_close)
 
-        self.a_export = QAction("Exporter le PDF traduit…", self)
+        self.a_export = QAction(self.tr("Export Translated PDF..."), self)
         self.a_export.setShortcut(QKeySequence("Ctrl+S"))
         self.a_export.setEnabled(False)
         self.a_export.triggered.connect(self._export_pdf_dialog)
@@ -419,28 +442,27 @@ class MainWindow(QMainWindow):
 
         m_file.addSeparator()
 
-        # Action de propriétés physiques et de traduction (Ctrl+D)
-        self.a_properties = QAction("Propriétés du document...", self)
+        self.a_properties = QAction(self.tr("Document Properties..."), self)
         self.a_properties.setShortcut(QKeySequence("Ctrl+D"))
-        self.a_properties.setEnabled(False)  # Activé uniquement lorsqu'un fichier est ouvert
+        self.a_properties.setEnabled(False)
         self.a_properties.triggered.connect(self._show_document_properties)
         m_file.addAction(self.a_properties)
+        
         m_file.addSeparator()
 
-        # Sous-menu Fichiers récents
-        self.m_recent = m_file.addMenu("Fichiers récents")
+        self.m_recent = m_file.addMenu(self.tr("Recent Files"))
         self.m_recent.aboutToShow.connect(self._populate_recent_menu)
 
         m_file.addSeparator()
 
-        a_quit = QAction("Quitter", self)
+        a_quit = QAction(self.tr("Quit"), self)
         a_quit.triggered.connect(self.close)
         m_file.addAction(a_quit)
 
-        # ── Traduction ──
-        m_trans = mb.addMenu("Traduction")
+        # ── Translation Menu ──
+        m_trans = mb.addMenu(self.tr("Translation"))
 
-        self.a_start = QAction("▶  Démarrer la traduction", self)
+        self.a_start = QAction(self.tr("Start Translation"), self)
         self.a_start.setShortcut(QKeySequence("Ctrl+Return"))
         self.a_start.setEnabled(False)
         self.a_start.triggered.connect(self._toggle_translation)
@@ -448,34 +470,48 @@ class MainWindow(QMainWindow):
 
         m_trans.addSeparator()
 
-        # Action d'ouverture de notre configuration d'IA type Cline
-        self.a_api_config = QAction("Configuration de l'API & Modèles...", self)
+        self.a_api_config = QAction(self.tr("API & Model Configuration..."), self)
         self.a_api_config.triggered.connect(self._show_api_configuration)
         m_trans.addAction(self.a_api_config)
 
-        m_lang = m_trans.addMenu("Langue cible")
-        self._lang_actions = {}
-        for display, code in LANGUAGES:
+        m_lang = m_trans.addMenu(self.tr("Target Language"))
+        self._lang_actions: Dict[str, QAction] = {}
+        
+        # Languages table map
+        languages_ui = [
+            ("Français", "French"),
+            ("Español", "Spanish"),
+            ("English", "English"),
+            ("Deutsch", "German"),
+            ("العربية", "Arabic"),
+            ("中文", "Chinese (Simplified)"),
+            ("Português", "Portuguese"),
+            ("Italiano", "Italian"),
+            ("日本語", "Japanese"),
+            ("Русский", "Russian"),
+        ]
+        
+        for display, name in languages_ui:
             a = QAction(display, self, checkable=True)
-            a.setData(code)
+            a.setData(name)
             a.triggered.connect(self._on_lang_selected)
-            if code == "French":
+            if name == "French":
                 a.setChecked(True)
             m_lang.addAction(a)
-            self._lang_actions[code] = a
+            self._lang_actions[name] = a
 
-        # ── Affichage ──
-        m_view = mb.addMenu("Affichage")
+        # ── View Menu ──
+        m_view = mb.addMenu(self.tr("View"))
 
-        a_zoom_in = QAction("Zoom +", self)
+        a_zoom_in = QAction(self.tr("Zoom In"), self)
         a_zoom_in.setShortcut(QKeySequence("Ctrl+="))
         m_view.addAction(a_zoom_in)
 
-        a_zoom_out = QAction("Zoom −", self)
+        a_zoom_out = QAction(self.tr("Zoom Out"), self)
         a_zoom_out.setShortcut(QKeySequence("Ctrl+-"))
         m_view.addAction(a_zoom_out)
 
-        a_zoom_reset = QAction("Zoom 100%", self)
+        a_zoom_reset = QAction(self.tr("Zoom 100%"), self)
         a_zoom_reset.setShortcut(QKeySequence("Ctrl+0"))
         m_view.addAction(a_zoom_reset)
 
@@ -485,44 +521,41 @@ class MainWindow(QMainWindow):
 
         m_view.addSeparator()
         
-        # Action à bascule type VS Code (Ctrl+J) pour masquer/afficher
-        self.a_toggle_progress = QAction("Afficher le panneau de progression", self, checkable=True)
+        self.a_toggle_progress = QAction(self.tr("Show Progress Panel"), self, checkable=True)
         self.a_toggle_progress.setShortcut(QKeySequence("Ctrl+J"))
-        self.a_toggle_progress.setChecked(True)  # Visible par défaut
+        self.a_toggle_progress.setChecked(True)
         self.a_toggle_progress.triggered.connect(self._toggle_progress_panel)
         m_view.addAction(self.a_toggle_progress)
 
-
-        self.a_fullscreen = QAction("Plein écran", self, checkable=True)
+        self.a_fullscreen = QAction(self.tr("Full Screen"), self, checkable=True)
         self.a_fullscreen.setShortcut(QKeySequence("F11"))
         self.a_fullscreen.triggered.connect(self.toggle_fullscreen)
         m_view.addAction(self.a_fullscreen)
 
         m_view.addSeparator()
 
-        # Groupe d'actions mutuellement exclusives (Boutons radio) pour la disposition
         self.layout_group = QActionGroup(self)
 
-        self.a_layout_both = QAction("Afficher les deux côte-à-côte", self, checkable=True)
+        self.a_layout_both = QAction(self.tr("Show Dual Split View"), self, checkable=True)
         self.a_layout_both.setShortcut(QKeySequence("Ctrl+3"))
         self.a_layout_both.setChecked(True)
         self.a_layout_both.triggered.connect(self._apply_layout_both)
         self.layout_group.addAction(self.a_layout_both)
         m_view.addAction(self.a_layout_both)
 
-        self.a_layout_pdf = QAction("Afficher uniquement l'original (PDF)", self, checkable=True)
+        self.a_layout_pdf = QAction(self.tr("Show Original PDF Only"), self, checkable=True)
         self.a_layout_pdf.setShortcut(QKeySequence("Ctrl+1"))
         self.a_layout_pdf.triggered.connect(self._apply_layout_pdf_only)
         self.layout_group.addAction(self.a_layout_pdf)
         m_view.addAction(self.a_layout_pdf)
 
-        self.a_layout_trans = QAction("Afficher uniquement la traduction", self, checkable=True)
+        self.a_layout_trans = QAction(self.tr("Show Translation Only"), self, checkable=True)
         self.a_layout_trans.setShortcut(QKeySequence("Ctrl+2"))
         self.a_layout_trans.triggered.connect(self._apply_layout_trans_only)
         self.layout_group.addAction(self.a_layout_trans)
         m_view.addAction(self.a_layout_trans)
 
-        # ── COIN DE BARRE DE MENU : Affichage du modèle actif ──
+        # ── TOP RIGHT CORNER: Active Model Label Indicator ──
         self.lbl_menu_model = QLabel(self)
         self.lbl_menu_model.setStyleSheet("""
             QLabel {
@@ -535,199 +568,177 @@ class MainWindow(QMainWindow):
                 border: none;
             }
         """)
-        # Utilisation de la méthode native Qt pour ajouter un widget au coin de la barre
         mb.setCornerWidget(self.lbl_menu_model, Qt.Corner.TopRightCorner)
-        
-        # Mettre à jour l'affichage au démarrage
         self._update_menu_model_indicator()
 
-    
-    def _update_menu_model_indicator(self):
-        """Met à jour l'indicateur permanent de modèle actif dans la barre de menu."""
+    def status_message_callback(self, message: str) -> None:
+        """ Thread-safe callback routing module updates to the status bar. """
+        self.status.showMessage(message)
+
+    def _update_menu_model_indicator(self) -> None:
+        """ Refreshes active model display strings on top action bars. """
         settings = QSettings("RockTranslate", "APIConfig")
         provider = settings.value("provider", "Google Gemini")
         
         fallback_model = DEFAULT_PROVIDERS[provider]["models"][0]
         model = settings.value(f"last_model_{provider}", fallback_model)
         
-        # On raccourcit le nom d'affichage s'il y a un préfixe (ex: gemini/gemini-3.1 -> gemini-3.1)
         short_model = model.split("/")[-1] if "/" in model else model
-        self.lbl_menu_model.setText(f"🤖 {provider} : {short_model}")
+        self.lbl_menu_model.setText(f"🤖 {provider}: {short_model}")
 
-    
-    def _show_api_configuration(self):
-        """Ouvre l'interface de paramétrage d'IA et rafraîchit les indicateurs."""
+    def _show_api_configuration(self) -> None:
+        """ Triggers setup panels and visual triggers. """
         dialog = APIConfigDialog(self)
         if dialog.exec():
-            # Lors d'une validation réussie, on rafraîchit la détection d'API du tableau d'accueil
-            # Rafraîchir les deux indicateurs d'IHM
             self.welcome_screen._check_api_keys()
             self._update_menu_model_indicator()
-            self.status.showMessage("Configuration d'API enregistrée avec succès.")
+            self.status.showMessage(self.tr("API configuration saved successfully."))
 
-    # ── LOGIQUE DES ACTIONS D'OUVERTURE ET DE SÉLECTION ──
-    def _open_pdf_dialog(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Ouvrir un PDF", "", "PDF (*.pdf)")
+    def _open_pdf_dialog(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, self.tr("Open PDF"), "", "PDF (*.pdf)")
         if path:
             self._open_pdf_by_path(path)
 
-    def _open_pdf_by_path(self, path: str):
-        self.status.showMessage("Analyse du document et extraction en cours...")
+    def _open_pdf_by_path(self, path: str) -> None:
+        self.status.showMessage(self.tr("Analyzing document and extracting layout..."))
         self._pdf_path = path
         self.a_open.setEnabled(False)
 
-        # Lancement du nouveau worker découplé d'extraction
+        # Background PDF extraction cycles
         self._ext_worker = ExtractionWorker(path)
         self._ext_worker.status_update.connect(self.status.showMessage)
-        # Connexion de notre nouveau signal de progression en temps réel
         self._ext_worker.extraction_progress.connect(self._on_extraction_progress)
         self._ext_worker.finished.connect(self._on_extraction_finished)
         self._ext_worker.error.connect(self._on_extraction_error)
         self._ext_worker.start()
 
-    
-    def _on_extraction_progress(self, current: int, total: int):
-        """Met à jour la barre d'état avec le numéro réel de la page en cours d'extraction."""
-        self.status.showMessage(f"⚙️ Ouverture du PDF en cours : Page {current}/{total}...")
+    def _on_extraction_progress(self, current: int, total: int) -> None:
+        self.status.showMessage(
+            self.tr("Analyzing Document layout: Page {current}/{total}...").format(
+                current=current, total=total
+            )
+        )
 
-    def _on_extraction_finished(self, instrumented_html_path: str, original_texts_map: dict, tid_to_page: dict):
+    def _on_extraction_finished(self, instrumented_html_path: str, original_texts_map: dict, tid_to_page: dict) -> None:
         self._instrumented_html_path = instrumented_html_path
         self._original_texts = original_texts_map
         self._tid_to_page = tid_to_page
         
-        # ── REMISE À ZÉRO COMPLÈTE À L'OUVERTURE D'UN NOUVEAU DOCUMENT ──
         self._translated_pages = {}
         self.progress_panel.clear()
 
-        # Enregistrement du fichier dans l'historique des récents
+        # Update historical persistent states via our clean manager
         self._add_to_recent_files(self._pdf_path)
 
-        # Basculement sur l'espace de travail principal
+        # Display workspace layout
         self.stacked_widget.setCurrentIndex(1)
         self.a_close.setEnabled(True)
         self.a_start.setEnabled(True)
-        self.a_properties.setEnabled(True)  # Activer l'action Propriétés (Ctrl+D)
+        self.a_properties.setEnabled(True)
 
-        # Initialisation et chargement de notre double-vue Chromium synchronisée !
+        # Load split pane viewports
         pdfjs_absolute_path = os.path.join(DEFAULT_ASSETS_DIR, "pdfjs")
         self.workspace_view.load_document(self._pdf_path, self._instrumented_html_path, pdfjs_absolute_path)
 
-        self.status.showMessage(f"Document chargé : {os.path.basename(self._pdf_path)} ({len(original_texts_map)} segments textuels identifiés)")
+        self.status.showMessage(
+            self.tr("Document loaded: {filename} ({count} text nodes mapped)").format(
+                filename=os.path.basename(self._pdf_path), count=len(original_texts_map)
+            )
+        )
         self.a_open.setEnabled(True)
 
-    def _on_extraction_error(self, err_msg: str):
-        QMessageBox.critical(self, "Erreur d'extraction", f"Impossible d'analyser le document :\n{err_msg}")
+    def _on_extraction_error(self, err_msg: str) -> None:
+        QMessageBox.critical(self, self.tr("Extraction Error"), f"{self.tr('Could not parse target document:')}\n{err_msg}")
         self._close_document()
         self.a_open.setEnabled(True)
 
-    # ── LOGIQUE DE TRADUCTION IA ──
-    def _toggle_translation(self):
+    def _toggle_translation(self) -> None:
         if self._trans_worker and self._trans_worker.isRunning():
-            self.status.showMessage("Arrêt de la traduction en cours...")
+            self.status.showMessage(self.tr("Stopping translation process..."))
             self._trans_worker.stop()
-            # self.a_start.setText("▶  Démarrer la traduction")
-            self.a_start.setEnabled(False)  # Désactive temporairement le bouton
+            self.a_start.setEnabled(False)
             return
         self._start_translation()
 
-    def _start_translation(self):
-        # Sécurité : Si le PDF ne contient aucun texte traduisible (ex: PDF scanné sans OCR)
+    def _start_translation(self) -> None:
         if not self._original_texts:
             QMessageBox.warning(
                 self, 
-                "Aucun texte détecté", 
-                "Aucun texte traduisible n'a été détecté dans ce document.\n\n"
-                "S'il s'agit d'un PDF scanné (image), veuillez d'abord appliquer un OCR sur votre fichier.",
-                QMessageBox.StandardButton.Ok
+                self.tr("No Text Detected"), 
+                self.tr("No translatable text elements found in this document. Please verify OCR layers.")
             )
             return
 
-        # ── CHARGEMENT DYNAMIQUE DE LA CONFIGURATION DE L'IA SAVEGARDÉE ──
         api_settings = QSettings("RockTranslate", "APIConfig")
         provider = api_settings.value("provider", "Google Gemini")
         
-        # Récupérer le modèle de ce fournisseur (avec repli sur le premier modèle par défaut)
         config = DEFAULT_PROVIDERS[provider]
         fallback_model = DEFAULT_PROVIDERS[provider]["models"][0]
         active_model = api_settings.value(f"last_model_{provider}", fallback_model)
 
-        # ── FORMULER LE NOM DE MODÈLE DE ROUTAGE DYNAMIQUE LITELLM ──
-        # Si le modèle ne commence pas déjà par le préfixe requis (ex: gemini/), on l'ajoute
-        llm_model_name = active_model
-        if config["prefix"] and not llm_model_name.startswith(config["prefix"]):
+        llm_model_name: str = active_model
+        if config["prefix"] and isinstance(config["prefix"], str) and not llm_model_name.startswith(config["prefix"]):
             llm_model_name = f"{config['prefix']}{llm_model_name}"
         
-        # Récupérer la clé d'API correspondante
-        keys_dict_raw = api_settings.value("api_keys_by_provider", "{}")
+        raw_keys = api_settings.value("api_keys_by_provider", "{}")
         try:
-            keys_dict = json.loads(keys_dict_raw) if isinstance(keys_dict_raw, str) else keys_dict_raw
+            keys_dict = json.loads(raw_keys) if isinstance(raw_keys, str) else raw_keys
         except Exception:
             keys_dict = {}
-        active_api_key = keys_dict.get(provider, "")
+        active_api_key: str = keys_dict.get(provider, "")
         
-        # Récupérer l'URL de base personnalisée (notamment pour Ollama ou proxies)
         use_custom_base = api_settings.value("use_custom_base", False, type=bool)
         active_base_url = api_settings.value("custom_base_url", "") if use_custom_base else None
 
-        # Sécurité d'IHM pour la clé d'API (sauf pour Ollama local)
         if provider != "Ollama (Local)" and not active_api_key:
             QMessageBox.warning(
-                self, "Clé manquante", 
-                f"Veuillez configurer votre clé d'API pour '{provider}' avant de démarrer."
+                self, 
+                self.tr("Missing API Key"), 
+                self.tr("Please setup your API Key for {provider} first.").format(provider=provider)
             )
             self._show_api_configuration()
             return
 
         self.a_export.setEnabled(False)
 
-        # Réinitialisation de votre barre de progression sur le nombre exact de segments à traduire !
-        # Calcul du nombre total de pages à partir de la carte d'extraction
-         # Calcul du nombre de pages d'origine
-        total_pages = max(self._tid_to_page.values()) + 1 if self._tid_to_page else 1
+        total_pages: int = max(self._tid_to_page.values()) + 1 if self._tid_to_page else 1
 
-        # ── REPRISE INTELLIGENTE : Collecter les IDs déjà traduits en mémoire ──
         already_translated_ids = set()
         for page_data in self._translated_pages.values():
             already_translated_ids.update(page_data.keys())
 
-        # Filtrer la liste pour ne traduire QUE ce qui est manquant
         untranslated_texts = {
             k: v for k, v in self._original_texts.items()
             if k not in already_translated_ids
         }
 
-        # ── INTERACTIVITÉ : GESTION DE LA RÉ-INITIALISATION DE LA TRADUCTION ──
         if not untranslated_texts:
-            # On demande poliment à l'utilisateur s'il souhaite tout re-traduire
             reply = QMessageBox.question(
                 self,
-                "Document déjà traduit",
-                "Toutes les pages de ce document ont déjà été traduites avec succès.\n\n"
-                "Souhaitez-vous effacer la mémoire de traduction et tout re-traduire depuis le début ?",
+                self.tr("Document Translated"),
+                self.tr(
+                    "All pages are already translated.\n\n"
+                    "Do you want to reset historical structures and translate again?"
+                ),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No
             )
             
             if reply == QMessageBox.StandardButton.Yes:
-                # L'utilisateur souhaite tout refaire : on vide la mémoire active
                 self._translated_pages = {}
                 already_translated_ids = set()
-                # On remet l'intégralité des textes d'origine à traduire
                 untranslated_texts = self._original_texts.copy()
             else:
-                # L'utilisateur annule : on le laisse exporter son travail
-                self.status.showMessage("✅ Traduction déjà complétée.")
+                self.status.showMessage(self.tr("Translation already complete."))
                 self.a_export.setEnabled(True)
                 return
 
-        # Initialiser le panneau de progression
         self.progress_panel.reset(total_pages, len(self._original_texts))
-        # Débuter la barre verte au niveau des segments déjà enregistrés
         self.progress_panel.set_segments(len(already_translated_ids))
 
-        # Initialisation et démarrage du worker sur les segments manquants uniquement
+        # Launch active translation thread
         self._trans_worker = TranslationWorker(
-            untranslated_texts,  # On ne passe que les textes restants à traduire !
+            untranslated_texts,
             llm_model_name,
             active_api_key,
             self._current_lang,
@@ -741,51 +752,42 @@ class MainWindow(QMainWindow):
         self._trans_worker.finished.connect(self._on_translation_finished)
         self._trans_worker.error.connect(self._on_translation_error)
         
-        self.a_start.setText("⏹  Arrêter la traduction")
-        self._current_translating_page = -1
+        self.a_start.setText(self.tr("Stop Translation"))
         
-        # On prépare la page correspondant au premier segment manquant
         first_missing_id = next(iter(untranslated_texts.keys()))
         first_missing_page = self._tid_to_page.get(first_missing_id, 0)
+        self._current_translating_page = first_missing_page
+        self.progress_panel.set_page(first_missing_page + 1)
         self.workspace_view.prepare_page(first_missing_page)
         
         self._trans_worker.start()
-        
 
-    def _on_segment_translated(self, trans_id: str, translated_text: str):
-        """Reçoit une traduction progressive et l'injecte en temps réel dans l'HTML de droite."""
-        page_idx = self._tid_to_page.get(trans_id, 0)
-        # Si nous changeons de page de traduction, nous mettons à jour la barre globale (Bleue)
+    def _on_segment_translated(self, trans_id: str, translated_text: str) -> None:
+        """ Updates visual panes sequentially on thread signals. """
+        page_idx: int = self._tid_to_page.get(trans_id, 0)
+        
         if page_idx != self._current_translating_page:
             self._current_translating_page = page_idx
             self.workspace_view.prepare_page(page_idx)
             self.progress_panel.set_page(page_idx + 1)
 
         self.workspace_view.stream_translation(trans_id, translated_text)
-        
-        # Nous incrémentons le suivi local des segments (Verte)
         self.progress_panel.increment_segment()
 
-
-
-    def _on_translation_finished(self):
-        self.a_start.setText("▶  Démarrer la traduction")
+    def _on_translation_finished(self) -> None:
+        self.a_start.setText(self.tr("Start Translation"))
         self.a_start.setEnabled(True)
-        
-        # ── NETTOYAGE ULTRA-PROPRE DES SQUELETTES RESTANTS ──
         self.workspace_view.clean_up_all_skeletons()
 
-        # Si le traitement s'est terminé sans interruption volontaire
         if self._trans_worker and not self._trans_worker.is_stopped():
-            self.status.showMessage("✅ Traduction terminée.")
+            self.status.showMessage(self.tr("Translation completed successfully."))
+            self.a_export.setEnabled(True)
             
-            # ── ABSORPTION DES SKELETONS ORPHELINS : Forcer la progression à 100% ──
             self.progress_panel.local_progress.update_values(
-                len(self._original_texts), len(self._original_texts), "Terminé ✓"
+                len(self._original_texts), len(self._original_texts), self.tr("Finished ✓")
             )
             
-            # On s'assure que toutes les pages et tous les segments manquants/orphelins 
-            # de la page active soient marqués comme résolus en mémoire de traduction.
+            # Map memory states
             for p_idx in range(self.progress_panel._total_pages):
                 if p_idx not in self._translated_pages:
                     self._translated_pages[p_idx] = {}
@@ -793,135 +795,58 @@ class MainWindow(QMainWindow):
                     if self._tid_to_page.get(k, 0) == p_idx and k not in self._translated_pages[p_idx]:
                         self._translated_pages[p_idx][k] = v
             
-            QMessageBox.information(self, "Terminé", "Le document a été traduit avec succès !")
+            QMessageBox.information(self, self.tr("Success"), self.tr("Document translation succeeded!"))
         else:
-            self.status.showMessage("❌ Traduction interrompue par l'utilisateur.")
+            self.status.showMessage(self.tr("Translation process canceled."))
+            if self._current_translating_page != -1:
+                self.workspace_view.reset_page_to_waiting(self._current_translating_page)
 
 
 
-    def _on_translation_error(self, err_msg: str):
-        self.a_start.setText("▶  Démarrer la traduction")
-        QMessageBox.critical(self, "Erreur", f"La traduction a été interrompue :\n{err_msg}")
-
-    # ── LOGIQUE D'EXPORTATION NATIVE HAUTE FIDÉLITÉ  ──
-    def _export_pdf_dialog(self):
-        """
-        Génère un PDF vectoriel d'une qualité d'impression identique en tâche de fond.
-        """
-        if not self._instrumented_html_path:
-            return
-
-        original_file_name = os.path.basename(self._pdf_path)
-        base_name, extension = os.path.splitext(original_file_name)
-        suggested_name = f"{base_name}_translated{extension}"
-
-        default_dir = os.path.join(os.path.expanduser("~"), "Documents", suggested_name)
-
-        destination_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Exporter le PDF traduit",
-            default_dir,
-            "Documents PDF (*.pdf)"
-        )
-
-        if not destination_path:
-            return
-
-        QTimer.singleShot( 2000, lambda: self.status.showMessage("Génération du document PDF vectoriel final...")    ) 
-
-        # ÉTAPE 1 : Récupérer le code HTML déjà traduit depuis la mémoire active de l'iframe
-        js_get_translated_html = """
-        (function() {
-            var iframe = document.getElementById('html-iframe');
-            if (iframe && iframe.contentWindow) {
-                return iframe.contentWindow.document.documentElement.outerHTML;
-            }
-            return "";
-        })();
-        """
-        self.status.showMessage("Export du document PDF vectoriel final, Patientez...")  
-        def on_html_retrieved(translated_html):
-            if not translated_html:
-                self.status.showMessage("❌ Échec de la récupération du texte traduit.")
-                return
-
-            # ÉTAPE 2 : Écrire cet HTML traduit et propre dans un fichier temporaire sur le disque
-            self._temp_print_file = tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode="w", encoding="utf-8")
-            self._temp_print_file.write(translated_html)
-            self._temp_print_file.close()
-
-            # ÉTAPE 3 : Lancer l'imprimante Chromium asynchrone sur ce fichier propre sans loaders
-            self._print_view = QWebEngineView()
-            self._print_view.settings().setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
-            self._print_view.load(QUrl.fromLocalFile(self._temp_print_file.name))
-
-            def on_load_finished(ok):
-                if ok:
-                    # Lancement de l'impression PDF Chromium standard (asynchrone, ne fige pas l'IHM)
-                    self._print_view.page().printToPdf(destination_path)
-                else:
-                    self.status.showMessage("❌ Échec du chargement du document pour l'exportation.")
-                    try:
-                        os.unlink(self._temp_print_file.name)
-                    except Exception:
-                        pass
-
-            def on_pdf_printed(path):
-                self.status.showMessage(f"Fichier exporté avec succès : {os.path.basename(path)}")
-                QMessageBox.information(self, "Export réussi", f"Le PDF traduit a été enregistré sous :\n{path}")
-                
-                # Nettoyage physique du fichier temporaire du disque
-                try:
-                    os.unlink(self._temp_print_file.name)
-                except Exception:
-                    pass
-                self._print_view = None  # Libération de la mémoire de l'imprimante
-
-            self._print_view.loadFinished.connect(on_load_finished)
-            self._print_view.page().pdfPrintingFinished.connect(on_pdf_printed)
-
-        # Exécuter l'extraction asynchrone depuis la vue Chromium active
-        self.workspace_view.page().runJavaScript(js_get_translated_html, on_html_retrieved)
+    def _on_translation_error(self, err_msg: str) -> None:
+        self.a_start.setText(self.tr("Start Translation"))
+        QMessageBox.critical(self, self.tr("Translation Interrupted"), f"{self.tr('An error occurred during translation:')}\n{err_msg}")
+        
+        if self._current_translating_page != -1:
+            self.workspace_view.reset_page_to_waiting(self._current_translating_page)
 
 
+    def _export_pdf_dialog(self) -> None:
+        """ Invokes the decoupled headless Chromium vector exporter utility. """
+        if self._pdf_path:
+            self.pdf_exporter.export_pdf(self._pdf_path)
 
-    # ── LOGIQUE DES ACTIONS DE SÉLECTION MENUS ──
-    def _apply_layout_both(self):
+    def _apply_layout_both(self) -> None:
         self.workspace_view.set_pane_layout("both")
-        self.status.showMessage("Affichage : Vue partagée côte-à-côte.")
+        self.status.showMessage(self.tr("Display: Dual split layout active."))
 
-    def _apply_layout_pdf_only(self):
+    def _apply_layout_pdf_only(self) -> None:
         self.workspace_view.set_pane_layout("pdf_only")
-        self.status.showMessage("Affichage : Original (PDF) uniquement.")
+        self.status.showMessage(self.tr("Display: Original PDF layout active."))
 
-    def _apply_layout_trans_only(self):
+    def _apply_layout_trans_only(self) -> None:
         self.workspace_view.set_pane_layout("trans_only")
-        self.status.showMessage("Affichage : Traduction uniquement.")
+        self.status.showMessage(self.tr("Display: Translated layout active."))
 
-    def _adjust_zoom(self, delta: float):
+    def _adjust_zoom(self, delta: float) -> None:
         if delta == 0.0:
             self._zoom = 1.0
         else:
             self._zoom = max(0.5, min(2.5, self._zoom + delta))
         self.workspace_view.set_zoom(self._zoom)
-        self.zoom_widget.set_zoom_factor(self._zoom)  # Synchronise le slider
-        self.status.showMessage(f"Zoom appliqué : {int(self._zoom * 100)}%")
+        self.zoom_widget.set_zoom_factor(self._zoom)
+        self.status.showMessage(self.tr("Zoom set to: {percent}%").format(percent=int(self._zoom * 100)))
     
-    def _on_slider_zoom_changed(self, factor: float):
-        """Applique de manière synchronisée le zoom aux deux documents de l'affichage."""
+    def _on_slider_zoom_changed(self, factor: float) -> None:
         self._zoom = factor
         self.workspace_view.set_zoom(factor)
     
-    def _toggle_progress_panel(self, visible: bool):
-        """Masque ou affiche le panneau de progression à la manière de VS Code."""
+    def _toggle_progress_panel(self, visible: bool) -> None:
         self.progress_panel.setVisible(visible)
-        
-        # Le layout vertical de Qt réajuste automatiquement l'afficheur Chromium
-        # pour occuper tout l'espace restant de manière fluide.
-        statut = "affiché" if visible else "masqué"
-        self.status.showMessage(f"Affichage : Panneau de progression {statut}.")
+        state_label: str = self.tr("displayed") if visible else self.tr("hidden")
+        self.status.showMessage(self.tr("Display: Progress tracking panel {state}.").format(state=state_label))
 
-    def toggle_fullscreen(self):
+    def toggle_fullscreen(self) -> None:
         if self.isFullScreen():
             self.showNormal()
             self.a_fullscreen.setChecked(False)
@@ -929,105 +854,82 @@ class MainWindow(QMainWindow):
             self.showFullScreen()
             self.a_fullscreen.setChecked(True)
 
-    def _on_lang_selected(self):
+    def _on_lang_selected(self) -> None:
         a = self.sender()
-        self._current_lang = a.data()
-        for act in self._lang_actions.values():
-            act.setChecked(False)
-        a.setChecked(True)
+        if isinstance(a, QAction):
+            self._current_lang = str(a.data())
+            for act in self._lang_actions.values():
+                act.setChecked(False)
+            a.setChecked(True)
 
-    
-    def _populate_recent_menu(self):
-        """Remplit dynamiquement le sous-menu Fichiers récents."""
+    def _populate_recent_menu(self) -> None:
+        """ Dynamically builds file historical menu rows. """
         self.m_recent.clear()
-        
-        settings = QSettings("RockTranslate", "RecentFiles")
-        recent_list = settings.value("recent_list", [])
+        recent_list: List[str] = self.recent_manager.get_recent_files()
         
         if not recent_list:
-            empty_action = QAction("Aucun document récent", self)
+            empty_action = QAction(self.tr("No recent documents found"), self)
             empty_action.setEnabled(False)
             self.m_recent.addAction(empty_action)
             return
         
         for file_path in recent_list:
-            if os.path.exists(file_path):
-                # Affiche le nom du fichier avec le chemin complet en bulle d'info
-                action = QAction(os.path.basename(file_path), self)
-                action.setToolTip(file_path)  # Affiche le chemin complet au survol
-                action.triggered.connect(lambda checked, path=file_path: self._open_pdf_by_path(path))
-                self.m_recent.addAction(action)
+            action = QAction(os.path.basename(file_path), self)
+            action.setToolTip(file_path)
+            # Safe lambda capture index maps
+            action.triggered.connect(lambda checked, path=file_path: self._open_pdf_by_path(path))
+            self.m_recent.addAction(action)
         
         if recent_list:
             self.m_recent.addSeparator()
-            clear_action = QAction("Effacer l'historique", self)
+            clear_action = QAction(self.tr("Clear History"), self)
             clear_action.triggered.connect(self._clear_recent_files)
             self.m_recent.addAction(clear_action)
 
-    def _clear_recent_files(self):
-        """Efface l'historique des fichiers récents."""
-        settings = QSettings("RockTranslate", "RecentFiles")
-        settings.setValue("recent_list", [])
-        self.welcome_screen.refresh_recent_files()
+    def _clear_recent_files(self) -> None:
+        self.recent_manager.clear_history()
 
-    def _add_to_recent_files(self, file_path: str):
-        """Enregistre le chemin complet du document de manière persitée dans les réglages système."""
-        settings = QSettings("RockTranslate", "RecentFiles")
-        recent = settings.value("recent_list", [])
-        
-        if file_path in recent:
-            recent.remove(file_path)
-        recent.insert(0, file_path)
-        recent = recent[:10]  # Conserve un historique des 10 derniers documents
-        
-        settings.setValue("recent_list", recent)
-        self.welcome_screen.refresh_recent_files()
+    def _add_to_recent_files(self, file_path: str) -> None:
+        self.recent_manager.add_file(file_path)
 
-    def _show_document_properties(self):
-        """Affiche le dialogue de propriétés d'origine et statistiques de traduction."""
+    def _show_document_properties(self) -> None:
         if not self._pdf_path:
             return
 
-        # Construction des métadonnées de traduction uniques de RockTranslate
-        # Calculer le nombre réel de segments traduits depuis la mémoire de traduction
         already_translated_ids = set()
         for page_data in self._translated_pages.values():
             already_translated_ids.update(page_data.keys())
-        done_segments = len(already_translated_ids)
-        total_segments = len(self._original_texts)
+        done_segments: int = len(already_translated_ids)
+        total_segments: int = len(self._original_texts)
         
-        trans_status = "Non traduit"
-        trans_date = "Inconnue"
+        # Standardized English states for our properties translator
+        trans_status: str = "Not translated"
+        trans_date: str = "Unknown"
         if done_segments >= total_segments and total_segments > 0:
-            trans_status = "Traduit d'origine 💎"
-            
+            trans_status = "Fully translated 💎"
             trans_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         elif done_segments > 0:
-            trans_status = "Traduction partielle en cours"
+            trans_status = "Partial translation in progress"
 
         trans_stats = {
             "trans_status": trans_status,
             "trans_lang": self._current_lang,
-            "trans_model": self._current_model,
-            "trans_segments": f"{done_segments} / {total_segments} sémantiques",
-            "trans_scale_avg": "94.4% (Optimisé)" if done_segments > 0 else "100.0%",
+            "trans_model": self._current_model or "None",
+            "trans_segments": f"{done_segments} / {total_segments}",
+            "trans_scale_avg": "94.4% (Optimized)" if done_segments > 0 else "100.0%",
             "trans_date": trans_date
         }
 
-        # Lecture physique et sémantique du fichier
+        # Run file metadata extract cycles
         metadata = get_pdf_metadata(self._pdf_path, trans_stats)
 
-        # Affichage de la boîte de dialogue tabulée
+        # Build modal dialog
         dialog = DocumentPropertiesDialog(metadata, self)
         dialog.exec()
 
-
-    def _close_document(self):
-        # Arrêt sécurisé et découplé du thread actif s'il existe
+    def _close_document(self) -> None:
         if self._trans_worker and self._trans_worker.isRunning():
             self._trans_worker.stop()
-            
-            # Déconnexion de sécurité des signaux pour éviter les retours sur widgets détruits
             try:
                 self._trans_worker.status_update.disconnect()
                 self._trans_worker.batch_progress.disconnect()
@@ -1037,7 +939,6 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
                 
-            # Attente maximale de 300ms, sinon interruption forcée pour éviter le plantage
             if not self._trans_worker.wait(300):
                 self._trans_worker.terminate()
 
@@ -1047,7 +948,6 @@ class MainWindow(QMainWindow):
         self._pdf_path = None
         self._instrumented_html_path = None
         self._original_texts = {}
-        # ── REMISE À ZÉRO COMPLÈTE À LA FERMETURE ──
         self._translated_pages = {}
         self.progress_panel.clear()
         
@@ -1058,9 +958,9 @@ class MainWindow(QMainWindow):
         
         self.a_layout_both.setChecked(True)
         self.stacked_widget.setCurrentIndex(0)
-        self.status.showMessage("Document clos.")
+        self.status.showMessage(self.tr("Document closed."))
 
-    def closeEvent(self, event):
+    def closeEvent(self, event: Any) -> None:
         self._close_document()
         super().closeEvent(event)
 

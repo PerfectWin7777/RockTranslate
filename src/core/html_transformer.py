@@ -444,6 +444,45 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
                 span.classList.add('shimmer-line');
             });
         };
+        
+        // --- Réinitialisation chirurgicale d'une seule page ---
+        window.resetPageToWaiting = function(pageIdx) {
+            var pages = document.querySelectorAll('.pf');
+            var page = pages[pageIdx];
+            if (!page) return;
+
+            // 1. Retirer la classe shimmer de tous les spans de cette page pour ré-afficher le texte d'origine
+            page.querySelectorAll('span[data-trans-id]').forEach(function(span) {
+                span.classList.remove('shimmer-line');
+            });
+
+            // 2. Re-créer dynamiquement le panneau de verre dépoli s'il a été supprimé
+            var glass = document.getElementById('glass-overlay-t-' + pageIdx);
+            if (!glass) {
+                glass = document.createElement('div');
+                glass.id = 'glass-overlay-t-' + pageIdx;
+                glass.style.cssText = "position: absolute; top: 5%; left: 5%; width: 90%; height: 90%; background: linear-gradient(135deg, rgba(255,255,255,0.45), rgba(255,255,255,0.15)); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); border: 1px solid rgba(255,255,255,0.5); border-radius: 16px; box-shadow: 0 8px 32px rgba(31,38,135,0.25), 0 0 1px rgba(255,255,255,0.5); z-index: 1000; display: flex; justify-content: center; align-items: center; pointer-events: none;";
+                
+                var inner = document.createElement('div');
+                inner.style.cssText = "background: rgba(255,255,255,0.92); padding: 24px 40px; border-radius: 12px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.15); display: flex; flex-direction: column; align-items: center;";
+                
+                var loader = document.createElement('div');
+                loader.className = 'circular-loader';
+                
+                var text_p = document.createElement('p');
+                text_p.style.cssText = "color:#1e293b; font-size:14px; font-weight:600; margin:0; font-family: sans-serif;";
+                text_p.textContent = "En attente de traduction...";
+                
+                inner.appendChild(loader);
+                inner.appendChild(text_p);
+                glass.appendChild(inner);
+                page.appendChild(glass);
+            } else {
+                glass.style.display = 'flex';
+                glass.style.opacity = '1';
+            }
+        };
+
 
         // Écouteur de messages cross-iframe sécurisé
         window.addEventListener('message', function(event) {
@@ -454,6 +493,8 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
                 window.applyTranslation(msg.transId, msg.translatedText);
             } else if (msg.action === 'preparePage') {
                 window.preparePageForTranslation(msg.pageIdx);
+            } else if (msg.action === 'resetPage') {
+                window.resetPageToWaiting(msg.pageIdx);
             }
         });
     """

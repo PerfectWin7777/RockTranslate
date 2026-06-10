@@ -1,32 +1,38 @@
 """
-prompts.py — System prompts centralisés pour RockTranslate
-Chemin : src/translation/prompts.py
+RockTranslate — Centralized System Prompts and LLM Message Formatter
+Path: translation/prompts.py
+
+This module defines system prompts for scientific document translation and formats 
+LLM user messages, implementing localized sliding-window terminology injections 
+to ensure multi-page structural translation consistency.
+
+All language catalogs and configurations are imported from core.constants.
+
+Author: RockTranslate Contributors
+License: MIT License
+Version: 1.0.0
 """
 
 import json
+from typing import List, Dict, Optional
 
-# Langues supportées (affichage UI)
-SUPPORTED_LANGUAGES = {
-    "fr": "French",
-    "en": "English",
-    "es": "Spanish",
-    "de": "German",
-    "zh": "Chinese (Simplified)",
-    "ar": "Arabic",
-    "pt": "Portuguese",
-    "it": "Italian",
-    "ja": "Japanese",
-    "ru": "Russian",
-}
-
-DEFAULT_LANG_CODE = "fr"
-DEFAULT_LANG_NAME = SUPPORTED_LANGUAGES[DEFAULT_LANG_CODE]
+# Safe fallback imports supporting both standard package modules and direct scripts
+try:
+    from core.constants import DEFAULT_LANG_NAME
+except ImportError:
+    from src.core.constants import DEFAULT_LANG_NAME
 
 
 def get_system_prompt(target_lang: str = DEFAULT_LANG_NAME) -> str:
     """
-    Retourne le system prompt de traduction.
-    target_lang : nom complet de la langue ("French", "Spanish", etc.)
+    Generates the master system prompt defining translation rules, layout constraints,
+    style tags, and JSON structure requirements.
+
+    Args:
+        target_lang: Full string name of the target language (e.g., 'French', 'German').
+
+    Returns:
+        str: Standard system prompt compiled for the AI model.
     """
     return f"""You are an expert scientific document translator specializing in sciences.
 
@@ -66,8 +72,8 @@ Rules:
 4. Citations like <color_0066cc>Smith et al. (2020)</color_0066cc> stay untranslated inside their tag
 
 5. Reattach hyphenated line-breaks: if a word ends with '-' and continues on the next line,
-   merge them before translating: 'fac-\nteur' → 'facteur', 'pri-\norité' → 'priorité',
-   'mor-\nphometric' → 'morphometric'. The hyphen is a line-break artifact, not a real hyphen.
+   merge them before translating: 'fac-\\nteur' → 'facteur', 'pri-\\norité' → 'priorité',
+   'mor-\\nphometric' → 'morphometric'. The hyphen is a line-break artifact, not a real hyphen.
 
 
 
@@ -90,24 +96,25 @@ Output structure: [{{"id": "g-0", "translated": "..."}}]
 The output must be valid JSON. Nothing else."""
 
 
-def get_user_message(batch_segments: list[dict], context: str | None = None) -> str:
+def get_user_message(batch_segments: List[Dict[str, str]], context: Optional[str] = None) -> str:
     """
-    Formate le batch de paragraphes en message utilisateur JSON.
+    Formats the batch segment payload as a clean JSON query string,
+    prepending sliding-window reference texts for consistency.
 
-    batch_segments   : [{"id": str, "text": str}, ...]
-    context : derniers paragraphes déjà traduits (contexte glissant inter-pages).
-              Injecté en tête de message pour assurer la cohérence terminologique
-              et stylistique. Le LLM ne doit PAS les retraduire.
+    Args:
+        batch_segments: List of maps containing segment keys and content (e.g., [{"id": "g-0", "text": "..."}]).
+        context: Sliding window text of adjacent translated paragraphs.
+
+    Returns:
+        str: Formatted user query string ready for API payload injection.
     """
-    
-
     if context:
         context_block = (
-            f"[PREVIOUS CONTEXT — do NOT translate, use for consistency only]\n"
-            f"[PREVIOUS CONTEXT — BEGIN]\n"
+            "[PREVIOUS CONTEXT — do NOT translate, use for consistency only]\n"
+            "[PREVIOUS CONTEXT — BEGIN]\n"
             f"{context}\n"
-            f"[PREVIOUS CONTEXT — END]\n\n"
-            f"[SEGMENTS TO TRANSLATE]\n"
+            "[PREVIOUS CONTEXT — END]\n\n"
+            "[SEGMENTS TO TRANSLATE]\n"
         )
     else:
         context_block = ""

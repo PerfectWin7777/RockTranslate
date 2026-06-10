@@ -1,72 +1,93 @@
-# translation/llm_client.py
+"""
+RockTranslate — Universal, Resilient, and Multi-Provider LLM Client
+Path: translation/llm_client.py
+
+This module implements a robust, fault-tolerant translation wrapper based on LiteLLM.
+It integrates automatic connection retry budgets (exponential backoff), 
+rate-limit (429) wait recovery loops, and dynamic, provider-isolated model fallback.
+
+All parsed JSON responses are processed through 'json_repair' to handle and correct 
+minor syntactic deviations in model outputs automatically.
+
+Author: RockTranslate Contributors
+License: MIT License
+Version: 1.0.0
+"""
 
 import os
 import time
-import re
-from typing import Callable, Optional, List, Dict
+from typing import Callable, Optional, List, Dict, Any, Tuple
 from loguru import logger
 import json_repair
 
+# Suppress verbose debug console logs from LiteLLM dependencies
 try:
     import litellm
     litellm.suppress_debug_info = True
 except ImportError:
     litellm = None
 
-from translation.prompts import (
-    get_system_prompt,
-    get_user_message,
-    DEFAULT_LANG_NAME,
-)
-
-# Configuration de la tolérance aux pannes réseau
-_MAX_RETRIES = 4
-_RETRY_DELAYS = [2.0, 3.0, 6.0]  # Backoff exponentiel en secondes
+# Safe fallback imports supporting both standard package modules and direct scripts
+try:
+    from core.constants import DEFAULT_PROVIDERS, MAX_RETRIES, RETRY_DELAYS
+    from translation.prompts import get_system_prompt, get_user_message
+except ImportError:
+    from src.core.constants import DEFAULT_PROVIDERS, MAX_RETRIES, RETRY_DELAYS
+    from src.translation.prompts import get_system_prompt, get_user_message
 
 
 class LLMClient:
     """
-    Client de traduction universel et résistant aux pannes basé sur LiteLLM.
-    
-    Cette classe gère le routage des requêtes vers plus de 100 modèles d'IA (Gemini,
-    GPT, Claude, Ollama local), s'auto-ajuste en cas de Rate-Limit, et nettoie
-    les retours JSON défaillants.
+    Universal translation API wrapper utilizing LiteLLM.
+    Handles rate limiting, temporary API failures, and provider-conformed fallbacks.
     """
 
     def __init__(
         self,
         model: str = "gemini/gemini-2.5-flash-lite",
         api_key: Optional[str] = None,
-        target_lang: str = DEFAULT_LANG_NAME,
+        target_lang: str = "French",
         max_tokens: Optional[int] = None,
-        custom_base_url : str = None,
-        all_keys: dict = None, 
+        custom_base_url: Optional[str] = None,
+        all_keys: Optional[Dict[str, str]] = None,
         on_status: Optional[Callable[[str], None]] = None,
-    ):
-        self.model = model
-        self.api_key = api_key or self._get_api_key_from_env(model)
-        self.target_lang = target_lang
-        self.max_tokens = max_tokens
-        self.custom_base_url = custom_base_url
-        self.all_keys = all_keys or {} 
-        self.on_status = on_status
+    ) -> None:
+        """
+        Initializes the resilient LLM translation client.
+
+        Args:
+            model: Selected model routing string (e.g., 'gemini/gemini-2.5-flash').
+            api_key: The API Key corresponding to the selected provider.
+            target_lang: Complete text name of the target language (e.g., 'Spanish').
+            max_tokens: Optional token ceiling limit.
+            custom_base_url: Optional custom target API gateway (e.g., local Ollama port).
+            all_keys: Dictionary holding all configured API credentials from UI settings.
+            on_status: Callback routing live operation statuses to UI tracking elements.
+        """
+        self.model: str = model
+        self.api_key: Optional[str] = api_key or self._get_api_key_from_env(model)
+        self.target_lang: str = target_lang
+        self.max_tokens: Optional[int] = max_tokens
+        self.custom_base_url: Optional[str] = custom_base_url
+        self.all_keys: Dict[str, str] = all_keys or {}
+        self.on_status: Optional[Callable[[str], None]] = on_status
 
         if litellm is None:
             raise ImportError(
-                "La bibliothèque 'litellm' est requise. Veuillez l'installer via pip install litellm."
+                "The 'litellm' library is required. Please install it via 'pip install litellm'."
             )
 
-        logger.info(f"LLMClient initialisé : modèle='{self.model}' | langue cible='{self.target_lang}'")
+        logger.info(f"LLMClient initialized successfully: model='{self.model}' | target_lang='{self.target_lang}'")
 
-    def _log_status(self, message: str):
-        """Notifie l'UI (via le callback) et écrit l'état dans la console de debug."""
+    def _log_status(self, message: str) -> None:
+        """ Notifies the UI status bar (via the callback) and logs debug info. """
         logger.info(message)
         if self.on_status:
             self.on_status(message)
 
-    # ══════════════════════════════════════════════════════════
-    # API PUBLIQUE DE TRADUCTION
-    # ══════════════════════════════════════════════════════════
+    # ==============================================================================
+    # PUBLIC TRANSLATION INTERFACE
+    # ==============================================================================
 
     def translate_batch(
         self,
@@ -74,53 +95,42 @@ class LLMClient:
         context: Optional[str] = None,
     ) -> Optional[List[Dict[str, str]]]:
         """
-        Traduit un lot de segments textuels avec gestion robuste des erreurs et basculement automatique.
-        
-        Args:
-            batch_segments: Liste de segments [{"id": "t-0", "text": "..."}]
-            context: Contexte terminologique d'accompagnement (glissant).
-            
-        Returns:
-            List[Dict] ou None : Liste des segments traduits [{"id": "t-0", "translated": "..."}] ou None si échec.
-        """
-        current_model = self.model
-        current_key = self.api_key
+        Translates a batch of text segments, managing network failures,
+        exponential delays, and automated provider-isolated fallbacks.
 
-        for attempt in range(_MAX_RETRIES):
+        Args:
+            batch_segments: Payload segments list structure (e.g., [{"id": "g-0", "text": "..."}]).
+            context: Sliding terminal context of translated paragraphs.
+
+        Returns:
+            Optional[List[Dict[str, str]]]: Translated segments output list or None.
+        """
+        current_model: str = self.model
+        current_key: Optional[str] = self.api_key
+
+        for attempt in range(MAX_RETRIES):
             try:
-                # En cas d'échecs répétés, tentative de basculement vers un modèle alternatif disponible
+                # Trigger provider-safe dynamic fallback on repeated failures (attempts 3 and 4)
                 if attempt >= 2:
                     fallback_model, fallback_key = self._get_fallback_model_and_key(current_model)
                     if fallback_model and fallback_key:
-                            self._log_status(
-                                f"🔄 Modèle {current_model} saturé ou indisponible. "
-                                f"Basculement sur {fallback_model} (Tentative {attempt + 1})..."
-                            )
-                            current_model = fallback_model
-                            current_key = fallback_key
+                        self._log_status(
+                            f"🔄 Connection temporarily unavailable. "
+                            f"Safely falling back to alternative model '{fallback_model}' "
+                            f"from the same provider (Attempt {attempt + 1})..."
+                        )
+                        current_model = fallback_model
+                        current_key = fallback_key
 
-                # Appel réel de l'API LLM
+                # Perform raw API invocation
                 results = self._call_llm(batch_segments, model=current_model, api_key=current_key, context=context)
-                # print(f"🤖 Réponse IA pour le lot : Reçu {len(results) if results else 0} segments sur {len(batch_segments)} demandés.")
-
-                # print("batch_segments :",batch_segments)
-                # print("results :",results)
 
                 if results is not None:
                     return results
-                
-                # if results is not None:
-                #     # Vérification de l'intégrité du retour
-                #     if len(results) == len(batch_segments):
-                #         return results
-                #     else:
-                #         self._log_status(
-                #             f"⚠️ Traduction incomplète : reçu {len(results)}/{len(batch_segments)} segments."
-                #         )
 
             except Exception as e:
-                err_msg = str(e).lower()
-                is_rate_limit = any(
+                err_msg: str = str(e).lower()
+                is_rate_limit: bool = any(
                     x in err_msg for x in [
                         "rate_limit", "rate limit", "429", "overloaded", "RESOURCE_EXHAUSTED",
                         "resource_exhausted", "resource exhausted", "quota",
@@ -128,34 +138,44 @@ class LLMClient:
                     ]
                 )
 
-                wait_time = 6 * (attempt + 1) # Progression : 6s, 12s, 18s...
+                # Calculate exponential delay index matching RETRY_DELAYS bounds
+                delay_index: int = min(attempt, len(RETRY_DELAYS) - 1)
+                wait_time: float = RETRY_DELAYS[delay_index] * (attempt + 1)
 
                 if is_rate_limit:
-                    for remaining in range(wait_time, 0, -1):
+                    for remaining in range(int(wait_time), 0, -1):
                         self._log_status(
-                            f"⏳ Limite API atteinte (Rate-Limit) — reprise automatique dans {remaining}s..."
+                            f"⏳ API quota or rate limits exceeded. Automatically retrying in {remaining}s..."
                         )
                         time.sleep(1)
                 else:
                     self._log_status(
-                        f"❌ Erreur de connexion ({type(e).__name__}) — pause de {wait_time}s..."
+                        f"❌ Network connection error ({type(e).__name__}). Pausing for {int(wait_time)}s..."
                     )
                     time.sleep(wait_time)
 
-        logger.error(f"❌ Échec de la traduction du lot après {_MAX_RETRIES} tentatives.")
+        logger.error(f"Failed to translate target batch after {MAX_RETRIES} attempts.")
         return None
 
     def translate_single(self, text: str) -> str:
-        """Traduit une chaîne de caractères brute (hors-pipeline principal)."""
-        batch_data = [{"id": "t-single", "text": text}]
+        """
+        Translates a single raw string outside of the standard batch pipelines.
+
+        Args:
+            text: Raw string contents to translate.
+
+        Returns:
+            str: Translated text string.
+        """
+        batch_data: List[Dict[str, str]] = [{"id": "t-single", "text": text}]
         result = self.translate_batch(batch_data)
         if result and result[0].get("translated"):
             return result[0]["translated"]
-        return f"[TRADUCTION ÉCHOUÉE] {text}"
+        return f"[TRANSLATION FAILED] {text}"
 
-    # ══════════════════════════════════════════════════════════
-    # SOUS-MÉTHODES ET MOTEUR INTERNE
-    # ══════════════════════════════════════════════════════════
+    # ==============================================================================
+    # INTERNAL COMPLETIONS & REPAIR ENGINES
+    # ==============================================================================
 
     def _call_llm(
         self,
@@ -164,44 +184,43 @@ class LLMClient:
         api_key: Optional[str],
         context: Optional[str] = None,
     ) -> Optional[List[Dict[str, str]]]:
-        """Exécute l'appel de l'API via LiteLLM et parse la réponse JSON."""
-        try :
-            system_prompt = get_system_prompt(self.target_lang)
-            user_message = get_user_message(batch_segments, context=context)
+        """ Executes standard completion payloads using the LiteLLM client router. """
+        try:
+            system_prompt: str = get_system_prompt(self.target_lang)
+            user_message: str = get_user_message(batch_segments, context=context)
 
-            kwargs = {
+            kwargs: Dict[str, Any] = {
                 "model": model,
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message},
                 ],
-                "temperature": 1.0,  # Faible créativité requise pour de la traduction scientifique
-                "max_tokens": 16384, # Large budget pour éviter la troncature
+                "temperature": 1.0,
+                "max_tokens": 16384,  # Budget to prevent response truncation
             }
 
             if api_key:
                 kwargs["api_key"] = api_key
             
-            # ── ROUTAGE LITELLM DYNAMIQUE DE L'URL DE BASE (Ollama, OpenRouter etc.) ──
+            # Integrate dynamic base URLs for custom target endpoints (e.g. Ollama)
             if self.custom_base_url:
                 kwargs["api_base"] = self.custom_base_url
 
-            # Appel LiteLLM
             response = litellm.completion(**kwargs)
-            raw_text = response.choices[0].message.content.strip()
+            raw_text: str = response.choices[0].message.content.strip()
+            return self._parse_json_response(raw_text)
+            
         except Exception as e:
-            import traceback; traceback.print_exc()
-            logger.warning(f"Erreur lors de l'appel à l'API LLM : {e}")
+            logger.warning(f"Error during raw LiteLLM execution: {e}")
             return None
 
-        return self._parse_json_response(raw_text)
-
-
-
     def _parse_json_response(self, raw: str) -> Optional[List[Dict[str, str]]]:
-        """Nettoie le texte renvoyé par le LLM pour en extraire un JSON valide."""
-        cleaned = raw
-        # Retrait des balises de code Markdown de type ```json ou ```
+        """
+        Parses and cleans the raw JSON response returned by the LLM.
+        Utilizes json_repair to handle and correct minor formatting/syntax issues.
+        """
+        cleaned: str = raw
+        # Remove markdown block tags if present
         if "```" in cleaned:
             lines = cleaned.split("\n")
             cleaned = "\n".join(
@@ -211,88 +230,84 @@ class LLMClient:
         cleaned = cleaned.strip()
 
         try:
-            # Utilisation de json_repair pour tolérer et corriger les erreurs de syntaxe de l'IA
+            # Tolerates syntax anomalies and corrects missing braces/commas
             data = json_repair.loads(cleaned)
             if isinstance(data, list):
                 return data
-            logger.warning(f"Le JSON est valide mais n'est pas une liste : {type(data)}")
+            logger.warning(f"Decoded JSON is valid but is not a list: {type(data)}")
             return None
         except Exception as e:
-            logger.warning(f"Échec de l'analyse du JSON : {e}")
+            logger.warning(f"Failed to parse or repair JSON response: {e}")
             
-            # Recherche de secours d'un tableau à l'intérieur de la réponse
-            start = cleaned.find("[")
-            end = cleaned.rfind("]")
+            # Sub-string backup search for brackets in case of preamble/postamble chatter
+            start: int = cleaned.find("[")
+            end: int = cleaned.rfind("]")
             if start != -1 and end != -1 and end > start:
                 try:
-                    return json_repair.loads(cleaned[start:end + 1])
+                    repaired = json_repair.loads(cleaned[start:end + 1])
+                    if isinstance(repaired, list):
+                        return repaired
                 except Exception:
                     pass
             return None
-    
 
-    def _get_fallback_model_and_key(self, current_model: str) -> tuple[str | None, str | None]: # todo
+    def _get_fallback_model_and_key(self, current_model: str) -> Tuple[Optional[str], Optional[str]]:
         """
-        Détermine un modèle de secours et s'assure que l'utilisateur possède
-        bien une clé d'API valide et configurée pour ce fournisseur spécifique.
+        Dynamically determines a safer fallback model strictly restricted to the 
+        active provider, ensuring API billings and keys remain within the same boundaries.
+
+        Args:
+            current_model: The routing name of the model that failed (e.g., 'gemini/gemini-2.5-flash-lite').
+
+        Returns:
+            Tuple[Optional[str], Optional[str]]: The alternative model name and its active API key if configured.
         """
-        fallback_chain = [
-            "gemini/gemini-3.1-flash-lite",
-            "gemini/gemini-2.5-flash-lite",
-            "gemini/gemini-2.5-flash",
-            "gemini/gemini-2.0-flash",
-            "gpt-4o-mini",
-            "gemini/gemini-1.5-pro",
-            "gpt-4o"
+        # 1. Identify which provider is currently running by checking prefixes
+        active_provider: Optional[str] = None
+        provider_config: Optional[Dict[str, Any]] = None
+        
+        for name, cfg in DEFAULT_PROVIDERS.items():
+            prefix = cfg.get("prefix", "")
+            if prefix and isinstance(prefix, str) and current_model.startswith(prefix):
+                active_provider = name
+                provider_config = cfg
+                break
+                
+        if not active_provider or not provider_config:
+            logger.warning(f"Could not resolve provider boundaries for model: {current_model}")
+            return None, None
+
+        # 2. Get the list of alternative models for this provider
+        suggested_models: list = provider_config.get("models", [])
+        prefix = provider_config.get("prefix", "")
+        
+        # Build fully qualified model paths (e.g., 'gemini/gemini-2.5-flash')
+        qualified_models: List[str] = [
+            f"{prefix}{m}" if not m.startswith(prefix) else m for m in suggested_models
         ]
-        try:
-            current_idx = fallback_chain.index(current_model)
-            candidates = fallback_chain[current_idx + 1:]
-        except ValueError:
-            candidates = fallback_chain
 
+        # 3. Locate the failing model in the chain to find subsequent alternatives
+        candidates: List[str] = []
+        try:
+            current_idx = qualified_models.index(current_model)
+            candidates = qualified_models[current_idx + 1:]
+        except ValueError:
+            # Fallback to the entire model sequence if the failing model is not in standard lists
+            candidates = qualified_models
+
+        # 4. Find the first candidate that has a valid API key configured
+        key = self.all_keys.get(active_provider, self.api_key)
+        
         for candidate in candidates:
-            # Identifier le fournisseur requis pour cette alternative
-            provider = None
-            if "gemini" in candidate:
-                provider = "Google Gemini"
-            elif "gpt" in candidate:
-                provider = "OpenAI"
-            
-            if provider:
-                # Récupérer la clé d'API si configurée
-                key = self.all_keys.get(provider)
-                if key:
-                    return candidate, key
-                    
+            # Local Ollama doesn't require keys, others require valid credentials
+            if active_provider == "Ollama (Local)" or key:
+                return candidate, key
+
         return None, None
-    
-
-
-    def _get_fallback_model(self, current_model: str) -> Optional[str]:
-        """Détermine un modèle de secours logique en cas de saturation de l'API principale."""
-        fallback_chain = [
-            "gemini/gemini-2.5-flash",
-            "gemini/gemini-3.1-flash-lite",
-            "gemini/gemini-2.5-flash-lite",
-            "gemini/gemini-3-flash-preview",
-            
-        ]
-        try:
-            current_idx = fallback_chain.index(current_model)
-            candidates = fallback_chain[current_idx + 1:] + fallback_chain[:current_idx]
-        except ValueError:
-            candidates = fallback_chain
-
-        for candidate in candidates:
-            key = self._get_api_key_from_env(candidate)
-            if key:
-                return candidate
-        return None
 
     @staticmethod
     def _get_api_key_from_env(model: str) -> Optional[str]:
-        """Récupère dynamiquement la clé API requise depuis l'environnement système."""
+        """ Retrieves standard credentials from active system environments dynamically. """
         model_lower = model.lower()
         if "gemini" in model_lower:
             return os.getenv("GEMINI_API_KEY")
