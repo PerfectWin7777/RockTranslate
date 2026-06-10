@@ -2,6 +2,7 @@
 
 import os, re
 import subprocess
+from typing import Callable
 from bs4 import BeautifulSoup, NavigableString
 
 # Importation découplée de notre nouvel utilitaire de téléchargement
@@ -10,9 +11,14 @@ from utils.downloader import check_and_download_pdf2htmlex, DEFAULT_ASSETS_DIR
 ACCENTS_TO_IGNORE = {'´', '`', '¨', 'ˆ', '˜', '¸', 'ˇ', '¯', '˘', '˙', '˚', '˝', '˛', '⇑', '⇓'}
 
 
-def convert_pdf_to_html(pdf_path: str, assets_dir: str = DEFAULT_ASSETS_DIR) -> str | None:
+def convert_pdf_to_html(
+    pdf_path: str, 
+    assets_dir: str = DEFAULT_ASSETS_DIR, 
+    on_progress: Callable[[int, int], None] = None
+) -> str | None:
     """
-    Convertit un fichier PDF en HTML brut en utilisant l'exécutable local pdf2htmlEX.
+    Convertit un fichier PDF en HTML brut en utilisant l'exécutable local pdf2htmlEX
+    en lisant en direct la progression des pages.
     """
     pdf2htmlex_exe = check_and_download_pdf2htmlex(assets_dir)
     if not pdf2htmlex_exe:
@@ -34,13 +40,32 @@ def convert_pdf_to_html(pdf_path: str, assets_dir: str = DEFAULT_ASSETS_DIR) -> 
     ]
     
     print(f"⚙️ Conversion haute fidélité du PDF en cours ({pdf_filename})...")
-    result = subprocess.run(
-        cmd, cwd=pdf_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=120
+    # On utilise Popen pour pouvoir lire la sortie de progression en temps réel
+    process = subprocess.Popen(
+        cmd, cwd=pdf_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
     )
-    if result.returncode == 0 and os.path.exists(output_html_path):
+
+    # Lecture en direct du flux stderr de pdf2htmlEX
+    while True:
+        line = process.stderr.readline()
+        if not line and process.poll() is not None:
+            break
+        
+        # pdf2htmlEX écrit sa progression sous la forme : "Working: 1/12"
+        if "Working:" in line:
+            match = re.search(r"Working:\s*(\d+)/(\d+)", line)
+            if match and on_progress:
+                current_page = int(match.group(1))
+                total_pages = int(match.group(2))
+                on_progress(current_page, total_pages)
+
+    process.wait()
+    if process.returncode == 0 and os.path.exists(output_html_path):
         print("✅ Fichier HTML brut généré.")
         return output_html_path
     return None
+
+    
 
 def wrap_text_nodes_recursively(soup, parent_element, trans_idx_ref, original_texts_map) -> None:
     """

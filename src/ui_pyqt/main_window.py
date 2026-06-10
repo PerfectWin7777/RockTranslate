@@ -331,12 +331,16 @@ class MainWindow(QMainWindow):
         # Lancement du nouveau worker découplé d'extraction
         self._ext_worker = ExtractionWorker(path)
         self._ext_worker.status_update.connect(self.status.showMessage)
+        # Connexion de notre nouveau signal de progression en temps réel
+        self._ext_worker.extraction_progress.connect(self._on_extraction_progress)
         self._ext_worker.finished.connect(self._on_extraction_finished)
         self._ext_worker.error.connect(self._on_extraction_error)
         self._ext_worker.start()
 
-    def _on_extraction_progress(self, message: str):
-        self.status.showMessage(message)
+    
+    def _on_extraction_progress(self, current: int, total: int):
+        """Met à jour la barre d'état avec le numéro réel de la page en cours d'extraction."""
+        self.status.showMessage(f"⚙️ Ouverture du PDF en cours : Page {current}/{total}...")
 
     def _on_extraction_finished(self, instrumented_html_path: str, original_texts_map: dict, tid_to_page: dict):
         self._instrumented_html_path = instrumented_html_path
@@ -559,7 +563,7 @@ class MainWindow(QMainWindow):
         # pour occuper tout l'espace restant de manière fluide.
         statut = "affiché" if visible else "masqué"
         self.status.showMessage(f"Affichage : Panneau de progression {statut}.")
-        
+
     def toggle_fullscreen(self):
         if self.isFullScreen():
             self.showNormal()
