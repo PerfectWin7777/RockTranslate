@@ -279,6 +279,14 @@ class MainWindow(QMainWindow):
         a_zoom_reset.triggered.connect(lambda: self._adjust_zoom(0.0))
 
         m_view.addSeparator()
+        
+        # Action à bascule type VS Code (Ctrl+J) pour masquer/afficher
+        self.a_toggle_progress = QAction("Afficher le panneau de progression", self, checkable=True)
+        self.a_toggle_progress.setShortcut(QKeySequence("Ctrl+J"))
+        self.a_toggle_progress.setChecked(True)  # Visible par défaut
+        self.a_toggle_progress.triggered.connect(self._toggle_progress_panel)
+        m_view.addAction(self.a_toggle_progress)
+
 
         self.a_fullscreen = QAction("Plein écran", self, checkable=True)
         self.a_fullscreen.setShortcut(QKeySequence("F11"))
@@ -542,7 +550,16 @@ class MainWindow(QMainWindow):
         """Applique de manière synchronisée le zoom aux deux documents de l'affichage."""
         self._zoom = factor
         self.workspace_view.set_zoom(factor)
-
+    
+    def _toggle_progress_panel(self, visible: bool):
+        """Masque ou affiche le panneau de progression à la manière de VS Code."""
+        self.progress_panel.setVisible(visible)
+        
+        # Le layout vertical de Qt réajuste automatiquement l'afficheur Chromium
+        # pour occuper tout l'espace restant de manière fluide.
+        statut = "affiché" if visible else "masqué"
+        self.status.showMessage(f"Affichage : Panneau de progression {statut}.")
+        
     def toggle_fullscreen(self):
         if self.isFullScreen():
             self.showNormal()

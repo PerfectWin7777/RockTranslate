@@ -76,6 +76,15 @@ class ProgressPanel(QWidget):
     """
     def __init__(self):
         super().__init__()
+        # Attribution d'un ID pour appliquer le style CSS uniquement sur le conteneur parent
+        self.setObjectName("ProgressPanel")
+        self.setStyleSheet("""
+            #ProgressPanel {
+                background-color: #14151f;      /* Fond légèrement plus sombre pour marquer le panneau */
+                border-top: 1px solid #2d313f;  /* Fine bordure de séparation supérieure */
+            }
+        """)
+        
         # On augmente légèrement la hauteur à 90px pour donner de l'espace à nos deux widgets labellisés
         self.setFixedHeight(90)
         self._total_pages     = 1
