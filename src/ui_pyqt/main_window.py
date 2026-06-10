@@ -3,6 +3,7 @@
 import os
 import sys
 import shutil
+import tempfile
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
     QFileDialog, QMessageBox, QLabel, QStatusBar, QStackedWidget, QFrame
@@ -436,28 +437,66 @@ class MainWindow(QMainWindow):
             "Documents PDF (*.pdf)"
         )
 
-        if destination_path:
-            self.status.showMessage("Génération du document PDF vectoriel final...")
-            
-            # Utilisation d'un navigateur invisible en tâche de fond pour imprimer l'HTML final de production
+        if not destination_path:
+            return
+
+        QTimer.singleShot( 2000, lambda: self.status.showMessage("Génération du document PDF vectoriel final...")    ) 
+
+        # ÉTAPE 1 : Récupérer le code HTML déjà traduit depuis la mémoire active de l'iframe
+        js_get_translated_html = """
+        (function() {
+            var iframe = document.getElementById('html-iframe');
+            if (iframe && iframe.contentWindow) {
+                return iframe.contentWindow.document.documentElement.outerHTML;
+            }
+            return "";
+        })();
+        """
+        self.status.showMessage("Export du document PDF vectoriel final, Patientez...")  
+        def on_html_retrieved(translated_html):
+            if not translated_html:
+                self.status.showMessage("❌ Échec de la récupération du texte traduit.")
+                return
+
+            # ÉTAPE 2 : Écrire cet HTML traduit et propre dans un fichier temporaire sur le disque
+            self._temp_print_file = tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode="w", encoding="utf-8")
+            self._temp_print_file.write(translated_html)
+            self._temp_print_file.close()
+
+            # ÉTAPE 3 : Lancer l'imprimante Chromium asynchrone sur ce fichier propre sans loaders
             self._print_view = QWebEngineView()
             self._print_view.settings().setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
-            self._print_view.load(QUrl.fromLocalFile(self._instrumented_html_path))
-            
+            self._print_view.load(QUrl.fromLocalFile(self._temp_print_file.name))
+
             def on_load_finished(ok):
                 if ok:
-                    # Lancement de l'impression PDF Chromium standard
+                    # Lancement de l'impression PDF Chromium standard (asynchrone, ne fige pas l'IHM)
                     self._print_view.page().printToPdf(destination_path)
                 else:
-                    self.status.showMessage("❌ Échec de la génération de l'exportation.")
-                    
+                    self.status.showMessage("❌ Échec du chargement du document pour l'exportation.")
+                    try:
+                        os.unlink(self._temp_print_file.name)
+                    except Exception:
+                        pass
+
             def on_pdf_printed(path):
                 self.status.showMessage(f"Fichier exporté avec succès : {os.path.basename(path)}")
                 QMessageBox.information(self, "Export réussi", f"Le PDF traduit a été enregistré sous :\n{path}")
-                self._print_view = None  # Nettoyage de sécurité en mémoire
                 
+                # Nettoyage physique du fichier temporaire du disque
+                try:
+                    os.unlink(self._temp_print_file.name)
+                except Exception:
+                    pass
+                self._print_view = None  # Libération de la mémoire de l'imprimante
+
             self._print_view.loadFinished.connect(on_load_finished)
             self._print_view.page().pdfPrintingFinished.connect(on_pdf_printed)
+
+        # Exécuter l'extraction asynchrone depuis la vue Chromium active
+        self.workspace_view.page().runJavaScript(js_get_translated_html, on_html_retrieved)
+
+
 
     # ── LOGIQUE DES ACTIONS DE SÉLECTION MENUS ──
     def _apply_layout_both(self):

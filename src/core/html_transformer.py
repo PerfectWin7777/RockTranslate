@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup, NavigableString
 # Importation découplée de notre nouvel utilitaire de téléchargement
 from utils.downloader import check_and_download_pdf2htmlex, DEFAULT_ASSETS_DIR
 
+ACCENTS_TO_IGNORE = {'´', '`', '¨', 'ˆ', '˜', '¸', 'ˇ', '¯', '˘', '˙', '˚', '˝', '˛', '⇑', '⇓'}
 
 
 def convert_pdf_to_html(pdf_path: str, assets_dir: str = DEFAULT_ASSETS_DIR) -> str | None:
@@ -225,6 +226,13 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> tuple[dict, di
 
             # Analyse et répartition géométrique de chaque nœud enfant
             for child in children:
+                # Récupérer le texte nettoyé du nœud pour vérification
+                child_text = child.get_text().strip() if hasattr(child, "get_text") else str(child).strip()
+                
+                # Si c'est un accent flottant parasite du PDF, on l'élimine pour éviter de couper notre groupe
+                if child_text in ACCENTS_TO_IGNORE:
+                    continue
+
                 is_spacer = False
                 width = 0.0
 

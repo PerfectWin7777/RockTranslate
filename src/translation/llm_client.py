@@ -103,15 +103,18 @@ class LLMClient:
 
                 # print("batch_segments :",batch_segments)
                 # print("results :",results)
-                
+
                 if results is not None:
-                    # Vérification de l'intégrité du retour
-                    if len(results) == len(batch_segments):
                         return results
-                    else:
-                        self._log_status(
-                            f"⚠️ Traduction incomplète : reçu {len(results)}/{len(batch_segments)} segments."
-                        )
+                
+                # if results is not None:
+                #     # Vérification de l'intégrité du retour
+                #     if len(results) == len(batch_segments):
+                #         return results
+                #     else:
+                #         self._log_status(
+                #             f"⚠️ Traduction incomplète : reçu {len(results)}/{len(batch_segments)} segments."
+                #         )
 
             except Exception as e:
                 err_msg = str(e).lower()
