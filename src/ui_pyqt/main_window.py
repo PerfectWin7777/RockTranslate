@@ -544,13 +544,48 @@ class MainWindow(QMainWindow):
         self.a_layout_trans.triggered.connect(self._apply_layout_trans_only)
         self.layout_group.addAction(self.a_layout_trans)
         m_view.addAction(self.a_layout_trans)
+
+        # ── COIN DE BARRE DE MENU : Affichage du modèle actif ──
+        self.lbl_menu_model = QLabel(self)
+        self.lbl_menu_model.setStyleSheet("""
+            QLabel {
+                color: #2b6cb0;
+                font-family: 'Segoe UI', sans-serif;
+                font-weight: bold;
+                font-size: 11px;
+                margin-right: 15px;
+                background: transparent;
+                border: none;
+            }
+        """)
+        # Utilisation de la méthode native Qt pour ajouter un widget au coin de la barre
+        mb.setCornerWidget(self.lbl_menu_model, Qt.Corner.TopRightCorner)
+        
+        # Mettre à jour l'affichage au démarrage
+        self._update_menu_model_indicator()
+
+    
+    def _update_menu_model_indicator(self):
+        """Met à jour l'indicateur permanent de modèle actif dans la barre de menu."""
+        settings = QSettings("RockTranslate", "APIConfig")
+        provider = settings.value("provider", "Google Gemini")
+        
+        fallback_model = DEFAULT_PROVIDERS[provider]["models"][0]
+        model = settings.value(f"last_model_{provider}", fallback_model)
+        
+        # On raccourcit le nom d'affichage s'il y a un préfixe (ex: gemini/gemini-3.1 -> gemini-3.1)
+        short_model = model.split("/")[-1] if "/" in model else model
+        self.lbl_menu_model.setText(f"🤖 {provider} : {short_model}")
+
     
     def _show_api_configuration(self):
         """Ouvre l'interface de paramétrage d'IA et rafraîchit les indicateurs."""
         dialog = APIConfigDialog(self)
         if dialog.exec():
             # Lors d'une validation réussie, on rafraîchit la détection d'API du tableau d'accueil
+            # Rafraîchir les deux indicateurs d'IHM
             self.welcome_screen._check_api_keys()
+            self._update_menu_model_indicator()
             self.status.showMessage("Configuration d'API enregistrée avec succès.")
 
     # ── LOGIQUE DES ACTIONS D'OUVERTURE ET DE SÉLECTION ──
@@ -713,7 +748,8 @@ class MainWindow(QMainWindow):
             active_model,
             active_api_key,
             self._current_lang,
-            custom_base_url=active_base_url  
+            custom_base_url=active_base_url,
+            all_keys=keys_dict 
         )
         self._trans_worker.status_update.connect(self.status.showMessage)
         self._trans_worker.batch_progress.connect(self.progress_panel.set_batches)

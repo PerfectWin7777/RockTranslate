@@ -22,13 +22,16 @@ class TranslationWorker(QThread):
     finished           = pyqtSignal()          # Signal de fin de traduction globale
     error              = pyqtSignal(str)       # En cas de crash du client LLM
 
-    def __init__(self, original_texts: dict, model: str, api_key: str, target_lang: str,  custom_base_url: str = None):
+    def __init__(self, original_texts: dict, model: str, api_key: str, target_lang: str,  
+                 custom_base_url: str = None,  all_keys: dict = None):
         super().__init__()
         self.original_texts = original_texts
         self.model = model
         self.api_key = api_key
         self.target_lang = target_lang
         self.custom_base_url = custom_base_url  
+        self.all_keys = all_keys or {} 
+
 
         self._stop = False
         self.client = None
@@ -44,6 +47,7 @@ class TranslationWorker(QThread):
                 api_key=self.api_key,
                 target_lang=self.target_lang,
                 custom_base_url=self.custom_base_url,
+                all_keys=self.all_keys,
                 on_status=lambda msg: self.status_update.emit(msg)
             )
 

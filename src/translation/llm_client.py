@@ -40,6 +40,7 @@ class LLMClient:
         target_lang: str = DEFAULT_LANG_NAME,
         max_tokens: Optional[int] = None,
         custom_base_url : str = None,
+        all_keys: dict = None, 
         on_status: Optional[Callable[[str], None]] = None,
     ):
         self.model = model
@@ -47,6 +48,7 @@ class LLMClient:
         self.target_lang = target_lang
         self.max_tokens = max_tokens
         self.custom_base_url = custom_base_url
+        self.all_keys = all_keys or {} 
         self.on_status = on_status
 
         if litellm is None:
@@ -88,10 +90,8 @@ class LLMClient:
             try:
                 # En cas d'échecs répétés, tentative de basculement vers un modèle alternatif disponible
                 if attempt >= 2:
-                    fallback_model = self._get_fallback_model(current_model)
-                    if fallback_model and fallback_model != current_model:
-                        fallback_key = self._get_api_key_from_env(fallback_model)
-                        if fallback_key:
+                    fallback_model, fallback_key = self._get_fallback_model_and_key(current_model)
+                    if fallback_model and fallback_key:
                             self._log_status(
                                 f"🔄 Modèle {current_model} saturé ou indisponible. "
                                 f"Basculement sur {fallback_model} (Tentative {attempt + 1})..."
@@ -107,7 +107,7 @@ class LLMClient:
                 # print("results :",results)
 
                 if results is not None:
-                        return results
+                    return results
                 
                 # if results is not None:
                 #     # Vérification de l'intégrité du retour
@@ -229,6 +229,45 @@ class LLMClient:
                 except Exception:
                     pass
             return None
+    
+
+    def _get_fallback_model_and_key(self, current_model: str) -> tuple[str | None, str | None]: # todo
+        """
+        Détermine un modèle de secours et s'assure que l'utilisateur possède
+        bien une clé d'API valide et configurée pour ce fournisseur spécifique.
+        """
+        fallback_chain = [
+            "gemini/gemini-3.1-flash-lite",
+            "gemini/gemini-2.5-flash-lite",
+            "gemini/gemini-2.5-flash",
+            "gemini/gemini-2.0-flash",
+            "gpt-4o-mini",
+            "gemini/gemini-1.5-pro",
+            "gpt-4o"
+        ]
+        try:
+            current_idx = fallback_chain.index(current_model)
+            candidates = fallback_chain[current_idx + 1:]
+        except ValueError:
+            candidates = fallback_chain
+
+        for candidate in candidates:
+            # Identifier le fournisseur requis pour cette alternative
+            provider = None
+            if "gemini" in candidate:
+                provider = "Google Gemini"
+            elif "gpt" in candidate:
+                provider = "OpenAI"
+            
+            if provider:
+                # Récupérer la clé d'API si configurée
+                key = self.all_keys.get(provider)
+                if key:
+                    return candidate, key
+                    
+        return None, None
+    
+
 
     def _get_fallback_model(self, current_model: str) -> Optional[str]:
         """Détermine un modèle de secours logique en cas de saturation de l'API principale."""
