@@ -5,6 +5,8 @@ Path: dev_tools/build_app.py
 This helper script automates the execution of PyInstaller across all platform
 targets, bundling all core assets, offline translators, and the headless Chromium
 engine into a distribution-ready directory.
+Optimized to exclude redundant Qt submodules, PySide6 development dependencies,
+and unused resources to minimize final binary size.
 
 Usage:
     python dev_tools/build_app.py
@@ -60,6 +62,7 @@ def main() -> None:
         print(f"❌ Error: Required assets folder not found at: {assets_src}")
         sys.exit(1)
 
+    # Core PyInstaller execution parameters
     pyinstaller_args = [
         entry_point,
         "--name=RockTranslate",
@@ -72,12 +75,26 @@ def main() -> None:
         "--hidden-import=tiktoken_ext",   
     ]
 
-    # Optional: If you have placed an icon.ico inside src/assets/, apply it dynamically
+    # --- ADVANCED SIZE OPTIMIZATION: EXCLUDE UNUSED MODULES ---
+    # We explicitly exclude PySide6 dev-tools, shiboken internals,
+    # and all heavy, unused PyQt6 libraries to reduce final binary weight.
+    excluded_modules = [
+        "PySide6", "shiboken6", "pyside6_essentials",
+        "PyQt6.Qt3D", "PyQt6.Qt3DAnimation", "PyQt6.Qt3DCore", "PyQt6.Qt3DExtras", "PyQt6.Qt3DInput",
+        "PyQt6.Qt3DLogic", "PyQt6.Qt3DRender", "PyQt6.QtBluetooth", "PyQt6.QtDBus", "PyQt6.QtDesigner",
+        "PyQt6.QtHelp", "PyQt6.QtMultimedia", "PyQt6.QtMultimediaWidgets", "PyQt6.QtNfc", "PyQt6.QtPositioning",
+        "PyQt6.QtRemoteObjects", "PyQt6.QtSensors", "PyQt6.QtSerialPort", "PyQt6.QtSpatialAudio", "PyQt6.QtStateMachine",
+        "PyQt6.QtCharts", "PyQt6.QtQuick3D", "PyQt6.QtQuick3DPhysics", "PyQt6.QtQuick3DRuntimeRender",
+        "PyQt6.QtQuick" , "PyQt6.QtQml" , "PyQt6.QtQuickWidgets"
+    ]
+    for module in excluded_modules:
+        pyinstaller_args.append(f"--exclude-module={module}")
+
+    # Optional: If you have placed an icon.png inside src/assets/, apply it dynamically
     icon_path = os.path.join(assets_src, "rocktranslate_icon.png")
     if os.path.exists(icon_path):
         pyinstaller_args.append(f"--icon={icon_path}")
         print(f"🎨 Custom icon discovered and applied: {icon_path}")
-    
 
     print(f"🚀 Running PyInstaller command with compiled parameters...")
     

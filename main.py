@@ -51,8 +51,19 @@ def main() -> None:
     Primary runtime initialization routine. Configures systemic dependencies,
     loads translation tables, and executes the Qt application loop.
     """
-    # 1. Setup robust logging file rotation
-    log_dir = os.path.join(current_dir, "logs")
+    # Writing inside Program Files is restricted on Windows, so we redirect logs to %LOCALAPPDATA%
+    # 1. Setup robust logging file rotation in a secure, dynamically-routed directory
+    # If compiled/frozen, write to writable OS folders; if in dev mode, keep logs locally.
+    if hasattr(sys, "_MEIPASS"):
+        if os.name == "nt":
+            app_data_dir = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+            log_dir = os.path.join(app_data_dir, "RockTranslate", "logs")
+        else:
+            log_dir = os.path.expanduser("~/.config/rocktranslate/logs")
+    else:
+        # Standard local development run
+        log_dir = os.path.join(current_dir, "logs")
+        
     os.makedirs(log_dir, exist_ok=True)
     logger.add(
         os.path.join(log_dir, "app.log"),
