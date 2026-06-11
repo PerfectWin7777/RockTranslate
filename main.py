@@ -13,6 +13,7 @@ Version: 1.0.0
 
 import os
 import sys
+import datetime
 from loguru import logger
 
 # ── TIKTOKEN PYINSTALLER RUNTIME HOOK ──
@@ -75,7 +76,7 @@ def main() -> None:
         )
     except:
         pass
-    
+
     logger.info("Initializing RockTranslate application lifecycle...")
 
     # 2. Instantiate QApplication with high-DPI scaling active by default in PyQt6
@@ -171,6 +172,9 @@ def main() -> None:
      
         window = MainWindow()
         window.showMaximized()
+                
+        if splash:
+            splash.close()
 
         # Close the splash screen and transfer focus to the main window
         if splash:
@@ -179,9 +183,32 @@ def main() -> None:
         logger.info("MainWindow displayed successfully. Executing application loop...")
         sys.exit(app.exec())
     except Exception as e:
+        import traceback
+        error_info = traceback.format_exc()
+        
+        # Write exact crash log directly to Desktop (or current root)
+        crash_file_path = os.path.join(os.path.expanduser("~"), "Desktop", "rocktranslate_crash_report.txt")
+        try:
+            with open(crash_file_path, "w", encoding="utf-8") as f:
+                f.write(f"=== ROCKTRANSLATE EMERGENY CRASH REPORT ===\n")
+                f.write(f"Date: {datetime.datetime.now()}\n\n")
+                f.write(error_info)
+        except Exception:
+            # Fallback to local working directory
+            with open("rocktranslate_crash_report.txt", "w", encoding="utf-8") as f:
+                f.write(error_info)
+
         logger.critical(f"Unhandled critical exception raised during execution loop: {e}")
         if splash:
             splash.close()
+        
+        # Optional: Show standard system message box to prevent silent exit
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(0, f"Critical Crash:\n\n{str(e)}\n\nReport saved on your Desktop.", "RockTranslate Error", 0x10)
+        except:
+            pass
+        
         sys.exit(1)
 
 

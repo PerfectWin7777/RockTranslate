@@ -13,6 +13,14 @@ Version: 1.0.0
 
 import os
 import sys
+import re
+import json
+import shutil
+import argparse
+import tempfile
+import subprocess
+from typing import Dict, List, Optional, Any
+from bs4 import BeautifulSoup
 
 # ── DYNAMIC SYSTEM PATH RESOLUTION ──
 # Resolves search paths so that subscripts run directly without ModuleNotFound errors
@@ -26,25 +34,27 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 # ────────────────────────────────────
 
-
-import re
-import json
-import shutil
-import argparse
-import tempfile
-import subprocess
-from typing import Dict, List, Optional, Any
-from bs4 import BeautifulSoup
-
 # Exclude heavy PyQt GUI modules from standard library requirements
 try:
-    from core.constants import DEFAULT_ASSETS_DIR, THRESHOLD_PX, SLIDING_CONTEXT_MAX_SIZE, MAX_SEGMENTS_PER_BATCH, MAX_RETRIES
+    from core.constants import (
+        DEFAULT_ASSETS_DIR,
+        THRESHOLD_PX,
+        SLIDING_CONTEXT_MAX_SIZE,
+        MAX_SEGMENTS_PER_BATCH,
+        MAX_RETRIES,
+    )
     from core.html_transformer import convert_pdf_to_html, instrument_html
     from translation.chunker import build_batches, Batch
     from translation.llm_client import LLMClient
     from utils.pdf_metadata import get_pdf_metadata
 except ImportError:
-    from src.core.constants import DEFAULT_ASSETS_DIR, THRESHOLD_PX, SLIDING_CONTEXT_MAX_SIZE, MAX_SEGMENTS_PER_BATCH, MAX_RETRIES
+    from src.core.constants import (
+        DEFAULT_ASSETS_DIR,
+        THRESHOLD_PX,
+        SLIDING_CONTEXT_MAX_SIZE,
+        MAX_SEGMENTS_PER_BATCH,
+        MAX_RETRIES,
+    )
     from src.core.html_transformer import convert_pdf_to_html, instrument_html
     from src.translation.chunker import build_batches, Batch
     from src.translation.llm_client import LLMClient
@@ -58,11 +68,19 @@ else:
 
 
 def get_safe_setting(config_scope: str, key: str, fallback_default: Any) -> Any:
-    """
-    Safely retrieves a user configuration. 
+    """Safely retrieves a user configuration.
+
     If PyQt6 is installed in the active environment, it queries QSettings.
     If PyQt6 is missing (CLI-only installation), it silently falls back 
     to the provided default value without raising ImportErrors.
+
+    Args:
+        config_scope: The QSettings group/scope (e.g., 'TranslationConfig').
+        key: The configuration setting key.
+        fallback_default: Default value if setting is unconfigured or PyQt is absent.
+
+    Returns:
+        The retrieved setting value or fallback_default.
     """
     try:
         from PyQt6.QtCore import QSettings
@@ -80,12 +98,14 @@ def get_safe_setting(config_scope: str, key: str, fallback_default: Any) -> Any:
 
 
 def find_system_chromium_browser() -> Optional[str]:
+    """Scans the operating system to find the path of a Chromium-based browser.
+
+    Filters out non-Chromium browsers (e.g., Firefox) to prevent printing hangs.
+
+    Returns:
+        The absolute path to the browser binary, or None if none are found.
     """
-    Scans the local operating system to discover the absolute path
-    of the first available Chromium-based browser (Chrome, Edge, or Chromium).
-    Filters out non-Chromium browsers like Firefox to prevent printing hangs.
-    """
-    # 1. Search the system environment PATH (works perfectly on Linux/macOS)
+    # 1. Search system environment PATH (Linux/macOS)
     common_commands = [
         "google-chrome", "chrome", "chromium", 
         "chromium-browser", "microsoft-edge", "msedge"
@@ -113,7 +133,6 @@ def find_system_chromium_browser() -> Optional[str]:
                                 if " -osint" in clean_path:
                                     clean_path = clean_path.split(" -osint")[0].strip('"')
                                 
-                                # --- FILTER FIX: Only accept Chromium-based browsers ---
                                 clean_path_lower = clean_path.lower()
                                 if any(x in clean_path_lower for x in ["chrome", "edge", "chromium", "brave"]):
                                     if os.path.exists(clean_path):
@@ -138,22 +157,28 @@ def find_system_chromium_browser() -> Optional[str]:
     return None
 
 
+def apply_translations_offline(
+    input_html_path: str, 
+    output_html_path: str, 
+    translations: Dict[str, str], 
+    page_size_css: str = "A4"
+) -> None:
+    """Injects the translated segments dictionary into a script tag inside the HTML.
 
-def apply_translations_offline(input_html_path: str, output_html_path: str, 
-                               translations: Dict[str, str], page_size_css: str = "A4") -> None:
-    """
-    Injects the translated segments dictionary into a script tag at the bottom of the HTML.
     Appends an automated headless execution hook that triggers the original scale-compression
     and layout engine inside Chrome before compiling the PDF.
+
+    Args:
+        input_html_path: Path to the template instrumented HTML workspace.
+        output_html_path: Path where the compiled output HTML should be written.
+        translations: Dictionary mapping element IDs to translated strings.
+        page_size_css: Target page layout rules (e.g., 'A4' or custom cm scale).
     """
     with open(input_html_path, "r", encoding="utf-8") as f:
         html_content = f.read()
 
-    # Formulate the JSON translations payload
-    # Formulate the JSON translations payload
     translations_json = json.dumps(translations, ensure_ascii=False)
 
-    # Force the exact physical page size of the original PDF during headless printing
     page_size_style = f"""
     <style>
     @page {{
@@ -167,24 +192,20 @@ def apply_translations_offline(input_html_path: str, output_html_path: str,
     </style>
     """
 
-    # Embedded Javascript execution hook to trigger pixel-perfect scaling inside headless Chrome
     automated_hook_script = f"""
     <script>
     var cliTranslations = {translations_json};
     window.addEventListener('load', function() {{
-        // Fast-hide all pending visual glass overlays
         document.querySelectorAll('[id^="glass-overlay-t-"]').forEach(function(glass) {{
             glass.style.display = 'none';
         }});
         
-        // Execute the native scale-compression engine for every translated element
         for (var transId in cliTranslations) {{
             if (window.applyTranslation) {{
                 window.applyTranslation(transId, cliTranslations[transId]);
             }}
         }}
         
-        // Clean up remaining visual shimmer loader styles
         document.querySelectorAll('.shimmer-line').forEach(function(el) {{
             el.classList.remove('shimmer-line');
         }});
@@ -192,7 +213,6 @@ def apply_translations_offline(input_html_path: str, output_html_path: str,
     </script>
     """
 
-    # Inject page size style in head, and translation script in body
     optimized_html = html_content.replace("</head>", f"{page_size_style}\n</head>")
     optimized_html = optimized_html.replace("</body>", f"{automated_hook_script}\n</body>")
 
@@ -200,12 +220,16 @@ def apply_translations_offline(input_html_path: str, output_html_path: str,
         f.write(optimized_html)
 
 
-
-
 def print_html_to_vector_pdf(browser_path: str, input_html_path: str, output_pdf_path: str) -> bool:
-    """
-    Executes a headless background process using the resolved browser
-    to print the translated HTML into a high-fidelity vector PDF.
+    """Executes a headless background process using the resolved browser to print HTML to PDF.
+
+    Args:
+        browser_path: Path to the discovered Chromium-based browser executable.
+        input_html_path: Path to the completed offline translated HTML document.
+        output_pdf_path: Path where the high-fidelity output vector PDF will be written.
+
+    Returns:
+        True if the PDF was generated successfully, False otherwise.
     """
     if not os.path.exists(input_html_path):
         return False
@@ -228,19 +252,40 @@ def print_html_to_vector_pdf(browser_path: str, input_html_path: str, output_pdf
 
 
 def main() -> None:
-    """
-    Primary CLI execution loop. Resolves arguments, queries API batches,
-    applies translations offline, and compiles the final vector PDF.
+    """Primary CLI execution routine.
+
+    Resolves arguments, manages API batches, applies translations offline, 
+    and triggers headless vector printing.
     """
     parser = argparse.ArgumentParser(
-        description="RockTranslate: High-Fidelity AI Layout-Preserved PDF Translator."
+        description="RockTranslate CLI: Highly-optimized, layout-preserved PDF document translation."
     )
-    parser.add_argument("input", help="Path to the source scientific PDF file to translate.")
-    parser.add_argument("-l", "--lang", default="French", help="Target language (default: French).")
-    parser.add_argument("-o", "--output", help="Output path for the translated PDF.")
-    parser.add_argument("-m", "--model", help="Target LLM model (e.g., gemini/gemini-2.5-flash-lite).")
-    parser.add_argument("-k", "--api-key", help="API Key override.")
-    parser.add_argument("-t", "--temp", type=float, help="Model temperature (0.0 to 2.0).")
+    parser.add_argument(
+        "input", 
+        help="Path to the source scientific/academic PDF file to translate."
+    )
+    parser.add_argument(
+        "-l", "--lang", 
+        default="French", 
+        help="Target language for the translated document (default: French)."
+    )
+    parser.add_argument(
+        "-o", "--output", 
+        help="Custom output file path for the translated PDF. Default: '[input]_translated.pdf'"
+    )
+    parser.add_argument(
+        "-m", "--model", 
+        help="Target LLM model routing (e.g., 'gemini/gemini-2.5-flash-lite')."
+    )
+    parser.add_argument(
+        "-k", "--api-key", 
+        help="Override/provide API Key for your selected translation provider."
+    )
+    parser.add_argument(
+        "-t", "--temp", 
+        type=float, 
+        help="Model generation temperature (0.0 to 2.0)."
+    )
     
     args = parser.parse_args()
     
@@ -260,12 +305,12 @@ def main() -> None:
         
     print(f"   -> Discovered browser: '{os.path.basename(browser_path)}'")
 
-    # Load dynamic configurations safely
+    # Load Dynamic configurations
     temp = args.temp or get_safe_setting("TranslationConfig", "temperature", 1.0)
     max_retries = get_safe_setting("TranslationConfig", "max_retries", MAX_RETRIES)
     max_batch_size = get_safe_setting("TranslationConfig", "max_segments_per_batch", MAX_SEGMENTS_PER_BATCH)
     
-    # Resolve API credentials
+    # Resolve API Credentials
     api_settings = get_safe_setting("APIConfig", "api_keys_by_provider", "{}")
     try:
         keys_dict = json.loads(api_settings) if isinstance(api_settings, str) else api_settings
@@ -281,17 +326,15 @@ def main() -> None:
 
     api_key = args.api_key
     if not api_key:
-        # Search env space, then standard fallbacks
         api_key = os.getenv("GEMINI_API_KEY") or keys_dict.get("Google Gemini", "")
 
     if not api_key and "ollama" not in model_name.lower():
-        print(f"❌ Error: Missing API Key for model: {model_name}. Please specify -k or set your env variables.")
+        print(f"❌ Error: Missing API Key for model: {model_name}. Specify -k or configure GEMINI_API_KEY environment variable.")
         sys.exit(1)
 
     print(f"📄 Processing document: '{os.path.basename(args.input)}'")
     print(f"🤖 LLM Target: '{model_name}' | Language: '{args.lang}' | Temperature: {temp}")
 
-    # Use a temporary directory to compile intermediate HTML files
     with tempfile.TemporaryDirectory() as temp_dir:
         raw_html_path = os.path.join(temp_dir, "raw.html")
         workspace_html_path = os.path.join(temp_dir, "workspace.html")
@@ -321,18 +364,17 @@ def main() -> None:
         batches = build_batches(original_texts, model_name)
         total_batches = len(batches)
 
-        # --- NEW: Retrieve original PDF page dimensions dynamically ---
+        # Retrieve original PDF page dimensions dynamically
         metadata = get_pdf_metadata(args.input)
         page_size_raw = metadata.get("page_size", "")  # e.g., "[21.00 x 29.70 cm]"
         
-        # Extract numerical width and height using regex
         match = re.search(r'\[([\d\.]+)\s*x\s*([\d\.]+)\s*cm\]', page_size_raw)
         if match:
             width_cm = float(match.group(1))
             height_cm = float(match.group(2))
             page_size_css = f"{width_cm}cm {height_cm}cm"
         else:
-            page_size_css = "A4"  # Safe standard fallback
+            page_size_css = "A4"
 
         # Step 4: Execute API translations
         client = LLMClient(
@@ -344,16 +386,15 @@ def main() -> None:
 
         translated_results: Dict[str, str] = {}
         
-        # Bypass equations/digits directly in the CLI as well
-        translatable_ids = set()
+        trans_ids = set()
         for b in batches:
-            translatable_ids.update(b.ids)
+            trans_ids.update(b.ids)
             
-        skipped_ids = set(original_texts.keys()) - translatable_ids
+        skipped_ids = set(original_texts.keys()) - trans_ids
         for skip_id in skipped_ids:
             translated_results[skip_id] = original_texts[skip_id]
 
-        print(f"🔄 Translating {len(translatable_ids)} segment(s) in {total_batches} batch(es)...")
+        print(f"🔄 Translating {len(trans_ids)} segment(s) in {total_batches} batch(es)...")
         
         for idx, batch in enumerate(batches):
             sys.stdout.write(f"\r[CLI] Batch progress: {idx + 1}/{total_batches}...")
@@ -373,7 +414,7 @@ def main() -> None:
         sys.stdout.write("\n")
         print("✅ Translation batches completed successfully.")
 
-        # Step 5: Inject translations back into the HTML offline
+        # Step 5: Inject translations back into HTML offline
         print("🪡 Rebuilding HTML DOM with translation overlays...")
         apply_translations_offline(workspace_html_path, translated_html_path, translated_results, page_size_css)
 
