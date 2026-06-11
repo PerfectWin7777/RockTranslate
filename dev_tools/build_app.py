@@ -65,14 +65,11 @@ def main() -> None:
         "--name=RockTranslate",
         "--clean",  # Clears PyInstaller cache
         f"--paths={os.path.join(project_root, 'src')}", 
-        # "--noconsole",  # Hides the black terminal CMD window on startup
+        "--noconsole",  # Hides the black terminal CMD window on startup
         f"--add-data={assets_src}{path_sep}{assets_dest}",
         "--collect-data=litellm",
         "--hidden-import=tiktoken_ext.openai_public",
         "--hidden-import=tiktoken_ext",   
-        # "--collect-all=src.ui_pyqt",       # <-- Forces collection of all submodules
-        # "--collect-all=src.translation",   # <-- Forces collection of translation client submodules
-        # "--collect-all=src.core",    
     ]
 
     # Optional: If you have placed an icon.ico inside src/assets/, apply it dynamically

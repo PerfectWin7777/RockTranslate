@@ -16,6 +16,7 @@ Version: 1.0.0
 import os
 import sys
 import subprocess
+import webbrowser
 # ── DYNAMIC SYSTEM PATH RESOLUTION ──
 # Resolves search paths so that subscripts run directly without ModuleNotFound errors
 current_dir = os.path.dirname(os.path.abspath(__file__))  # src/ui_pyqt
@@ -33,7 +34,8 @@ from typing import Optional, Dict, List, Any
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
     QFileDialog, QMessageBox, QLabel, QStatusBar, QStackedWidget, QFrame,
-    QHBoxLayout, QScrollArea, QPushButton
+    QHBoxLayout, QScrollArea, QPushButton, QDialog,
+    QGridLayout
 )
 from PyQt6.QtCore import Qt, QTimer, QUrl, pyqtSignal, QSettings
 from PyQt6.QtGui import QFont, QKeySequence, QAction, QActionGroup, QPixmap, QIcon
@@ -48,6 +50,7 @@ try:
     from ui_pyqt.widget.api_config_dialog import APIConfigDialog
     from ui_pyqt.widget.system_settings_dialog import SystemWorkflowDialog
     from ui_pyqt.widget.translation_settings_dialog import TranslationWorkflowDialog
+    from ui_pyqt.widget.about_dialog import AboutDialog
     from ui_pyqt.workers.extraction_worker import ExtractionWorker
     from ui_pyqt.workers.translation_worker import TranslationWorker
     from ui_pyqt.utils.pdf_exporter import PDFExporter
@@ -63,13 +66,13 @@ except ImportError:
     from src.ui_pyqt.widget.api_config_dialog import APIConfigDialog
     from src.ui_pyqt.widget.system_settings_dialog import SystemWorkflowDialog
     from src.ui_pyqt.widget.translation_settings_dialog import TranslationWorkflowDialog
+    from src.ui_pyqt.widget.about_dialog import AboutDialog
     from src.ui_pyqt.workers.extraction_worker import ExtractionWorker
     from src.ui_pyqt.workers.translation_worker import TranslationWorker
     from src.ui_pyqt.utils.pdf_exporter import PDFExporter
     from src.utils.pdf_metadata import get_pdf_metadata
     from src.ui_pyqt.utils.recent_files_manager import RecentFilesManager
     from src.utils.downloader import check_and_download_pdfjs, check_and_download_pdf2htmlex
-
 
 class RecentFileItem(QFrame):
     """
@@ -631,6 +634,28 @@ class MainWindow(QMainWindow):
         self.a_reset_settings = QAction(self.tr("Reset Settings to Default"), self)
         self.a_reset_settings.triggered.connect(self._reset_all_settings)
         m_settings.addAction(self.a_reset_settings)
+        
+        # ── Help Menu ──
+        m_help = mb.addMenu(self.tr("Help"))
+
+        self.a_about = QAction(self.tr("About RockTranslate..."), self)
+        self.a_about.triggered.connect(self._show_about_dialog)
+        m_help.addAction(self.a_about)
+
+        m_help.addSeparator()
+
+        self.a_website = QAction(self.tr("Official Website"), self)
+        self.a_website.triggered.connect(self._open_website)
+        m_help.addAction(self.a_website)
+
+        self.a_github = QAction(self.tr("Source Code (GitHub)"), self)
+        self.a_github.triggered.connect(self._open_github)
+        m_help.addAction(self.a_github)
+
+        self.a_issues = QAction(self.tr("Report an Issue"), self)
+        self.a_issues.triggered.connect(self._open_issues)
+        m_help.addAction(self.a_issues)
+
 
         # ── TOP RIGHT CORNER: Active Model Label Indicator ──
         self.lbl_menu_model = QLabel(self)
@@ -1073,6 +1098,22 @@ class MainWindow(QMainWindow):
             # Instantly launch a new process with identical CLI arguments
             
             subprocess.Popen([sys.executable] + sys.argv)
+
+    def _show_about_dialog(self):
+        dlg = AboutDialog(self)
+        dlg.exec()
+
+    def _open_website(self) -> None:
+        """ Opens the official project landing page in the default system browser. """
+        webbrowser.open("https://rocktranslate.org")  # todo Target placeholder
+
+    def _open_github(self) -> None:
+        """ Opens the project GitHub repository in the default system browser. """
+        webbrowser.open(" https://github.com/PerfectWin7777/RockTranslate")
+
+    def _open_issues(self) -> None:
+        """ Opens the project GitHub issues page in the default system browser. """
+        webbrowser.open(" https://github.com/PerfectWin7777/RockTranslate/issues")
 
 
     def _close_document(self) -> None:

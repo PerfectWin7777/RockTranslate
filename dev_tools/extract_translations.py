@@ -43,6 +43,7 @@ def main() -> None:
         "src/ui_pyqt/utils/pdf_exporter.py",
         "src/ui_pyqt/widget/api_config_dialog.py",
         "src/ui_pyqt/widget/translation_settings_dialog.py",
+        "src/ui_pyqt/widget/about_dialog.py",
         "src/ui_pyqt/widget/system_settings_dialog.py",
         "src/ui_pyqt/widget/progress_panel.py",
         "src/ui_pyqt/widget/properties_dialog.py",
