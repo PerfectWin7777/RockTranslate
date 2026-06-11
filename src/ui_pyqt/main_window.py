@@ -178,6 +178,7 @@ class WelcomeDashboard(QFrame):
         main_layout.setSpacing(30)
 
         # ── LEFT PANE: Active Open File / Drop Area ──
+        # --- LEFT PANE: Active Open File / Drop Area ---
         self.drop_panel = QFrame(self)
         self.drop_panel.setStyleSheet("""
             QFrame {
@@ -188,8 +189,14 @@ class WelcomeDashboard(QFrame):
         """)
         drop_layout = QVBoxLayout(self.drop_panel)
         drop_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        drop_layout.setSpacing(15)
+        drop_layout.setContentsMargins(40, 40, 40, 40)
+        drop_layout.setSpacing(0)  # Standardize spacing internally
 
+        # Dynamic spacer to gently push the content down from the top,
+        # but leaving more space at the bottom to keep the logo positioned higher.
+        drop_layout.addStretch(1)
+
+        # 1. Logo container configuration
         self.lbl_logo = QLabel(self)
         self.lbl_logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_logo.setStyleSheet("border: none; background: transparent;")
@@ -197,24 +204,38 @@ class WelcomeDashboard(QFrame):
         logo_path = os.path.join(DEFAULT_ASSETS_DIR, "RockTranslate_logo.png")
         if os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
+            # High-fidelity scale: doubled resolution for high-DPI (Retina) displays,
+            # with a maximum visual boundary of 480x240 for standard viewport layouts.
             scaled_pixmap = pixmap.scaled(
-                280*2, 140*2, 
+                480*2, 240*2, 
                 Qt.AspectRatioMode.KeepAspectRatio, 
                 Qt.TransformationMode.SmoothTransformation
             )
             self.lbl_logo.setPixmap(scaled_pixmap)
+            self.lbl_logo.setMaximumWidth(480*2)
         else:
             self.lbl_logo.setText("RockTranslate")
-            self.lbl_logo.setFont(QFont("Segoe UI", 24, QFont.Weight.Bold))
+            self.lbl_logo.setFont(QFont("Segoe UI", 28, QFont.Weight.Bold))
             self.lbl_logo.setStyleSheet("color: #2d3748; border: none; background: transparent;")
 
+        drop_layout.addWidget(self.lbl_logo, 0, Qt.AlignmentFlag.AlignCenter)
+        
+        # Clean, modern spacing between the logo and the subtitle block
+        drop_layout.addSpacing(15)
+
+        # 2. Subtitle configuration
         subtitle = QLabel(self.tr("Drag & Drop your scientific PDF here"), self)
-        subtitle.setFont(QFont("Segoe UI", 12))
+        subtitle.setFont(QFont("Segoe UI", 20))
         subtitle.setStyleSheet("color: #a0aec0; border: none; background: transparent;")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        drop_layout.addWidget(subtitle, 0, Qt.AlignmentFlag.AlignCenter)
 
+        drop_layout.addSpacing(12)
+
+        # 3. Action button configuration
         self.btn_open_file = QPushButton(self.tr("Open File..."), self)
         self.btn_open_file.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_open_file.setFixedWidth(260)  # Centered, elegant fixed-width action button
         self.btn_open_file.setStyleSheet("""
             QPushButton {
                 background-color: #4f8ef7;
@@ -222,7 +243,7 @@ class WelcomeDashboard(QFrame):
                 border-radius: 6px;
                 color: white;
                 font-weight: bold;
-                padding: 8px 18px;
+                padding: 10px 20px;
                 font-family: 'Segoe UI', sans-serif;
                 font-size: 12px;
             }
@@ -230,17 +251,19 @@ class WelcomeDashboard(QFrame):
                 background-color: #3b7ad4;
             }
         """)
+        drop_layout.addWidget(self.btn_open_file, 0, Qt.AlignmentFlag.AlignCenter)
 
+        drop_layout.addSpacing(20)
+
+        # 4. Connection status bar configuration
         self.lbl_status = QLabel(self)
         self.lbl_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_status.setStyleSheet("border: none; background: transparent;")
         self._check_api_keys()
+        drop_layout.addWidget(self.lbl_status, 0, Qt.AlignmentFlag.AlignCenter)
 
-        drop_layout.addWidget(self.lbl_logo)
-        drop_layout.addSpacing(100)
-        drop_layout.addWidget(subtitle)
-        drop_layout.addWidget(self.btn_open_file)
-        drop_layout.addWidget(self.lbl_status)
+        # Larger stretch at the bottom to balance gravity and maintain the higher position
+        drop_layout.addStretch(3)
 
         main_layout.addWidget(self.drop_panel, 1)
 
