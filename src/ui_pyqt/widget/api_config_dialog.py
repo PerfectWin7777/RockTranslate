@@ -201,7 +201,7 @@ class APIConfigDialog(QDialog):
             self
         )
         info_lbl.setWordWrap(True)
-        info_lbl.setStyleSheet("color: #718096; font-size: 10px; font-weight: normal; margin-top: 10px;")
+        info_lbl.setStyleSheet("color: #718096; font-size: 14px; font-weight: normal; margin-top: 10px;")
         layout.addWidget(info_lbl)
 
         # Standard dialog confirmation button maps

@@ -66,11 +66,13 @@ def main() -> None:
     
     translations_path = os.path.join(current_dir, "src", "assets", "translations")
     if os.path.exists(translations_path):
-        if translator.load(f"rocktranslate_{system_locale}", translations_path):
+        # Extract the short 2-letter language code (e.g. 'fr', 'es', 'de') to match the files on disk
+        short_lang = system_locale.split("_")[0]
+        if translator.load(f"rocktranslate_{short_lang}", translations_path):
             app.installTranslator(translator)
-            logger.info(f"Loaded active translation package for locale: {system_locale}")
+            logger.info(f"Loaded active translation package for locale: {short_lang}")
         else:
-            logger.info(f"No translation package found for locale: {system_locale}. Defaulting to English.")
+            logger.info(f"No translation package found for locale: {short_lang}. Defaulting to English.")
 
     # 5. Launch Main MainWindow
     try:
