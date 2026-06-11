@@ -32,7 +32,7 @@ import stat
 import urllib.request
 from typing import Optional
 from loguru import logger
-
+from PyQt6.QtCore import QSettings
 # Safe fallback imports supporting both standard module launches and localized directory scripts
 try:
     from core.constants import (
@@ -116,6 +116,14 @@ def check_and_download_pdf2htmlex(assets_dir: str = DEFAULT_ASSETS_DIR) -> Optio
         Optional[str]: The absolute path to the executable binary if found or configured,
                        otherwise None.
     """
+
+    # Check if a custom system override path has been specified by the user
+    settings = QSettings("RockTranslate", "SystemConfig")
+    override_path = settings.value("pdf2htmlex_path_override", "", type=str)
+    if override_path and os.path.exists(override_path):
+        logger.info(f"Using user-defined pdf2htmlEX binary override: {override_path}")
+        return override_path
+    
     # 1. Look for a globally pre-installed instance in the system path (any platform)
     system_binary: Optional[str] = shutil.which("pdf2htmlEX")
     if system_binary:
@@ -186,6 +194,14 @@ def check_and_download_pdfjs(assets_dir: str = DEFAULT_ASSETS_DIR) -> Optional[s
     Returns:
         Optional[str]: Path to the local static 'viewer.html' if loaded, otherwise None.
     """
+    # Check if a custom folder override path has been specified by the user
+    settings = QSettings("RockTranslate", "SystemConfig")
+    override_path = settings.value("pdfjs_path_override", "", type=str)
+    if override_path and os.path.exists(override_path):
+        viewer_path = os.path.join(override_path, "web", "viewer.html")
+        if os.path.exists(viewer_path):
+            return viewer_path
+        
     pdfjs_dir: str = os.path.join(assets_dir, "pdfjs")
     local_viewer: str = os.path.join(pdfjs_dir, "web", "viewer.html")
     

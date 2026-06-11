@@ -46,6 +46,8 @@ try:
     from ui_pyqt.widget.zoom_widget import ZoomWidget
     from ui_pyqt.widget.properties_dialog import DocumentPropertiesDialog
     from ui_pyqt.widget.api_config_dialog import APIConfigDialog
+    from ui_pyqt.widget.system_settings_dialog import SystemWorkflowDialog
+    from ui_pyqt.widget.translation_settings_dialog import TranslationWorkflowDialog
     from ui_pyqt.workers.extraction_worker import ExtractionWorker
     from ui_pyqt.workers.translation_worker import TranslationWorker
     from ui_pyqt.utils.pdf_exporter import PDFExporter
@@ -59,6 +61,8 @@ except ImportError:
     from src.ui_pyqt.widget.zoom_widget import ZoomWidget
     from src.ui_pyqt.widget.properties_dialog import DocumentPropertiesDialog
     from src.ui_pyqt.widget.api_config_dialog import APIConfigDialog
+    from src.ui_pyqt.widget.system_settings_dialog import SystemWorkflowDialog
+    from src.ui_pyqt.widget.translation_settings_dialog import TranslationWorkflowDialog
     from src.ui_pyqt.workers.extraction_worker import ExtractionWorker
     from src.ui_pyqt.workers.translation_worker import TranslationWorker
     from src.ui_pyqt.utils.pdf_exporter import PDFExporter
@@ -578,6 +582,23 @@ class MainWindow(QMainWindow):
         self.a_layout_trans.triggered.connect(self._apply_layout_trans_only)
         self.layout_group.addAction(self.a_layout_trans)
         m_view.addAction(self.a_layout_trans)
+        
+        # ── Settings Menu ──
+        m_settings = mb.addMenu(self.tr("Settings"))
+
+        self.a_trans_settings = QAction(self.tr("Translation Engine..."), self)
+        self.a_trans_settings.triggered.connect(self._show_translation_settings)
+        m_settings.addAction(self.a_trans_settings)
+
+        self.a_system_settings = QAction(self.tr("System & Cache..."), self)
+        self.a_system_settings.triggered.connect(self._show_system_settings)
+        m_settings.addAction(self.a_system_settings)
+
+        m_settings.addSeparator()
+
+        self.a_reset_settings = QAction(self.tr("Reset Settings to Default"), self)
+        self.a_reset_settings.triggered.connect(self._reset_all_settings)
+        m_settings.addAction(self.a_reset_settings)
 
         # ── TOP RIGHT CORNER: Active Model Label Indicator ──
         self.lbl_menu_model = QLabel(self)
@@ -950,6 +971,38 @@ class MainWindow(QMainWindow):
         # Build modal dialog
         dialog = DocumentPropertiesDialog(metadata, self)
         dialog.exec()
+    
+
+    def _show_translation_settings(self) -> None:
+        """ Opens the translation workflow configuration dialog modal. """
+        
+        dialog = TranslationWorkflowDialog(self)
+        dialog.exec()
+
+    def _show_system_settings(self) -> None:
+        """ Opens the system and executable path configuration dialog modal. """
+        
+        dialog = SystemWorkflowDialog(self)
+        dialog.exec()
+
+    def _reset_all_settings(self) -> None:
+        """ Resets all translation and system configurations to their defaults after confirmation. """
+        reply = QMessageBox.question(
+            self,
+            self.tr("Reset Settings"),
+            self.tr("Are you sure you want to reset all engine and system configurations to their defaults?"),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            QSettings("RockTranslate", "TranslationConfig").clear()
+            QSettings("RockTranslate", "SystemConfig").clear()
+            QMessageBox.information(
+                self, 
+                self.tr("Success"), 
+                self.tr("All workflow configurations have been reset successfully.")
+            )
+
 
     def _close_document(self) -> None:
         if self._trans_worker and self._trans_worker.isRunning():

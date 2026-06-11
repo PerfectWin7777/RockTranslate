@@ -18,12 +18,12 @@ import re
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 from loguru import logger
-
+from PyQt6.QtCore import QSettings
 # Safe fallback imports supporting both standard package modules and direct scripts
 try:
-    from core.constants import MODEL_TOKEN_LIMITS, DEFAULT_TOKEN_LIMIT, MAX_SEGMENTS_PER_BATCH
+    from core.constants import MODEL_TOKEN_LIMITS, DEFAULT_TOKEN_LIMIT
 except ImportError:
-    from src.core.constants import MODEL_TOKEN_LIMITS, DEFAULT_TOKEN_LIMIT, MAX_SEGMENTS_PER_BATCH
+    from src.core.constants import MODEL_TOKEN_LIMITS, DEFAULT_TOKEN_LIMIT
 
 
 @dataclass
@@ -136,6 +136,9 @@ def build_batches(
     if not segments:
         return []
 
+    translation_settings = QSettings("RockTranslate", "TranslationConfig")
+    max_batch_size = translation_settings.value("max_segments_per_batch", 60, type=int)
+
     budget = max_tokens or get_max_source_tokens(model)
     batches: List[Batch] = []
     current_segments: List[Dict[str, str]] = []
@@ -159,7 +162,7 @@ def build_batches(
             continue
 
         # Accumulate within current batch boundaries
-        if (current_tokens + tokens <= budget) and (len(current_segments) < MAX_SEGMENTS_PER_BATCH):
+        if (current_tokens + tokens <= budget) and (len(current_segments) < max_batch_size):
             current_segments.append(item)
             current_tokens += tokens
         else:

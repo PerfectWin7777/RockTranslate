@@ -19,7 +19,7 @@ import time
 from typing import Callable, Optional, List, Dict, Any, Tuple
 from loguru import logger
 import json_repair
-
+from PyQt6.QtCore import QSettings
 # Suppress verbose debug console logs from LiteLLM dependencies
 try:
     import litellm
@@ -189,13 +189,16 @@ class LLMClient:
             system_prompt: str = get_system_prompt(self.target_lang)
             user_message: str = get_user_message(batch_segments, context=context)
 
+            translation_settings = QSettings("RockTranslate", "TranslationConfig")
+            temperature = translation_settings.value("temperature", 1.0, type=float)
+
             kwargs: Dict[str, Any] = {
                 "model": model,
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message},
                 ],
-                "temperature": 1.0,
+                "temperature": temperature,
                 "max_tokens": 16384,  # Budget to prevent response truncation
             }
 

@@ -15,14 +15,12 @@ Version: 1.0.0
 from typing import Dict, List, Optional, Set
 from PyQt6.QtCore import QThread, pyqtSignal
 from loguru import logger
-
+from PyQt6.QtCore import QSettings
 # Safe fallback imports supporting both standard package modules and direct scripts
 try:
-    from core.constants import SLIDING_CONTEXT_MAX_SIZE
     from translation.chunker import build_batches, Batch
     from translation.llm_client import LLMClient
 except ImportError:
-    from src.core.constants import SLIDING_CONTEXT_MAX_SIZE
     from src.translation.chunker import build_batches, Batch
     from src.translation.llm_client import LLMClient
 
@@ -87,6 +85,10 @@ class TranslationWorker(QThread):
         try:
             self._stop = False
             self.status_update.emit(self.tr("Initializing AI Translator..."))
+
+            # Prune sliding window to prevent token explosion bounds based on user preferences
+            translation_settings = QSettings("RockTranslate", "TranslationConfig")
+            context_size = translation_settings.value("sliding_context_size", 5, type=int)
             
             # Step A: Instantiate dynamic LiteLLM router wrapper
             self.client = LLMClient(
@@ -187,8 +189,8 @@ class TranslationWorker(QThread):
                         sliding_context.append(translated_text)
 
                 # Prune sliding window to prevent token explosion bounds
-                if len(sliding_context) > SLIDING_CONTEXT_MAX_SIZE:
-                    sliding_context = sliding_context[-SLIDING_CONTEXT_MAX_SIZE:]
+                if len(sliding_context) > context_size:
+                    sliding_context = sliding_context[-context_size:]
 
             self.status_update.emit(self.tr("Document translation completed successfully."))
             self.finished.emit()

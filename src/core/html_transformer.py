@@ -23,12 +23,13 @@ from typing import Callable, Optional, Dict, Tuple, List, Set, Any
 from bs4 import BeautifulSoup, NavigableString
 from loguru import logger
 
+from PyQt6.QtCore import QSettings
 # Safe fallback imports supporting both standard package modules and direct scripts
 try:
-    from core.constants import DEFAULT_ASSETS_DIR, THRESHOLD_PX, ACCENTS_TO_IGNORE
+    from core.constants import DEFAULT_ASSETS_DIR, ACCENTS_TO_IGNORE
     from utils.downloader import check_and_download_pdf2htmlex
 except ImportError:
-    from src.core.constants import DEFAULT_ASSETS_DIR, THRESHOLD_PX, ACCENTS_TO_IGNORE
+    from src.core.constants import DEFAULT_ASSETS_DIR, ACCENTS_TO_IGNORE
     from src.utils.downloader import check_and_download_pdf2htmlex
 
 
@@ -253,6 +254,10 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
     color_map:  Dict[str, str] = parse_color_classes(soup)
     x_map, y_map = parse_position_classes(soup)
     pages_list = soup.find_all("div", class_="pf")
+
+    settings = QSettings("RockTranslate", "TranslationConfig")
+    # Load dynamic threshold, falling back to THRESHOLD_PX (12.0) if not configured
+    threshold_px = settings.value("threshold_px", 12.0, type=float)
     
 
     original_texts_map: Dict[str, str] = {}
@@ -399,7 +404,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     # --- SCALED WIDTH CALCULATION (Core geometry fix) ---
                     scaled_width = width * sx_orig
 
-                    if abs(scaled_width) >= THRESHOLD_PX:
+                    if abs(scaled_width) >= threshold_px:  # Uses the user-defined threshold px
                         # Case 1: Structural spacing -> Commit active group and append Red Cut marker
                         commit_group()
                         div_t.append(child)
