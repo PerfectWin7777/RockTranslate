@@ -366,7 +366,7 @@ RETRY_DELAYS: Final[List[float]] = [2.0, 3.0, 6.0]
 # ==============================================================================
 
 # Margin in horizontal pixels where spacers trigger a structural table separation
-THRESHOLD_PX: Final[float] = 20.0
+THRESHOLD_PX: Final[float] = 12.0
 
 # Legacy typographic accent splinters to skip during reconstruction
 ACCENTS_TO_IGNORE: Final[Set[str]] = {

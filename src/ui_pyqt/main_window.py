@@ -194,11 +194,11 @@ class WelcomeDashboard(QFrame):
         self.lbl_logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_logo.setStyleSheet("border: none; background: transparent;")
         
-        logo_path = os.path.join(DEFAULT_ASSETS_DIR, "logo.png")
+        logo_path = os.path.join(DEFAULT_ASSETS_DIR, "RockTranslate_logo.png")
         if os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
             scaled_pixmap = pixmap.scaled(
-                280, 140, 
+                280*2, 140*2, 
                 Qt.AspectRatioMode.KeepAspectRatio, 
                 Qt.TransformationMode.SmoothTransformation
             )
@@ -237,6 +237,7 @@ class WelcomeDashboard(QFrame):
         self._check_api_keys()
 
         drop_layout.addWidget(self.lbl_logo)
+        drop_layout.addSpacing(100)
         drop_layout.addWidget(subtitle)
         drop_layout.addWidget(self.btn_open_file)
         drop_layout.addWidget(self.lbl_status)
@@ -584,7 +585,7 @@ class MainWindow(QMainWindow):
         model = settings.value(f"last_model_{provider}", fallback_model)
         
         short_model = model.split("/")[-1] if "/" in model else model
-        self.lbl_menu_model.setText(f"🤖 {provider}: {short_model}")
+        self.lbl_menu_model.setText(f" AI MODEL ACTIVE   |   🤖 {provider}: {short_model}")
 
     def _show_api_configuration(self) -> None:
         """ Triggers setup panels and visual triggers. """

@@ -14,7 +14,8 @@ import os
 import sys
 import re
 import webbrowser
-from bs4 import BeautifulSoup
+from typing import Dict, Tuple, List, Any
+from bs4 import BeautifulSoup, NavigableString
 
 # Ensure correct execution paths
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -25,23 +26,67 @@ if project_root not in sys.path:
 # Safe package imports
 try:
     from core.constants import DEFAULT_ASSETS_DIR, THRESHOLD_PX, ACCENTS_TO_IGNORE
-    from core.html_transformer import convert_pdf_to_html, parse_matrix_classes, parse_spacer_widths
+    from core.html_transformer import convert_pdf_to_html, parse_matrix_classes
 except ImportError:
     from src.core.constants import DEFAULT_ASSETS_DIR, THRESHOLD_PX, ACCENTS_TO_IGNORE
-    from src.core.html_transformer import convert_pdf_to_html, parse_matrix_classes, parse_spacer_widths
+    from src.core.html_transformer import convert_pdf_to_html, parse_matrix_classes
+
+
+def parse_spacer_widths(soup: BeautifulSoup) -> Dict[str, float]:
+    """
+    Extrait de manière générique les largeurs des spacers depuis les balises <style>.
+    Ne capture que les propriétés de déplacement horizontal pour éviter les conflits verticaux.
+    """
+    spacer_map = {}
+    pattern = re.compile(
+        r'\._([a-fA-F0-9\w]+)\s*\{[^}]*?\b(margin-left|margin-right|left|right|width)\s*:\s*(-?[\d\.]+)\s*(px|pt|em|rem|%)'
+    )
+
+    for style_tag in soup.find_all("style"):
+        text = style_tag.get_text()
+        for m in pattern.finditer(text):
+            cls_name = m.group(1)
+            val_brute = float(m.group(3))
+            unit = m.group(4)
+            
+            if unit == "pt":
+                val_px = val_brute * 1.333333
+            elif unit in ("em", "rem"):
+                val_px = val_brute * 16.0
+            else:
+                val_px = val_brute
+                
+            spacer_map[cls_name] = val_px
+            
+    return spacer_map
+
+
+def parse_position_classes(soup: BeautifulSoup) -> Tuple[Dict[str, float], Dict[str, float]]:
+    """
+    Extrait les coordonnées brutes X (left) et Y (bottom) depuis les balises de style CSS.
+    """
+    x_map = {}
+    y_map = {}
+    for style_tag in soup.find_all("style"):
+        text = style_tag.get_text()
+        for m in re.finditer(r'\.(x\w+)\s*\{\s*(?:left|margin-left)\s*:\s*([\d\.-]+)\s*px', text):
+            x_map[m.group(1)] = float(m.group(2))
+        for m in re.finditer(r'\.(y\w+)\s*\{\s*(?:bottom|top|margin-bottom|margin-top)\s*:\s*([\d\.-]+)\s*px', text):
+            y_map[m.group(1)] = float(m.group(2))
+    return x_map, y_map
 
 
 def generate_visual_diagnostic(pdf_path: str, output_diagnostic_path: str) -> None:
     """
-    Translates a real PDF layout, executes scaled spacing diagnostics,
-    generates a visual HTML report, and launches it in the default browser.
+    Applique la conversion du PDF, trie les lignes, aplatit le DOM de manière
+    récursive, réalise l'analyse géométrique et génère un rapport HTML visuel.
     """
     print(f"⚙️ Running high-fidelity diagnostic extraction on: {pdf_path}")
     
-    # 1. Compile PDF to raw HTML using our downloader fallback utility
+    # 1. Compile PDF to raw HTML
     raw_html_path = convert_pdf_to_html(pdf_path, DEFAULT_ASSETS_DIR)
     if not raw_html_path or not os.path.exists(raw_html_path):
-        print("❌ Error: Failed to compile the PDF with pdf2htmlEX.")
+        print("❌ Error: Failed to compile the PDF.")
         return
 
     with open(raw_html_path, "r", encoding="utf-8") as f:
@@ -49,13 +94,30 @@ def generate_visual_diagnostic(pdf_path: str, output_diagnostic_path: str) -> No
 
     matrix_map = parse_matrix_classes(soup)
     spacer_map = parse_spacer_widths(soup)
+    x_map, y_map = parse_position_classes(soup)
     pages_list = soup.find_all("div", class_="pf")
 
-    print(f"Parsed {len(matrix_map)} matrix scales and {len(spacer_map)} spacer definitions.")
+    print(f"Parsed {len(matrix_map)} matrix scales, {len(spacer_map)} spacers and {len(x_map)} positions.")
 
-    # 2. Run the SCALED hybrid layout grouping algorithm
-    for page_el in pages_list:
-        for div_t in page_el.find_all("div", class_="t"):
+    # 2. Run the SCALED hybrid layout grouping algorithm with visual sorting
+    for page_idx, page_el in enumerate(pages_list):
+        div_t_elements = page_el.find_all("div", class_="t")
+        
+        # Tri géométrique identique à la production
+        def get_div_sort_key(div_t_node: Any) -> Tuple[float, float]:
+            classes = div_t_node.get("class", [])
+            x_val = 0.0
+            y_val = 0.0
+            for cls in classes:
+                if cls in x_map:
+                    x_val = x_map[cls]
+                if cls in y_map:
+                    y_val = y_map[cls]
+            return -y_val, x_val
+
+        sorted_div_t = sorted(div_t_elements, key=get_div_sort_key)
+
+        for div_t in sorted_div_t:
             # Determine active line scaling factors
             classes = div_t.get("class", [])
             sx_orig, sy_orig = 1.0, 1.0
@@ -65,6 +127,33 @@ def generate_visual_diagnostic(pdf_path: str, output_diagnostic_path: str) -> No
                     break
 
             children = list(div_t.contents)
+            
+            # ── DESCENTE RÉCURSIVE (Flattening du DOM) ──
+            flattened_children: List[Any] = []
+            
+            def flatten_element(element: Any, active_classes: List[str]) -> None:
+                if isinstance(element, NavigableString):
+                    if str(element).strip():
+                        new_span = soup.new_tag("span", attrs={"class": " ".join(active_classes)})
+                        new_span.string = str(element)
+                        flattened_children.append(new_span)
+                    else:
+                        flattened_children.append(element)
+                elif element.name == "span" and element.get("class") and "_" in element.get("class"):
+                    flattened_children.append(element)
+                elif element.name in ["span", "a", "b", "i", "sup", "sub", "em", "strong"]:
+                    current_classes = list(active_classes)
+                    if element.get("class"):
+                        current_classes.extend(element.get("class"))
+                    for child_node in list(element.contents):
+                        flatten_element(child_node, current_classes)
+                else:
+                    flattened_children.append(element)
+
+            for child in children:
+                flatten_element(child, [])
+
+            children = flattened_children
             div_t.clear()
 
             current_group_elements = []
@@ -97,7 +186,7 @@ def generate_visual_diagnostic(pdf_path: str, output_diagnostic_path: str) -> No
                 current_group_text.clear()
                 current_group_elements.clear()
 
-            # Process layout children geometrically
+            # Analyse géométrique avec détection de valeur absolue
             for child in children:
                 child_text = child.get_text().strip() if hasattr(child, "get_text") else str(child).strip()
                 
@@ -118,22 +207,18 @@ def generate_visual_diagnostic(pdf_path: str, output_diagnostic_path: str) -> No
                                 break
 
                 if is_spacer:
-                    # --- SCALED WIDTH CHECK (Our core layout fix) ---
                     scaled_width = width * sx_orig
                     
-                    if scaled_width >= THRESHOLD_PX:
-                        # Case 1: Structural spacing -> Commit active group and append Red Cut marker
+                    # CORRECTION GÉOMÉTRIQUE : abs() sur les spacers aplatis
+                    if abs(scaled_width) >= THRESHOLD_PX:
                         commit_group()
                         div_t.append(child)
                     elif scaled_width >= 2.5:
-                        # Case 2: Real word spacing -> Accumulate space and continue
                         current_group_elements.append(child)
                         current_group_text.append(" ")
                     else:
-                        # Case 3: Kerning / Accent adjustments -> Accumulate elements WITHOUT any space!
                         current_group_elements.append(child)
                 else:
-                    # Accumulate raw text nodes or styles
                     if isinstance(child, str):
                         current_group_text.append(str(child))
                         current_group_elements.append(child)
@@ -191,7 +276,7 @@ if __name__ == "__main__":
     os.makedirs(os.path.join(project_root, "diagnostic_runs"), exist_ok=True)
     
     # Replace with any of your laboratory target test PDF paths
-    target_pdf = "1_PDFsam_Nsangou Ngapna et al._ASR_2024.pdf"
+    target_pdf = "2_PDFsam_5_PDFsam_Nsangou Ngapna et al._ASR_2024.pdf"
     diagnostic_output = os.path.join(project_root, "diagnostic_runs", "diagnostic_visual.html")
     
     if os.path.exists(target_pdf):
@@ -199,5 +284,5 @@ if __name__ == "__main__":
     else:
         print(
             f"❌ Diagnostic target not found at: {target_pdf}\n"
-            f"Please place a test PDF named 'sample.pdf' inside 'src/assets/' and run again."
+            f"Please place your target PDF inside the root directory and run again."
         )
