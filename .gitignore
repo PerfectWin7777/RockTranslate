@@ -9,6 +9,8 @@ env/
 build/
 dist/
 
+logs/
+
 setup.bat
 
 # Project Specific
@@ -22,7 +24,7 @@ fonts/*.ttf
 !fonts/FreeSerif.ttf
 tmp/
 
-
+test_analyzer.py
 ROADMAP.md
 comand.txt
 
