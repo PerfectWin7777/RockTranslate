@@ -489,7 +489,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
         text_p = soup.new_tag("p", attrs={
             "style": "color:#1e293b; font-size:14px; font-weight:600; margin:0; font-family: sans-serif;"
         })
-        text_p.string = "En attente de traduction..."
+        text_p.string = "Waiting for translation..."
         inner_div.append(text_p)
 
         glass_div.append(inner_div)
@@ -636,7 +636,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 
                 var text_p = document.createElement('p');
                 text_p.style.cssText = "color:#1e293b; font-size:14px; font-weight:600; margin:0; font-family: sans-serif;";
-                text_p.textContent = "En attente de traduction...";
+                text_p.textContent = "Waiting for translation...";
                 
                 inner.appendChild(loader);
                 inner.appendChild(text_p);

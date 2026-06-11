@@ -36,7 +36,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QScrollArea, QPushButton
 )
 from PyQt6.QtCore import Qt, QTimer, QUrl, pyqtSignal, QSettings
-from PyQt6.QtGui import QFont, QKeySequence, QAction, QActionGroup, QPixmap
+from PyQt6.QtGui import QFont, QKeySequence, QAction, QActionGroup, QPixmap, QIcon
 
 # Modular, decoupled imports representing the clean open-source architecture
 try:
@@ -375,6 +375,10 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("RockTranslate")
         self.resize(1440, 900)
+        # Load and apply the application window icon
+        icon_path = os.path.join(DEFAULT_ASSETS_DIR, "rocktranslate_icon.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
         # Unified Application State Map
         self._pdf_path: Optional[str] = None
