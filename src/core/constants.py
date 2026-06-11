@@ -11,7 +11,7 @@ License: MIT License
 Version: 1.0.0
 """
 
-import os
+import os, sys
 from typing import Final, Dict, Set, List, Tuple
 
 # ==============================================================================
@@ -19,9 +19,21 @@ from typing import Final, Dict, Set, List, Tuple
 # ==============================================================================
 
 # Dynamic path resolution to src/assets to guarantee cross-platform consistency.
-DEFAULT_ASSETS_DIR: Final[str] = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "assets")
-)
+# DEFAULT_ASSETS_DIR: Final[str] = os.path.abspath(
+#     os.path.join(os.path.dirname(__file__), "..", "assets")
+# )
+
+
+# Dynamic path resolution supporting both local source development and
+# compiled standalone PyInstaller extraction directories (_MEIPASS).
+if hasattr(sys, "_MEIPASS"):
+    DEFAULT_ASSETS_DIR: Final[str] = os.path.abspath(
+        os.path.join(sys._MEIPASS, "src", "assets")
+    )
+else:
+    DEFAULT_ASSETS_DIR: Final[str] = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "assets")
+    )
 
 
 # Remote URLs for automatic dependency downloads

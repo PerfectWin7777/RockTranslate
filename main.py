@@ -4,6 +4,7 @@ Path: main.py
 
 This script initializes the environment, sets up global logging, configures High-DPI
 scaling, loads system locales, and launches the primary PyQt6 GUI MainWindow.
+Uses lazy-importing to guarantee an instantaneous splash screen display on startup.
 
 Author: RockTranslate Contributors
 License: MIT License
@@ -23,16 +24,13 @@ if src_dir not in sys.path:
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtGui import QFont
-from PyQt6.QtCore import QTranslator, QLocale, QSettings
+from PyQt6.QtWidgets import QApplication, QSplashScreen  
+from PyQt6.QtGui import QFont, QPixmap, QColor 
+from PyQt6.QtCore import QTranslator, QLocale, QSettings, Qt
 
-# Modular imports
-try:
-    from src.ui_pyqt.main_window import MainWindow
-except ImportError:
-    from ui_pyqt.main_window import MainWindow # type: ignore
 
+# --- IMPORTANT: MainWindow is NOT imported here at the top ---
+# This prevents heavy C++ QtWebEngine modules from delaying the startup.
 
 def main() -> None:
     """
@@ -52,14 +50,56 @@ def main() -> None:
     logger.info("Initializing RockTranslate application lifecycle...")
 
     # 2. Instantiate QApplication with high-DPI scaling active by default in PyQt6
+    # Configure OpenGL Context Sharing and Instantiate QApplication
+    # This attribute must be set BEFORE QApplication is constructed
+    # to allow lazy-loading QtWebEngineWidgets dynamically during the splash screen.
+    QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
     app = QApplication(sys.argv)
     app.setApplicationName("RockTranslate")
     app.setOrganizationName("RockTranslate")
-    
-    # 3. Set up systemic typography baseline
     app.setFont(QFont("Segoe UI", 10))
+    
+
+     # ── 3. SHOW SPLASH SCREEN IMMEDIATELY ──
+    # Look for the splash image inside our assets directory
+    # Since we haven't loaded MainWindow yet, this block executes in under 50ms!
+    try:
+        from src.core.constants import DEFAULT_ASSETS_DIR
+    except ImportError: 
+        from core.constants import DEFAULT_ASSETS_DIR # type: ignore
+
+    splash_path = os.path.join(DEFAULT_ASSETS_DIR, "rocktranslate_logo.png")
+    splash = None
+    
+    if os.path.exists(splash_path):
+        pixmap = QPixmap(splash_path)
+        # Scaled to fit beautifully while loading
+        scaled_pixmap = pixmap.scaled(
+            500*2, 300*2, 
+            Qt.AspectRatioMode.KeepAspectRatio, 
+            Qt.TransformationMode.SmoothTransformation
+        )
+        splash = QSplashScreen(scaled_pixmap)
+        # Show splash with top-most window hint
+        splash.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.FramelessWindowHint)
+        splash.show()
+        splash.showMessage(
+            "Initializing translation engine...", 
+            Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter, 
+            QColor("#cbd5e0")
+        )
+        # Force the OS to instantly draw the window on screen
+        app.processEvents()
 
     # 4. Initialize Internationalization (i18n)
+    if splash:
+        splash.showMessage(
+            "Loading active locales...", 
+            Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter, 
+            QColor("#cbd5e0")
+        )
+        app.processEvents()
+
     # Detects system locale and loads translated .qm packages if available
     translator = QTranslator()
     
@@ -84,15 +124,35 @@ def main() -> None:
         else:
             logger.info(f"No translation package found for locale: {active_lang}. Defaulting to English.")
 
+    
+    if splash:
+        splash.showMessage(
+            "Configuring workspace interface...", 
+            Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter, 
+            QColor("#cbd5e0")
+        )
+        app.processEvents()
 
     # 5. Launch Main MainWindow
     try:
+        try:
+            from src.ui_pyqt.main_window import MainWindow # <-- IMPORT INTRADÉPARTEMENTAL (LAZY)
+        except ImportError:
+            from ui_pyqt.main_window import MainWindow # type: ignore
+     
         window = MainWindow()
         window.showMaximized()
+
+        # Close the splash screen and transfer focus to the main window
+        if splash:
+            splash.finish(window)
+
         logger.info("MainWindow displayed successfully. Executing application loop...")
         sys.exit(app.exec())
     except Exception as e:
         logger.critical(f"Unhandled critical exception raised during execution loop: {e}")
+        if splash:
+            splash.close()
         sys.exit(1)
 
 
