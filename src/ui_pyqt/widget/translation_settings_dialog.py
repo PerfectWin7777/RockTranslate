@@ -51,44 +51,9 @@ class TranslationWorkflowDialog(QDialog):
                 color: #4a5568;
                 font-weight: bold;
             }
-            QDoubleSpinBox, QSpinBox {
-                background-color: #ffffff;
-                border: 1px solid #cbd5e0;
-                border-radius: 4px;
-                padding: 6px;
-                padding-right: 20px; /* Leave space for the smaller buttons */
-                font-family: 'Segoe UI', sans-serif;
-                font-size: 12px;
-                color: #2d3748;
-            }
-            QDoubleSpinBox:focus, QSpinBox:focus {
-                border-color: #4f8ef7;
-            }
-            
-            /* Compact, minimalist spinbox arrow buttons styling */
-            QSpinBox::up-button, QDoubleSpinBox::up-button {
-                subcontrol-origin: border;
-                subcontrol-position: top right;
-                width: 16px; /* Narrower width for a sleek look */
-                border-left: 1px solid #cbd5e0;
-                border-bottom: 1px solid #cbd5e0;
-                background: #f7fafc;
-                border-top-right-radius: 4px;
-            }
-            QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover {
-                background: #edf2f7;
-            }
-            QSpinBox::down-button, QDoubleSpinBox::down-button {
-                subcontrol-origin: border;
-                subcontrol-position: bottom right;
-                width: 16px; /* Narrower width for a sleek look */
-                border-left: 1px solid #cbd5e0;
-                background: #f7fafc;
-                border-bottom-right-radius: 4px;
-            }
-            QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
-                background: #edf2f7;
-            }
+           
+
+           
         """)
 
         self.settings = QSettings("RockTranslate", "TranslationConfig")
