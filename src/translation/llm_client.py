@@ -72,6 +72,8 @@ class LLMClient:
         self.all_keys: Dict[str, str] = all_keys or {}
         self.on_status: Optional[Callable[[str], None]] = on_status
 
+        self.translation_settings = QSettings("RockTranslate", "TranslationConfig")
+
         if litellm is None:
             raise ImportError(
                 "The 'litellm' library is required. Please install it via 'pip install litellm'."
@@ -107,8 +109,10 @@ class LLMClient:
         """
         current_model: str = self.model
         current_key: Optional[str] = self.api_key
+        # Load dynamic connection retry budget from QSettings, falling back to core constants
+        max_retries = self.translation_settings.value("max_retries", MAX_RETRIES, type=int)
 
-        for attempt in range(MAX_RETRIES):
+        for attempt in range(max_retries):
             try:
                 # Trigger provider-safe dynamic fallback on repeated failures (attempts 3 and 4)
                 if attempt >= 2:
@@ -188,9 +192,7 @@ class LLMClient:
         try:
             system_prompt: str = get_system_prompt(self.target_lang)
             user_message: str = get_user_message(batch_segments, context=context)
-
-            translation_settings = QSettings("RockTranslate", "TranslationConfig")
-            temperature = translation_settings.value("temperature", 1.0, type=float)
+            temperature = self.translation_settings.value("temperature", 1.0, type=float)
 
             kwargs: Dict[str, Any] = {
                 "model": model,
@@ -214,6 +216,8 @@ class LLMClient:
             return self._parse_json_response(raw_text)
             
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             logger.warning(f"Error during raw LiteLLM execution: {e}")
             return None
 

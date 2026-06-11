@@ -20,9 +20,9 @@ from PyQt6.QtCore import Qt, QSettings
 
 # Import default fallback values directly from the centralized constants module
 try:
-    from core.constants import THRESHOLD_PX, SLIDING_CONTEXT_MAX_SIZE, MAX_SEGMENTS_PER_BATCH
+    from core.constants import THRESHOLD_PX, SLIDING_CONTEXT_MAX_SIZE, MAX_SEGMENTS_PER_BATCH, MAX_RETRIES
 except ImportError:
-    from src.core.constants import THRESHOLD_PX, SLIDING_CONTEXT_MAX_SIZE, MAX_SEGMENTS_PER_BATCH
+    from src.core.constants import THRESHOLD_PX, SLIDING_CONTEXT_MAX_SIZE, MAX_SEGMENTS_PER_BATCH, MAX_RETRIES
 
 
 class TranslationWorkflowDialog(QDialog):
@@ -130,6 +130,12 @@ class TranslationWorkflowDialog(QDialog):
         self.spin_threshold_px.setToolTip(self.tr("Horizontal distance (pixels) beyond which adjacent text nodes are split into columns."))
         form.addRow(self.tr("Table Column Split Threshold (px)"), self.spin_threshold_px)
 
+        # 5. Maximum Connection Retries (MAX_RETRIES)
+        self.spin_retries = QSpinBox(self)
+        self.spin_retries.setRange(1, 10)
+        self.spin_retries.setToolTip(self.tr("Maximum number of network reconnection attempts before marking a batch request as failed."))
+        form.addRow(self.tr("Max Connection Retries"), self.spin_retries)
+
         layout.addLayout(form)
 
         # Bottom warning description
@@ -141,7 +147,7 @@ class TranslationWorkflowDialog(QDialog):
             self
         )
         info_lbl.setWordWrap(True)
-        info_lbl.setStyleSheet("color: #718096; font-size: 10px; font-weight: normal; margin-top: 5px;")
+        info_lbl.setStyleSheet("color: #718096; font-size: 14px; font-weight: normal; margin-top: 5px;")
         layout.addWidget(info_lbl)
 
         # Dialog buttons
@@ -175,11 +181,14 @@ class TranslationWorkflowDialog(QDialog):
         context_size = self.settings.value("sliding_context_size", SLIDING_CONTEXT_MAX_SIZE, type=int)
         batch_size = self.settings.value("max_segments_per_batch", MAX_SEGMENTS_PER_BATCH, type=int)
         threshold_px = self.settings.value("threshold_px", THRESHOLD_PX, type=float)
-
+        max_retries = self.settings.value("max_retries", MAX_RETRIES, type=int)
+        
         self.spin_temp.setValue(temperature)
         self.spin_context_size.setValue(context_size)
         self.spin_batch_size.setValue(batch_size)
         self.spin_threshold_px.setValue(threshold_px)
+        self.spin_retries.setValue(max_retries)
+        
 
     def _on_save_settings(self) -> None:
         """ Saves selected values to persistent storage. """
@@ -187,4 +196,5 @@ class TranslationWorkflowDialog(QDialog):
         self.settings.setValue("sliding_context_size", self.spin_context_size.value())
         self.settings.setValue("max_segments_per_batch", self.spin_batch_size.value())
         self.settings.setValue("threshold_px", self.spin_threshold_px.value())
+        self.settings.setValue("max_retries", self.spin_retries.value())
         self.accept()
