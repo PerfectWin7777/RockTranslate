@@ -68,7 +68,7 @@ def main() -> None:
         "--name=RockTranslate",
         "--clean",  # Clears PyInstaller cache
         f"--paths={os.path.join(project_root, 'src')}", 
-        "--noconsole",  # Hides the black terminal CMD window on startup
+        # "--noconsole",  # Hides the black terminal CMD window on startup
         f"--add-data={assets_src}{path_sep}{assets_dest}",
         "--collect-data=litellm",
         "--hidden-import=tiktoken_ext.openai_public",

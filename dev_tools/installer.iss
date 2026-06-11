@@ -43,12 +43,13 @@ Name: "german"; MessagesFile: "compiler:Languages\German.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
+
 [Files]
 ; Copy all compiled binaries and resources from PyInstaller output recursively.
 ; We use relative paths for cross-system compiling compatibility.
 ; We explicitly exclude development resources (*.ts, lrelease.exe) and heavy 
 ; unused Qt6 C++ binaries to drastically reduce the installer and installed sizes.
-Source: "..\dist\RockTranslate\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Exclude: "*.ts;*lrelease.exe;*Qt63D*;*Qt6Bluetooth*;*Qt6DBus*;*Qt6Designer*;*Qt6Help*;*Qt6Multimedia*;*Qt6Nfc*;*Qt6Positioning*;*Qt6RemoteObjects*;*Qt6Sensors*;*Qt6SerialPort*;*Qt6SpatialAudio*;*Qt6StateMachine*"
+Source: "..\dist\RockTranslate\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.ts,*lrelease.exe,*Qt63D*,*Qt6Bluetooth*,*Qt6DBus*,*Qt6Designer*,*Qt6Help*,*Qt6Multimedia*,*Qt6Nfc*,*Qt6Positioning*,*Qt6RemoteObjects*,*Qt6Sensors*,*Qt6SerialPort*,*Qt6SpatialAudio*,*Qt6StateMachine*"
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
