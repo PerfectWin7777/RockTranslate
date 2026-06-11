@@ -1,6 +1,6 @@
 """
 RockTranslate — Multi-language Translation Extraction Script
-Path: extract_translations.py
+Path: dev_tools/extract_translations.py
 
 This helper script automates the execution of pylupdate6 across all python
 source files to generate or update the XML-based .ts translation files
@@ -14,6 +14,11 @@ import os
 import subprocess
 import sys
 
+# python extract_translations.py
+
+# python translate_ts_files.p
+
+# python compile_translations.py
 
 def main() -> None:
     """
@@ -23,7 +28,7 @@ def main() -> None:
     print("⚙️ Running translation extraction pipeline for all target languages...")
     
     # Define directories
-    project_root = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     output_ts_dir = os.path.join(project_root, "src", "assets", "translations")
     os.makedirs(output_ts_dir, exist_ok=True)
     

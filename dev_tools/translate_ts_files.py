@@ -1,6 +1,6 @@
 """
 RockTranslate — Autonomous AI Translation Editor for TS Files
-Path: translate_ts_files.py
+Path: dev_tools/translate_ts_files.py
 
 This script reads raw QT .ts translation files, batches untranslated strings,
 queries the Google Gemini API using native JSON Mode, and updates the XML templates
@@ -29,8 +29,10 @@ def load_api_key_from_env() -> Optional[str]:
     if api_key:
         return api_key
 
-    # Parse local root .env file manually to avoid python-dotenv dependencies
-    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    # Corrected: Go up one directory (..) from 'dev_tools' to locate the root .env file
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    env_path = os.path.join(project_root, ".env")
+    
     if os.path.exists(env_path):
         try:
             with open(env_path, "r", encoding="utf-8") as f:
@@ -179,7 +181,7 @@ def main() -> None:
         )
         return
 
-    project_root = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     ts_dir = os.path.join(project_root, "src", "assets", "translations")
     
     # Locale files and their explicit language mappings

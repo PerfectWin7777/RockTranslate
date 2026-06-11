@@ -25,7 +25,7 @@ if current_dir not in sys.path:
 
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QFont
-from PyQt6.QtCore import QTranslator, QLocale
+from PyQt6.QtCore import QTranslator, QLocale, QSettings
 
 # Modular imports
 try:
@@ -62,17 +62,28 @@ def main() -> None:
     # 4. Initialize Internationalization (i18n)
     # Detects system locale and loads translated .qm packages if available
     translator = QTranslator()
-    system_locale = QLocale.system().name()  # e.g., 'fr_FR' or 'en_US'
     
+    # Check if the user has manually set a custom language preference
+    system_settings = QSettings("RockTranslate", "SystemConfig")
+    user_lang = system_settings.value("ui_language", "", type=str)
+    
+    if user_lang:
+        active_lang = user_lang
+        logger.info(f"Using user-defined UI language preference: {active_lang}")
+    else:
+        # Fallback to system locale detection
+        system_locale = QLocale.system().name()  # e.g., 'fr_FR' or 'es_ES'
+        active_lang = system_locale.split("_")[0]
+        logger.info(f"No user preference found. Defaulting to system locale: {active_lang}")
+        
     translations_path = os.path.join(current_dir, "src", "assets", "translations")
     if os.path.exists(translations_path):
-        # Extract the short 2-letter language code (e.g. 'fr', 'es', 'de') to match the files on disk
-        short_lang = system_locale.split("_")[0]
-        if translator.load(f"rocktranslate_{short_lang}", translations_path):
+        if translator.load(f"rocktranslate_{active_lang}", translations_path):
             app.installTranslator(translator)
-            logger.info(f"Loaded active translation package for locale: {short_lang}")
+            logger.info(f"Loaded active translation package for locale: {active_lang}")
         else:
-            logger.info(f"No translation package found for locale: {short_lang}. Defaulting to English.")
+            logger.info(f"No translation package found for locale: {active_lang}. Defaulting to English.")
+
 
     # 5. Launch Main MainWindow
     try:

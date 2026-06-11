@@ -296,8 +296,8 @@ Es posible que la traducción no funcione.</translation>
         <translation>Traducción</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="856" />
-        <location filename="..\..\ui_pyqt\main_window.py" line="827" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="884" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="855" />
         <location filename="..\..\ui_pyqt\main_window.py" line="497" />
         <source>Start Translation</source>
         <translation>Iniciar traducción</translation>
@@ -374,76 +374,81 @@ Es posible que la traducción no funcione.</translation>
     </message>
     <message>
         <location filename="..\..\ui_pyqt\main_window.py" line="603" />
+        <source>Application Language</source>
+        <translation>Idioma de la aplicación</translation>
+    </message>
+    <message>
+        <location filename="..\..\ui_pyqt\main_window.py" line="631" />
         <source>Reset Settings to Default</source>
         <translation>Restablecer valores predeterminados</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="644" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="672" />
         <source>API configuration saved successfully.</source>
         <translation>Configuración de API guardada correctamente.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="647" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="675" />
         <source>Open PDF</source>
         <translation>Abrir PDF</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="652" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="680" />
         <source>Analyzing document and extracting layout...</source>
         <translation>Analizando documento y extrayendo el diseño...</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="666" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="694" />
         <source>Analyzing Document layout: Page {current}/{total}...</source>
         <translation>Analizando diseño del documento: Página {current}/{total}...</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="693" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="721" />
         <source>Document loaded: {filename} ({count} text nodes mapped)</source>
         <translation>Documento cargado: {filename} ({count} nodos de texto mapeados)</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="700" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="728" />
         <source>Extraction Error</source>
         <translation>Error de extracción</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="700" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="728" />
         <source>Could not parse target document:</source>
         <translation>No se pudo analizar el documento de destino:</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="706" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="734" />
         <source>Stopping translation process...</source>
         <translation>Deteniendo el proceso de traducción...</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="716" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="744" />
         <source>No Text Detected</source>
         <translation>No se detectó texto</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="717" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="745" />
         <source>No translatable text elements found in this document. Please verify OCR layers.</source>
         <translation>No se encontraron elementos de texto traducibles en este documento. Verifique las capas OCR.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="745" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="773" />
         <source>Missing API Key</source>
         <translation>Falta la clave API</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="746" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="774" />
         <source>Please setup your API Key for {provider} first.</source>
         <translation>Por favor, configure primero su clave API para {provider}.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="767" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="795" />
         <source>Document Translated</source>
         <translation>Documento traducido</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="768" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="796" />
         <source>All pages are already translated.
 
 Do you want to reset historical structures and translate again?</source>
@@ -452,113 +457,127 @@ Do you want to reset historical structures and translate again?</source>
 ¿Desea restablecer las estructuras del historial y volver a traducir?</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="781" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="809" />
         <source>Translation already complete.</source>
         <translation>Traducción ya completada.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="804" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="832" />
         <source>Stop Translation</source>
         <translation>Detener traducción</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="832" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="860" />
         <source>Translation completed successfully.</source>
         <translation>Traducción completada correctamente.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="836" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="864" />
         <source>Finished ✓</source>
         <translation>Finalizado ✓</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1006" />
-        <location filename="..\..\ui_pyqt\main_window.py" line="847" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1034" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="875" />
         <source>Success</source>
         <translation>Éxito</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="847" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="875" />
         <source>Document translation succeeded!</source>
         <translation>¡La traducción del documento se ha completado con éxito!</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="849" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="877" />
         <source>Translation process canceled.</source>
         <translation>Proceso de traducción cancelado.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="857" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="885" />
         <source>Translation Interrupted</source>
         <translation>Traducción interrumpida</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="857" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="885" />
         <source>An error occurred during translation:</source>
         <translation>Ocurrió un error durante la traducción:</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="870" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="898" />
         <source>Display: Dual split layout active.</source>
         <translation>Visualización: Diseño de división doble activo.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="874" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="902" />
         <source>Display: Original PDF layout active.</source>
         <translation>Visualización: Diseño de PDF original activo.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="878" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="906" />
         <source>Display: Translated layout active.</source>
         <translation>Visualización: Diseño traducido activo.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="887" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="915" />
         <source>Zoom set to: {percent}%</source>
         <translation>Zoom ajustado a: {percent}%</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="895" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="923" />
         <source>displayed</source>
         <translation>mostrado</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="895" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="923" />
         <source>hidden</source>
         <translation>oculto</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="896" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="924" />
         <source>Display: Progress tracking panel {state}.</source>
         <translation>Visualización: Panel de seguimiento del progreso {state}.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="920" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="948" />
         <source>No recent documents found</source>
         <translation>No se encontraron documentos recientes</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="934" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="962" />
         <source>Clear History</source>
         <translation>Borrar historial</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="996" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1024" />
         <source>Reset Settings</source>
         <translation>Restablecer configuración</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="997" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1025" />
         <source>Are you sure you want to reset all engine and system configurations to their defaults?</source>
         <translation>¿Está seguro de que desea restablecer todas las configuraciones del motor y del sistema a sus valores predeterminados?</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1007" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1035" />
         <source>All workflow configurations have been reset successfully.</source>
         <translation>Todas las configuraciones de flujo de trabajo se han restablecido correctamente.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1042" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1059" />
+        <source>Restart Required</source>
+        <translation>Reinicio necesario</translation>
+    </message>
+    <message>
+        <location filename="..\..\ui_pyqt\main_window.py" line="1060" />
+        <source>The language has been updated.
+
+Would you like to restart RockTranslate now to apply the changes?</source>
+        <translation>El idioma ha sido actualizado.
+
+¿Desea reiniciar RockTranslate ahora para aplicar los cambios?</translation>
+    </message>
+    <message>
+        <location filename="..\..\ui_pyqt\main_window.py" line="1109" />
         <source>Document closed.</source>
         <translation>Documento cerrado.</translation>
     </message>

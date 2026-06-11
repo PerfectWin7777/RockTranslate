@@ -1,6 +1,6 @@
 """
 RockTranslate — Light-weighted Translation Compilation Script
-Path: compile_translations.py
+Path: dev_tools/extract_translations.py
 
 This helper script automates the compilation of translated .ts (XML) files into
 optimized .qm (binary) files. If no local Qt compilation tools are found on Windows,
@@ -73,7 +73,7 @@ def main() -> None:
     """
     print("⚙️ Running translation compilation pipeline...")
     
-    project_root = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     ts_dir = os.path.join(project_root, "src", "assets", "translations")
     locales = ["fr", "es", "de"]
     

@@ -15,7 +15,7 @@ Version: 1.0.0
 
 import os
 import sys
-
+import subprocess
 # ── DYNAMIC SYSTEM PATH RESOLUTION ──
 # Resolves search paths so that subscripts run directly without ModuleNotFound errors
 current_dir = os.path.dirname(os.path.abspath(__file__))  # src/ui_pyqt
@@ -600,6 +600,34 @@ class MainWindow(QMainWindow):
 
         m_settings.addSeparator()
 
+        m_lang = m_settings.addMenu(self.tr("Application Language"))
+        self._app_lang_actions = {}
+        
+        # Supported interface languages mapping
+        languages_list = [
+            ("English", "en"),
+            ("Français", "fr"),
+            ("Español", "es"),
+            ("Deutsch", "de"),
+        ]
+        
+        # Load currently saved language to check the correct item on startup
+        current_lang = QSettings("RockTranslate", "SystemConfig").value("ui_language", "")
+        
+        for display, code in languages_list:
+            action = QAction(display, self, checkable=True)
+            action.setData(code)
+            action.triggered.connect(self._on_app_language_changed)
+            
+            # If no manual preference is set, check "English" as fallback
+            if current_lang == code or (not current_lang and code == "en"):
+                action.setChecked(True)
+                
+            m_lang.addAction(action)
+            self._app_lang_actions[code] = action
+
+        m_settings.addSeparator()
+
         self.a_reset_settings = QAction(self.tr("Reset Settings to Default"), self)
         self.a_reset_settings.triggered.connect(self._reset_all_settings)
         m_settings.addAction(self.a_reset_settings)
@@ -1006,6 +1034,45 @@ class MainWindow(QMainWindow):
                 self.tr("Success"), 
                 self.tr("All workflow configurations have been reset successfully.")
             )
+
+    
+    def _on_app_language_changed(self) -> None:
+        """ Handles application language change and triggers a fast software restart. """
+        action = self.sender()
+        if not isinstance(action, QAction):
+            return
+            
+        selected_code = str(action.data())
+        
+        # Uncheck other languages
+        for act in self._app_lang_actions.values():
+            act.setChecked(False)
+        action.setChecked(True)
+        
+        # Save preference
+        system_settings = QSettings("RockTranslate", "SystemConfig")
+        system_settings.setValue("ui_language", selected_code)
+        
+        # Prompt user to restart
+        reply = QMessageBox.question(
+            self,
+            self.tr("Restart Required"),
+            self.tr("The language has been updated.\n\nWould you like to restart RockTranslate now to apply the changes?"),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            # ── AUTO-RESTART ENGINE ──
+            # Safely close the active document first to clear temporary locks
+            self._close_document()
+            
+            # Close this QApplication instance
+            QApplication.quit()
+            
+            # Instantly launch a new process with identical CLI arguments
+            
+            subprocess.Popen([sys.executable] + sys.argv)
 
 
     def _close_document(self) -> None:
