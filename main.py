@@ -15,6 +15,20 @@ import os
 import sys
 from loguru import logger
 
+# ── TIKTOKEN PYINSTALLER RUNTIME HOOK ──
+# If running inside a compiled PyInstaller frozen bundle, manually register
+# the tiktoken encoding constructors to bypass its broken dynamic package lookup.
+if hasattr(sys, "_MEIPASS"):
+    try:
+        import tiktoken.registry
+        import tiktoken_ext.openai_public
+        tiktoken.registry.ENCODING_CONSTRUCTORS = dict(
+            tiktoken_ext.openai_public.ENCODING_CONSTRUCTORS
+        )
+    except ImportError:
+        pass
+# ───────────────────────────────────────
+
 # Resolve system search paths dynamically to prevent ModuleNotFoundErrors
 current_dir = os.path.dirname(os.path.abspath(__file__))
 src_dir = os.path.join(current_dir, "src")
