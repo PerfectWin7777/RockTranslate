@@ -20,11 +20,8 @@ from PyQt6.QtWidgets import QWidget, QFileDialog, QMessageBox
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineSettings
 
-# Safe fallback imports supporting both standard package modules and direct scripts
-try:
-    from src.rocktranslate.ui_pyqt.widget.workspace_viewer import WorkspaceViewer
-except ImportError:
-    from src.rocktranslate.ui_pyqt.widget.workspace_viewer import WorkspaceViewer
+# Safe imports supporting both standard package modules and direct scripts
+from rocktranslate.ui_pyqt.widget.workspace_viewer import WorkspaceViewer
 
 
 class PDFExporter(QObject):
