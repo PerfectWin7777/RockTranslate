@@ -38,7 +38,7 @@ gui = [
 
 # Registers the global system command linking to our CLI main function
 [project.scripts]
-rocktranslate = "rocktranslate.cli.cli:main"
+rocktranslate = "rocktranslate.cli:main" 
 
 [tool.setuptools.packages.find]
 where = ["src"]

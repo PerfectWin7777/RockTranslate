@@ -1,6 +1,6 @@
 """
 RockTranslate — Standalone Command Line Interface (CLI) Entry Point
-Path: src/rocktranslate/cli/cli.py
+Path: src/rocktranslate/cli.py
 
 This module implements the lightweight, Qt-free CLI execution engine. It handles
 asynchronous batching, offline HTML DOM translated text injection via BeautifulSoup,
@@ -23,8 +23,9 @@ from typing import Dict, List, Optional, Any
 from bs4 import BeautifulSoup
 
 # ── DYNAMIC SYSTEM PATH RESOLUTION ──
-# Resolves search paths so that subscripts run directly without ModuleNotFound errors
-current_dir = os.path.dirname(os.path.abspath(__file__))  # src/cli
+# Resolves search paths so that subscripts run directly without ModuleNotFound errors.
+# Path: src/rocktranslate/cli.py
+current_dir = os.path.dirname(os.path.abspath(__file__))  # src/rocktranslate
 src_dir = os.path.dirname(current_dir)                    # src
 project_root = os.path.dirname(src_dir)                   # Project root
 
@@ -35,19 +36,23 @@ if project_root not in sys.path:
 # ────────────────────────────────────
 
 # Exclude heavy PyQt GUI modules from standard library requirements
-from ..core.constants import (
+# Absolute package imports from the rocktranslate package
+from .core.constants import (
     DEFAULT_ASSETS_DIR,
     THRESHOLD_PX,
     SLIDING_CONTEXT_MAX_SIZE,
     MAX_SEGMENTS_PER_BATCH,
     MAX_RETRIES,
 )
-from ..core.html_transformer import convert_pdf_to_html, instrument_html
-from ..core.chunker import build_batches, Batch
-from ..core.llm_client import LLMClient
-from ..core.pdf_metadata import get_pdf_metadata
-from ..core.renderer import (find_system_chromium_browser,
-     apply_translations_offline, print_html_to_vector_pdf)
+from .core.html_transformer import convert_pdf_to_html, instrument_html
+from .core.chunker import build_batches, Batch
+from .core.llm_client import LLMClient
+from .core.pdf_metadata import get_pdf_metadata
+from .core.renderer import (
+    find_system_chromium_browser,
+    apply_translations_offline,
+    print_html_to_vector_pdf,
+)
 
 # Only import winreg on Windows platforms to query installed internet browser registries
 if sys.platform == "win32":
