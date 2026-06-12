@@ -44,3 +44,15 @@ tests/
 # OS
 .DS_Store
 Thumbs.db
+
+
+
+# Allow all static assets and engines required by the application
+!src/rocktranslate/assets/**/*.html
+!src/rocktranslate/assets/**/*.json
+!src/rocktranslate/assets/**/*.js
+!src/rocktranslate/assets/**/*.css
+!src/rocktranslate/assets/**/*.ico
+!src/rocktranslate/assets/**/*.png
+!src/rocktranslate/assets/**/*.exe
+!src/rocktranslate/assets/**/*.ttf
