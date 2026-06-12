@@ -1,6 +1,6 @@
 """
 RockTranslate — Observer-Pattern Persisted Recent Files Manager
-Path: utils/recent_files_manager.py
+Path: src/rocktranslate/ui_pyqt/utils/recent_files_manager.py
 
 This module implements a standard QSettings-backed history manager.
 It handles retrieving, adding, and pruning recent document paths.

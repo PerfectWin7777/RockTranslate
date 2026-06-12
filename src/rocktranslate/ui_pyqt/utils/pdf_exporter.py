@@ -1,6 +1,6 @@
 """
 RockTranslate — Asynchronous Headless Chromium PDF Vector Exporter
-Path: ui_pyqt/utils/pdf_exporter.py
+Path: src/rocktranslate/ui_pyqt/utils/pdf_exporter.py
 
 This module implements the high-fidelity PDF printing pipeline.
 It extracts active translated DOM trees from the workspace viewer, writes 

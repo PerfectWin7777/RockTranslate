@@ -17,19 +17,19 @@ import os
 import sys
 import subprocess
 import webbrowser
-# ── DYNAMIC SYSTEM PATH RESOLUTION ──
-# Resolves search paths so that subscripts run directly without ModuleNotFound errors
-current_dir = os.path.dirname(os.path.abspath(__file__))  # src/ui_pyqt
-src_dir = os.path.dirname(current_dir)                    # src
-project_root = os.path.dirname(src_dir)                   # Project root
 
-if src_dir not in sys.path:
-    sys.path.insert(0, src_dir)
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+# ── DYNAMIC SYSTEM PATH RESOLUTION ──
+# Allows direct script execution of main_window.py for fast local development.
+# Path: src/rocktranslate/ui_pyqt/main_window.py -> we go up 2 levels to get 'src'
+current_dir = os.path.dirname(os.path.abspath(__file__))  # src/rocktranslate/ui_pyqt
+src_parent_dir = os.path.abspath(os.path.join(current_dir, "..", ".."))  # src
+
+if src_parent_dir not in sys.path:
+    sys.path.insert(0, src_parent_dir)
 # ────────────────────────────────────
 
-import datetime, json
+import datetime
+import json
 from typing import Optional, Dict, List, Any
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
@@ -40,22 +40,22 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer, QUrl, pyqtSignal, QSettings
 from PyQt6.QtGui import QFont, QKeySequence, QAction, QActionGroup, QPixmap, QIcon
 
-# Modular, decoupled imports representing the clean open-source architecture
-from ..core.constants import DEFAULT_PROVIDERS, DEFAULT_ASSETS_DIR
-from .widget.workspace_viewer import WorkspaceViewer
-from .widget.progress_panel import ProgressPanel
-from .widget.zoom_widget import ZoomWidget
-from .widget.properties_dialog import DocumentPropertiesDialog
-from .widget.api_config_dialog import APIConfigDialog
-from .widget.system_settings_dialog import SystemWorkflowDialog
-from .widget.translation_settings_dialog import TranslationWorkflowDialog
-from .widget.about_dialog import AboutDialog
-from .workers.extraction_worker import ExtractionWorker
-from .workers.translation_worker import TranslationWorker
-from .utils.pdf_exporter import PDFExporter
-from ..core.pdf_metadata import get_pdf_metadata
-from .utils.recent_files_manager import RecentFilesManager
-from ..core.downloader import check_and_download_pdfjs, check_and_download_pdf2htmlex
+# Absolute imports from the rocktranslate package
+from rocktranslate.core.constants import DEFAULT_PROVIDERS, DEFAULT_ASSETS_DIR
+from rocktranslate.ui_pyqt.widget.workspace_viewer import WorkspaceViewer
+from rocktranslate.ui_pyqt.widget.progress_panel import ProgressPanel
+from rocktranslate.ui_pyqt.widget.zoom_widget import ZoomWidget
+from rocktranslate.ui_pyqt.widget.properties_dialog import DocumentPropertiesDialog
+from rocktranslate.ui_pyqt.widget.api_config_dialog import APIConfigDialog
+from rocktranslate.ui_pyqt.widget.system_settings_dialog import SystemWorkflowDialog
+from rocktranslate.ui_pyqt.widget.translation_settings_dialog import TranslationWorkflowDialog
+from rocktranslate.ui_pyqt.widget.about_dialog import AboutDialog
+from rocktranslate.ui_pyqt.workers.extraction_worker import ExtractionWorker
+from rocktranslate.ui_pyqt.workers.translation_worker import TranslationWorker
+from rocktranslate.ui_pyqt.utils.pdf_exporter import PDFExporter
+from rocktranslate.core.pdf_metadata import get_pdf_metadata
+from rocktranslate.ui_pyqt.utils.recent_files_manager import RecentFilesManager
+from rocktranslate.core.downloader import check_and_download_pdfjs, check_and_download_pdf2htmlex
 
 
 class RecentFileItem(QFrame):

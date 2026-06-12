@@ -31,13 +31,15 @@ if hasattr(sys, "_MEIPASS"):
 # ───────────────────────────────────────
 
 # Resolve system search paths dynamically to prevent ModuleNotFoundErrors
-current_dir = os.path.dirname(os.path.abspath(__file__))
-src_dir = os.path.join(current_dir, "src")
+# ── DYNAMIC SYSTEM PATH RESOLUTION ──
+# Resolves search paths so that subscripts run directly without ModuleNotFound errors.
+# In: src/rocktranslate/gui.py -> parent is 'src'
+current_dir = os.path.dirname(os.path.abspath(__file__))  # src/rocktranslate
+src_parent_dir = os.path.dirname(current_dir)             # src
 
-if src_dir not in sys.path:
-    sys.path.insert(0, src_dir)
-if current_dir not in sys.path:
-    sys.path.insert(0, current_dir)
+if src_parent_dir not in sys.path:
+    sys.path.insert(0, src_parent_dir)
+# ────────────────────────────────────
 
 from PyQt6.QtWidgets import QApplication, QSplashScreen  
 from PyQt6.QtGui import QFont, QPixmap, QColor 
@@ -94,7 +96,7 @@ def main() -> None:
     # Look for the splash image inside our assets directory
     # Since we haven't loaded MainWindow yet, this block executes in under 50ms!
     try:
-        from .core.constants import DEFAULT_ASSETS_DIR
+        from rocktranslate.core.constants import DEFAULT_ASSETS_DIR
     except ImportError: 
         from core.constants import DEFAULT_ASSETS_DIR # type: ignore
 
@@ -166,7 +168,7 @@ def main() -> None:
     # 5. Launch Main MainWindow
     try:
         try:
-            from .ui_pyqt.main_window import MainWindow # <-- IMPORT INTRADÉPARTEMENTAL (LAZY)
+            from rocktranslate.ui_pyqt.main_window import MainWindow # <-- IMPORT INTRADÉPARTEMENTAL (LAZY)
         except ImportError:
             from ui_pyqt.main_window import MainWindow # type: ignore
      

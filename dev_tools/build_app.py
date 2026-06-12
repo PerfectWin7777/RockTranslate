@@ -85,7 +85,6 @@ def main() -> None:
         "PyQt6.QtHelp", "PyQt6.QtMultimedia", "PyQt6.QtMultimediaWidgets", "PyQt6.QtNfc", "PyQt6.QtPositioning",
         "PyQt6.QtRemoteObjects", "PyQt6.QtSensors", "PyQt6.QtSerialPort", "PyQt6.QtSpatialAudio", "PyQt6.QtStateMachine",
         "PyQt6.QtCharts", "PyQt6.QtQuick3D", "PyQt6.QtQuick3DPhysics", "PyQt6.QtQuick3DRuntimeRender",
-        "PyQt6.QtQuick" , "PyQt6.QtQml" , "PyQt6.QtQuickWidgets"
     ]
     for module in excluded_modules:
         pyinstaller_args.append(f"--exclude-module={module}")
