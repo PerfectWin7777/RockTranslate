@@ -245,7 +245,8 @@ def main() -> None:
     and triggers headless vector printing.
     """
     parser = argparse.ArgumentParser(
-        description="RockTranslate CLI: Highly-optimized, layout-preserved PDF document translation."
+        description="RockTranslate CLI: High-fidelity layout-preserved PDF document translator.",
+        formatter_class=argparse.RawTextHelpFormatter  # Permet un affichage propre multi-lignes
     )
     parser.add_argument(
         "input", 
@@ -254,24 +255,39 @@ def main() -> None:
     parser.add_argument(
         "-l", "--lang", 
         default="French", 
-        help="Target language for the translated document (default: French)."
+        help=(
+            "Target language for the translated document (default: French).\n"
+            "Supports any language accepted by the model (e.g., French, Spanish, German, Japanese)."
+        )
     )
     parser.add_argument(
         "-o", "--output", 
-        help="Custom output file path for the translated PDF. Default: '[input]_translated.pdf'"
+        help="Custom output path for the translated PDF. Default: '[input]_translated.pdf'"
     )
     parser.add_argument(
         "-m", "--model", 
-        help="Target LLM model routing (e.g., 'gemini/gemini-3.1-flash-lite')."
+        help=(
+            "Target LLM model router string (default: gemini/gemini-3.1-flash-lite).\n"
+            "Format: [provider]/[model_name]\n"
+            "Examples:\n"
+            "  - gemini/gemini-2.5-flash-lite\n"
+            "  - openai/gpt-4o-mini\n"
+            "  - anthropic/claude-3-5-sonnet\n"
+            "  - ollama/llama3 (for local execution)"
+        )
     )
     parser.add_argument(
         "-k", "--api-key", 
-        help="Override/provide API Key for your selected translation provider."
+        help=(
+            "Override/provide the API key for your selected translation provider.\n"
+            "If omitted, the CLI automatically retrieves keys from your system variables\n"
+            "or local '.env' file (e.g., GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY)."
+        )
     )
     parser.add_argument(
         "-t", "--temp", 
         type=float, 
-        help="Model generation temperature (0.0 to 2.0)."
+        help="Model generation temperature (0.0 to 2.0). Lower is more precise and consistent."
     )
     
     args = parser.parse_args()
