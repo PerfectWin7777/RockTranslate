@@ -43,7 +43,6 @@ Name: "german"; MessagesFile: "compiler:Languages\German.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
-
 [Files]
 ; Copy all compiled binaries and resources from PyInstaller output recursively.
 ; We use relative paths for cross-system compiling compatibility.

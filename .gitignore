@@ -36,6 +36,8 @@ src/rocktranslate.egg-info
 # IDEs
 .vscode/
 .idea/
+.github/
+
 
 old_pdfium/
 old_pymupdf/

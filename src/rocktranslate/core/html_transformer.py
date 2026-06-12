@@ -443,6 +443,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
             commit_group()
 
     # ── 2. EMBED GLASS OVERLAYS ON ALL PAGES ──
+    # ── 2. EMBED GLASS OVERLAYS ON ALL PAGES ──
     for p_idx, page in enumerate(pages_list):
         glass_div = soup.new_tag("div", attrs={
             "id": f"glass-overlay-t-{p_idx}",
@@ -452,17 +453,18 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 "left: 5%; "
                 "width: 90%; "
                 "height: 90%; "
-                "background: linear-gradient(135deg, rgba(255,255,255,0.45), rgba(255,255,255,0.15)); "
-                "backdrop-filter: blur(18px); "
-                "-webkit-backdrop-filter: blur(18px); "
-                "border: 1px solid rgba(255,255,255,0.5); "
+                "background: rgba(250, 250, 252, 0.98); "
+                "border: 3px solid rgba(255,255,255,0.8); "
                 "border-radius: 16px; "
-                "box-shadow: 0 8px 32px rgba(31,38,135,0.25), 0 0 1px rgba(255,255,255,0.5); "
+                "box-shadow: 0 8px 32px rgba(31,38,135,0.15), 0 0 1px rgba(255,255,255,0.8); "
                 "z-index: 1000; "
                 "display: flex; "
                 "justify-content: center; "
                 "align-items: center; "
-                "pointer-events: none;"
+                "pointer-events: none; "
+                "transform: translate3d(0, 0, 0); "
+                "backface-visibility: hidden; "
+                "-webkit-backface-visibility: hidden;"
             )
         })
 
