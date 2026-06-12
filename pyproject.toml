@@ -1,7 +1,44 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "rocktranslate"
-version = "0.1.0"
-dependencies = []
+version = "1.0.0"
+description = "High-Fidelity AI Layout-Preserved PDF Translator"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "RockTranslate Contributors"}
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+# Minimal dependencies required for CLI and Library usage
+dependencies = [
+    "beautifulsoup4",
+    "lxml",
+    "litellm",
+    "json-repair",
+    "pypdf",
+    "loguru",
+    "tiktoken"
+]
+
+# Optional dependencies to install the full GUI (pip install -e .[gui])
+[project.optional-dependencies]
+gui = [
+    "PyQt6>=6.4.0",
+    "PyQt6-WebEngine>=6.4.0"
+]
+
+# Registers the global system command linking to our CLI main function
+[project.scripts]
+rocktranslate = "rocktranslate.cli.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

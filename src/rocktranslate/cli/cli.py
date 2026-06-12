@@ -132,7 +132,7 @@ def find_system_chromium_browser() -> Optional[str]:
             pass
 
     # 3. Search standard app bundles on macOS
-    elif sys.platform == "darwin":
+    elif sys.platform == "darwin": # todo
         mac_apps = [
             "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
             "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"
@@ -262,7 +262,7 @@ def main() -> None:
     )
     parser.add_argument(
         "-m", "--model", 
-        help="Target LLM model routing (e.g., 'gemini/gemini-2.5-flash-lite')."
+        help="Target LLM model routing (e.g., 'gemini/gemini-3.1-flash-lite')."
     )
     parser.add_argument(
         "-k", "--api-key", 
