@@ -30,7 +30,7 @@ class RockTranslator:
 
     def __init__(
         self,
-        model: str = "gemini/gemini-2.5-flash-lite",
+        model: str = "gemini/gemini-3.1-flash-lite",
         api_key: Optional[str] = None,
         target_lang: str = "French",
         temperature: float = 1.0,
@@ -40,7 +40,7 @@ class RockTranslator:
         """Initializes the RockTranslator engine.
 
         Args:
-            model: Target LLM model routing (e.g., 'gemini/gemini-2.5-flash-lite').
+            model: Target LLM model routing (e.g., 'gemini/gemini-3.1-flash-lite').
             api_key: API Key for the active provider.
             target_lang: Destination language name (e.g., 'Spanish', 'German').
             temperature: Model sampling temperature (0.0 to 2.0).
@@ -172,32 +172,113 @@ class RockTranslator:
                 
             logger.error("Failed to generate output vector PDF via browser headless print.")
             return False
-        
+
+
+
 """
 
 if __name__ == "__main__":
+     # ==============================================================================
+    # 📚 PROGRAMMATIC USAGE EXAMPLES & DIAGNOSTICS
+    # ==============================================================================
+
+
     # Example usage demonstrating programmatic translation.
     # Ensure you have your API key set in your environment or local .env file.
     # E.g., export GEMINI_API_KEY="your_api_key_here"
+   
+    # This block demonstrates how to integrate RockTranslator into your own Python
+    # scripts for various use cases and setups.
 
-    # Initialize the translator
-    translator = RockTranslator(
-        model="gemini/gemini-2.5-flash-lite",
-        target_lang="Spanish"
-    )
-
-    # Translate a sample document
-    sample_pdf = "Sample_doc.pdf"
+    # import the library 
+    import os
+    from RockTranslate import RockTranslator
     
-    if os.path.exists(sample_pdf):
-        logger.info(f"Starting test translation for: {sample_pdf}")
-        success = translator.translate(input_pdf_path=sample_pdf)
-        logger.info(f"Test translation completed with status: {success}")
-    else:
-        logger.warning(
-            f"Sample file '{sample_pdf}' not found. "
-            "Place a PDF in your working directory to run this test block."
+    # import the logger
+    try:
+        from loguru import logger
+    except ImportError:
+        import logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s - %(levelname)s - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S"
         )
+        logger = logging.getLogger("RockTranslate")
 
+    
+    logger.info("Executing RockTranslate programmatic API diagnostics...")
+
+    # Define a test file pathway
+    sample_pdf = "article_scientifique.pdf"
+
+    # Ensure a sample file is present before initiating diagnostic runs
+    if not os.path.exists(sample_pdf):
+        logger.warning(
+            f"Sample file '{sample_pdf}' not found in the current working directory.\n"
+            "Please place a valid PDF in your execution folder to run these tests."
+        )
+    else:
+        # ──────────────────────────────────────────────────────────────────────
+        # SCENARIO 1: Basic Translation (Using Google Gemini with environment key)
+        # ──────────────────────────────────────────────────────────────────────
+        logger.info("--- SCENARIO 1: Standard Gemini Translation ---")
+        # Automatically searches for GEMINI_API_KEY inside system environment variables
+        translator_gemini = RockTranslator(
+            model="gemini/gemini-3.1-flash-lite",
+            target_lang="Spanish"
+        )
+        
+        # Executes translation, saving the file to '[article_scientifique]_translated.pdf'
+        success_gemini = translator_gemini.translate(input_pdf_path=sample_pdf)
+        logger.info(f"Scenario 1 complete. Success: {success_gemini}")
+
+        # ──────────────────────────────────────────────────────────────────────
+        # SCENARIO 2: Custom Output Path and Language Customization
+        # ──────────────────────────────────────────────────────────────────────
+        logger.info("--- SCENARIO 2: Custom Language & Output Path ---")
+        translator_custom = RockTranslator(
+            model="gemini/gemini-3.1-flash-lite",
+            target_lang="German"
+        )
+        
+        # Translates to German and writes output to a custom specified path
+        custom_output = "results/german_report.pdf"
+        os.makedirs("results", exist_ok=True)
+        
+        success_custom = translator_custom.translate(
+            input_pdf_path=sample_pdf,
+            output_pdf_path=custom_output
+        )
+        logger.info(f"Scenario 2 complete. Translated PDF written to: {custom_output} (Success: {success_custom})")
+
+        # ──────────────────────────────────────────────────────────────────────
+        # SCENARIO 3: Alternative Provider (OpenAI) with Explicit API Key
+        # ──────────────────────────────────────────────────────────────────────
+        logger.info("--- SCENARIO 3: Custom Provider with Explicit Credentials ---")
+        # Explicit credentials pass overrides local environment configurations
+        translator_openai = RockTranslator(
+            model="openai/gpt-4o-mini",
+            api_key="sk-your-openai-api-key-here",  # Replace with a valid credentials key
+            target_lang="Italian",
+            temperature=0.3  # Lower temperature for more rigid, literal academic translation
+        )
+        
+        # success_openai = translator_openai.translate(input_pdf_path=sample_pdf)
+        logger.info("Scenario 3 configured. (Run skipped to avoid credential errors.)")
+
+        # ──────────────────────────────────────────────────────────────────────
+        # SCENARIO 4: Fully Local and Offline Translation (Using Ollama)
+        # ──────────────────────────────────────────────────────────────────────
+        logger.info("--- SCENARIO 4: Offline Local Translation ---")
+        # No API keys or remote servers required. Ensure Ollama is running on the host machine.
+        translator_local = RockTranslator(
+            model="ollama/llama3",
+            target_lang="French",
+            custom_base_url="http://localhost:11434"  # Default local Ollama gateway port
+        )
+        
+        # success_local = translator_local.translate(input_pdf_path=sample_pdf)
+        logger.info("Scenario 4 configured for local offline execution.")
         
 """
