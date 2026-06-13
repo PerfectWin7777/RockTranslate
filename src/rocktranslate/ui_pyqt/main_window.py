@@ -789,6 +789,7 @@ class MainWindow(QMainWindow):
         # Load split pane viewports
         pdfjs_absolute_path = os.path.join(DEFAULT_ASSETS_DIR, "pdfjs")
         self.workspace_view.load_document(self._pdf_path, self._instrumented_html_path, pdfjs_absolute_path)
+        
 
         self.status.showMessage(
             self.tr("Document loaded: {filename} ({count} text nodes mapped)").format(
@@ -897,7 +898,7 @@ class MainWindow(QMainWindow):
                 self.a_export.setEnabled(True)
                 return
 
-        self.progress_panel.reset(total_pages, len(self._original_texts))
+        self.progress_panel.reset(total_pages, len(untranslated_texts), target_pages)
         self.progress_panel.set_segments(len(already_translated_ids))
 
         # Launch active translation thread
@@ -1000,6 +1001,7 @@ class MainWindow(QMainWindow):
         label_text = (
             f"{self.tr('Enter page numbers or ranges to translate (Total Pages:')} {total_pages}):\n\n"
             f"📖 {self.tr('Syntax Guide:')}\n"
+            f"  • {self.tr("If you want to translate a single page, enter its number. Example: '4' translates only page 4.")}\n"
             f"  • {self.tr("Use '-' for a sequential range of pages. Example: '2-5' translates pages 2, 3, 4, and 5.")}\n"
             f"  • {self.tr("Use ',' to separate distinct pages or ranges. Example: '1, 3, 5' translates pages 1, 3, and 5.")}\n"
             f"  • {self.tr("Combine both formats. Example: '2-4, 7, 9' translates pages 2, 3, 4, 7, and 9.")}\n\n"
@@ -1021,7 +1023,6 @@ class MainWindow(QMainWindow):
         if not target_pages:
             # Detailed feedback if user entered out-of-bound numbers
             try:
-                import re
                 raw_numbers = [int(s) for s in re.findall(r'\d+', user_input)]
                 out_of_bounds = [n for n in raw_numbers if n < 1 or n > total_pages]
                 if out_of_bounds:

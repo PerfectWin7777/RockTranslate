@@ -15,7 +15,7 @@ Version: 1.0.0
 """
 
 import time
-from typing import Optional
+from typing import Optional, List
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QProgressBar
 from PyQt6.QtCore import Qt, QTimer
 
@@ -127,12 +127,14 @@ class ProgressPanel(QWidget):
         
         # Internal state tracking variables
         self._total_pages: int = 1
+        self._target_pages: Optional[List[int]] = None  # Track target page range (0-based)
         self._done_pages: int = 0
         self._total_segments: int = 0
         self._done_segments: int = 0
         self._batches_done: int = 0
         self._batches_total: int = 0
         self._start_time: Optional[float] = None
+        
 
         self._build_ui()
 
@@ -165,15 +167,30 @@ class ProgressPanel(QWidget):
         )
         layout.addWidget(self.local_progress)
 
-    def reset(self, total_pages: int, total_segments: int) -> None:
+    def reset(
+        self, 
+        total_pages: int, 
+        total_segments: int, 
+        target_pages: Optional[List[int]] = None
+    ) -> None:
         """
-        Prepares the visual bars and starts calculations for a new translation process.
+        Prepares the visual bars and starts calculations for a new translation process,
+        adapting the page boundaries to the specific targeted pages if a range is selected.
 
         Args:
             total_pages: Total page count inside the active document.
             total_segments: Number of segment nodes queued for LLM translation.
+            target_pages: Optional list of zero-based target page indices.
         """
-        self._total_pages = total_pages
+        self._target_pages = target_pages
+        
+        # If specific target pages are selected, the overall progress limit 
+        # is the count of those targeted pages, not the total document page count.
+        if self._target_pages is not None:
+            self._total_pages = len(self._target_pages)
+        else:
+            self._total_pages = total_pages
+            
         self._done_pages = 0
         self._total_segments = total_segments
         self._done_segments = 0
@@ -181,9 +198,10 @@ class ProgressPanel(QWidget):
         self._batches_total = 0
         self._start_time = time.time()
 
-        self.global_progress.update_values(0, total_pages, self.tr("Calculating..."))
+        self.global_progress.update_values(0, self._total_pages, self.tr("Calculating..."))
         self.local_progress.update_values(0, total_segments, self.tr("Speed: --"))
         self._timer.start()
+
     
     def clear(self) -> None:
         """ Instantly resets progress bounds and resets labels. """
@@ -195,19 +213,32 @@ class ProgressPanel(QWidget):
         self._batches_done = 0
         self._batches_total = 0
         self._start_time = None
+        self._target_pages = None
 
         self.global_progress.update_values(0, 1, "")
         self.local_progress.update_values(0, 1, "")
         
     def set_page(self, page_num: int) -> None:
         """
-        Updates active global page metrics.
+        Updates active global page metrics, mapping the current physical page
+        to its sequential step index if a targeted page range is selected.
 
         Args:
-            page_num: Active index of the page currently processed.
+            page_num: Active 1-based index of the page currently processed.
         """
-        self._done_pages = page_num
+        if self._target_pages is not None:
+            # Convert 1-based page number back to 0-based physical index
+            actual_page_idx = page_num - 1
+            if actual_page_idx in self._target_pages:
+                # Find its 1-based sequential position in the selection
+                self._done_pages = self._target_pages.index(actual_page_idx) + 1
+            else:
+                self._done_pages = min(page_num, self._total_pages)
+        else:
+            self._done_pages = page_num
+            
         self.global_progress.update_values(self._done_pages, self._total_pages)
+
     
     def set_segments(self, done_segments: int) -> None:
         """
