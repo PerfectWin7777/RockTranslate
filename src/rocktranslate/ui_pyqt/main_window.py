@@ -15,6 +15,7 @@ Version: 1.0.0
 
 import os
 import sys
+import re
 import subprocess
 import webbrowser
 
@@ -30,12 +31,12 @@ if src_parent_dir not in sys.path:
 
 import datetime
 import json
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Set
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
     QFileDialog, QMessageBox, QLabel, QStatusBar, QStackedWidget, QFrame,
     QHBoxLayout, QScrollArea, QPushButton, QDialog,
-    QGridLayout
+    QInputDialog
 )
 from PyQt6.QtCore import Qt, QTimer, QUrl, pyqtSignal, QSettings
 from PyQt6.QtGui import QFont, QKeySequence, QAction, QActionGroup, QPixmap, QIcon
@@ -56,6 +57,62 @@ from rocktranslate.ui_pyqt.utils.pdf_exporter import PDFExporter
 from rocktranslate.core.pdf_metadata import get_pdf_metadata
 from rocktranslate.ui_pyqt.utils.recent_files_manager import RecentFilesManager
 from rocktranslate.core.downloader import check_and_download_pdfjs, check_and_download_pdf2htmlex
+
+
+
+def parse_page_range(range_str: str, max_pages: int) -> List[int]:
+    """
+    Parses a user-defined page range string into a sorted list of zero-based page indices.
+    Tolerates spaces, handles inverted ranges (e.g., "5-2"), and filters out invalid 
+    or out-of-bounds pages.
+
+    Args:
+        range_str: User input string (e.g., "2-5, 9, 12-10").
+        max_pages: Maximum page count of the active PDF.
+
+    Returns:
+        List[int]: Sorted list of unique zero-based page indices.
+    """
+    pages: Set[int] = set()
+    if not range_str.strip():
+        return []
+
+    # Split by comma for distinct pages/ranges
+    parts = range_str.split(',')
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+
+        if '-' in part:
+            # Handle page range: e.g., "2-5" or "10-8"
+            sub_parts = part.split('-')
+            if len(sub_parts) == 2:
+                try:
+                    start_val = int(sub_parts[0].strip())
+                    end_val = int(sub_parts[1].strip())
+                    
+                    # Validate values are within physical boundaries
+                    if 1 <= start_val <= max_pages and 1 <= end_val <= max_pages:
+                        # Support both standard (2-5) and inverted (5-2) formats
+                        min_val = min(start_val, end_val)
+                        max_val = max(start_val, end_val)
+                        for p in range(min_val, max_val + 1):
+                            pages.add(p - 1)  # Shift to zero-based index
+                except ValueError:
+                    continue
+        else:
+            # Handle single page: e.g., "9"
+            try:
+                p = int(part)
+                if 1 <= p <= max_pages:
+                    pages.add(p - 1)  # Shift to zero-based index
+            except ValueError:
+                continue
+
+    return sorted(list(pages))
+
+
 
 
 class RecentFileItem(QFrame):
@@ -487,6 +544,12 @@ class MainWindow(QMainWindow):
         self.a_start.triggered.connect(self._toggle_translation)
         m_trans.addAction(self.a_start)
 
+        self.a_start_range = QAction(self.tr("Translate Specific Pages..."), self)
+        self.a_start_range.setShortcut(QKeySequence("Ctrl+Shift+Return"))
+        self.a_start_range.setEnabled(False)
+        self.a_start_range.triggered.connect(self._toggle_translation_range)
+        m_trans.addAction(self.a_start_range)
+
         m_trans.addSeparator()
 
         self.a_api_config = QAction(self.tr("API & Model Configuration..."), self)
@@ -720,6 +783,7 @@ class MainWindow(QMainWindow):
         self.stacked_widget.setCurrentIndex(1)
         self.a_close.setEnabled(True)
         self.a_start.setEnabled(True)
+        self.a_start_range.setEnabled(True)
         self.a_properties.setEnabled(True)
 
         # Load split pane viewports
@@ -746,7 +810,7 @@ class MainWindow(QMainWindow):
             return
         self._start_translation()
 
-    def _start_translation(self) -> None:
+    def _start_translation(self, target_pages: Optional[List[int]] = None) -> None:
         if not self._original_texts:
             QMessageBox.warning(
                 self, 
@@ -793,10 +857,24 @@ class MainWindow(QMainWindow):
         for page_data in self._translated_pages.values():
             already_translated_ids.update(page_data.keys())
 
-        untranslated_texts = {
-            k: v for k, v in self._original_texts.items()
-            if k not in already_translated_ids
-        }
+         # --- SURGICAL REFACTOR: FILTER UNTRANSLATED BY TARGET RANGE ---
+        if target_pages is not None:
+            untranslated_texts = {
+                k: v for k, v in self._original_texts.items()
+                if k not in already_translated_ids and self._tid_to_page.get(k, 0) in target_pages
+            }
+            
+            # Hide the glass overlay for all pages that will NOT be translated
+            unselected_pages = [p for p in range(total_pages) if p not in target_pages]
+            if unselected_pages:
+                self.workspace_view.hide_glass_overlays(unselected_pages)
+
+        else: # normal case 
+            untranslated_texts = {
+                k: v for k, v in self._original_texts.items()
+                if k not in already_translated_ids
+            }
+
 
         if not untranslated_texts:
             reply = QMessageBox.question(
@@ -839,6 +917,8 @@ class MainWindow(QMainWindow):
         self._trans_worker.error.connect(self._on_translation_error)
         
         self.a_start.setText(self.tr("Stop Translation"))
+        if target_pages is not None:
+           self.a_start_range.setText(self.tr("Stop Translation"))
         
         first_missing_id = next(iter(untranslated_texts.keys()))
         first_missing_page = self._tid_to_page.get(first_missing_id, 0)
@@ -862,7 +942,9 @@ class MainWindow(QMainWindow):
 
     def _on_translation_finished(self) -> None:
         self.a_start.setText(self.tr("Start Translation"))
+        self.a_start_range.setText(self.tr("Translate Specific Pages..."))
         self.a_start.setEnabled(True)
+        self.a_start_range.setEnabled(True)
         self.workspace_view.clean_up_all_skeletons()
 
         if self._trans_worker and not self._trans_worker.is_stopped():
@@ -891,10 +973,79 @@ class MainWindow(QMainWindow):
 
     def _on_translation_error(self, err_msg: str) -> None:
         self.a_start.setText(self.tr("Start Translation"))
-        QMessageBox.critical(self, self.tr("Translation Interrupted"), f"{self.tr('An error occurred during translation:')}\n{err_msg}")
+        self.a_start_range.setText(self.tr("Translate Specific Pages..."))
+        self.a_start.setEnabled(True)
+        self.a_start_range.setEnabled(True)
+
+        QMessageBox.critical(self, self.tr("Translation Interrupted"), 
+                             f"{self.tr('An error occurred during translation:')}\n{err_msg}")
         
         if self._current_translating_page != -1:
             self.workspace_view.reset_page_to_waiting(self._current_translating_page)
+
+    def _toggle_translation_range(self) -> None:
+        """
+        Invokes an input dialog requesting specific target page numbers,
+        validates the input boundaries, and starts the range translation process.
+        """
+        if self._trans_worker and self._trans_worker.isRunning():
+            self.status.showMessage(self.tr("Stopping translation process..."))
+            self._trans_worker.stop()
+            self.a_start_range.setEnabled(False)
+            return
+
+        total_pages: int = max(self._tid_to_page.values()) + 1 if self._tid_to_page else 1
+
+        # Interactive and clear tutorial text explaining the range operators '-' and ','
+        label_text = (
+            f"{self.tr('Enter page numbers or ranges to translate (Total Pages:')} {total_pages}):\n\n"
+            f"📖 {self.tr('Syntax Guide:')}\n"
+            f"  • {self.tr("Use '-' for a sequential range of pages. Example: '2-5' translates pages 2, 3, 4, and 5.")}\n"
+            f"  • {self.tr("Use ',' to separate distinct pages or ranges. Example: '1, 3, 5' translates pages 1, 3, and 5.")}\n"
+            f"  • {self.tr("Combine both formats. Example: '2-4, 7, 9' translates pages 2, 3, 4, 7, and 9.")}\n\n"
+            f"⚠️ {self.tr('Note: Pages out-of-bounds (e.g., page 12 on a 10-page document) will be skipped.')}"
+        )
+
+        user_input, ok = QInputDialog.getText(
+            self, 
+            self.tr("Translate Specific Pages"), 
+            label_text
+        )
+
+        if not ok or not user_input.strip():
+            return
+
+        # Parse user inputs
+        target_pages = parse_page_range(user_input, total_pages)
+
+        if not target_pages:
+            # Detailed feedback if user entered out-of-bound numbers
+            try:
+                import re
+                raw_numbers = [int(s) for s in re.findall(r'\d+', user_input)]
+                out_of_bounds = [n for n in raw_numbers if n < 1 or n > total_pages]
+                if out_of_bounds:
+                    QMessageBox.warning(
+                        self,
+                        self.tr("Invalid Page Scope"),
+                        self.tr(
+                            "The entered pages ({pages}) are out of boundaries.\n"
+                            "This document only has {total} pages."
+                        ).format(pages=", ".join(map(str, out_of_bounds)), total=total_pages)
+                    )
+                    return
+            except Exception:
+                pass
+
+            QMessageBox.warning(
+                self,
+                self.tr("No Valid Pages"),
+                self.tr("Please enter a valid page range matching the syntax guide.")
+            )
+            return
+
+        # Start the range-targeted translation
+        self._start_translation(target_pages)
 
 
     def _export_pdf_dialog(self) -> None:
@@ -1127,6 +1278,7 @@ class MainWindow(QMainWindow):
         self.a_close.setEnabled(False)
         self.a_start.setEnabled(False)
         self.a_export.setEnabled(False)
+        self.a_start_range.setEnabled(False)
         self.a_properties.setEnabled(False) 
         
         self.a_layout_both.setChecked(True)

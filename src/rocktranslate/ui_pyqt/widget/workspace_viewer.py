@@ -390,7 +390,33 @@ class WorkspaceViewer(QWebEngineView):
         """
         self.page().runJavaScript(js)
 
+    
+    def hide_glass_overlays(self, page_indices: list[int]) -> None:
+        """
+        Surgically hides glass overlays for a list of unselected zero-based page indices
+        so the user can read the original untranslated text immediately.
 
+        Args:
+            page_indices: List of zero-based page indices to reveal (e.g., [0, 4, 5]).
+        """
+        pages_json = json.dumps(page_indices)
+        js = f"""
+        (function() {{
+            var iframe = document.getElementById('html-iframe');
+            if (iframe && iframe.contentWindow) {{
+                var pageIndices = {pages_json};
+                pageIndices.forEach(function(idx) {{
+                    var glass = iframe.contentWindow.document.getElementById('glass-overlay-t-' + idx);
+                    if (glass) {{
+                        glass.style.display = 'none';
+                    }}
+                }});
+            }}
+        }})();
+        """
+        self.page().runJavaScript(js)
+
+        
     def set_pane_layout(self, layout_mode: str) -> None:
         """
         Adjusts split pane layout profiles.
