@@ -278,7 +278,10 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
             return -y_val, x_val
 
         # 3. Sort line containers visually from top-to-bottom and left-to-right
-        sorted_div_t = sorted(div_t_elements, key=get_div_sort_key)
+        # sorted_div_t = sorted(div_t_elements, key=get_div_sort_key)
+
+        # 3. Preserve the native DOM reading order from pdf2htmlEX to support multi-column layouts
+        sorted_div_t = div_t_elements
 
         for div_t in sorted_div_t:
             # Determine line scaling factors (scaleX, scaleY)
