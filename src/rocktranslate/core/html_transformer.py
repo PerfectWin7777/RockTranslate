@@ -378,7 +378,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
 
             # Iterate through DOM elements to apply scaled grouping
             for child in children:
-                child_text = child.get_text().strip() if hasattr(child, "get_text") else str(child).strip()
+                # child_text = child.get_text().strip() if hasattr(child, "get_text") else str(child).strip()
                 
                 # Silently skip legacy PDF floating accents
                 # if child_text in ACCENTS_TO_IGNORE:
@@ -428,7 +428,9 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                         # Extract raw text content
                         text_content = child.get_text()
                         # --- NORMALIZATION FIX: Convert custom symbol parentheses back to standard Unicode ---
+                        # todo : remplace it by a very table map avec pdf's writter
                         text_content = text_content.replace("ð", "(").replace("Þ", ")")
+                        text_content = text_content.replace("¼", "=")
                         
                         color_hex = None
                         for cls in child_classes:
@@ -561,43 +563,57 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
     script_tag.string = r"""
         window.applyTranslation = function(transId, translatedText) {
             try {
+                // Find the target translation span using its unique routing ID
                 var span = document.querySelector('[data-trans-id="' + transId + '"]');
                 if (!span) return;
 
+                // Performance optimization: Skip DOM updates if the translated text is identical to current content
                 if (span.textContent.trim() === translatedText.trim()) {
                     span.classList.remove('shimmer-line');
                     return;
                 }
 
+                // Locate the closest text block container. pdf2htmlEX wraps lines in 'div.t' wrappers.
                 var divT = span.closest('div.t');
                 if (!divT) return;
 
+                // Cache original geometric matrix scaling values (scaleX, scaleY)
                 var sxOrig = parseFloat(span.getAttribute('data-sx') || '1');
                 var syOrig = parseFloat(span.getAttribute('data-sy') || '1');
 
+                // Initialize metrics backup on the first translation pass to prevent multi-pass calculation drift
                 if (!divT.hasAttribute('data-orig-sw')) {
-                    // Nettoyage des classes d'espacement de l'anglais pour mesurer la vraie largeur naturelle
-                    // divT.className = divT.className.replace(/\b(ls|ws)\w+\b/g, '');
-                    
+                    // Temporarily restore the original scale matrix to measure the true native scrollWidth
                     divT.style.transform = 'matrix(' + sxOrig + ',0,0,' + syOrig + ',0,0)';
                     divT.setAttribute('data-orig-sw', divT.scrollWidth);
                     divT.setAttribute('data-sx-orig', sxOrig);
                     divT.setAttribute('data-sy-orig', syOrig);
                 }
 
+                // Retrieve cached metric baselines
                 var origSW = parseFloat(divT.getAttribute('data-orig-sw'));
                 var sx     = parseFloat(divT.getAttribute('data-sx-orig'));
                 var sy     = parseFloat(divT.getAttribute('data-sy-orig'));
 
-                var formattedHTML = translatedText.replace(/<color_([0-9a-fA-F]{6})>([\s\S]*?)<\/color(?:_\w+)?>/g, '<span style="color: #$1;">$2</span>');
+                // Robust Color Formatting: Transform <color_HEX>...</color_HEX> tags into visual inline spans.
+                // Uses [\s\S]*? to handle line breaks, and allows lazy LLM formatting variations (e.g. simplified </color> closure) [1.2.6].
+                var formattedHTML = translatedText.replace(
+                    /<color_([0-9a-fA-F]{6})>([\s\S]*?)<\/color(?:_\w+)?>/g, 
+                    '<span style="color: #$1;">$2</span>'
+                );
                 span.innerHTML = formattedHTML;
 
+                // Clear skeletal loading animations once real DOM content is injected [1.2.6]
                 span.classList.remove('shimmer-line');
 
+                // Compute adaptive horizontal scaling to fit the translated text within physical boundaries
                 var newSW = divT.scrollWidth;
+
                 if (newSW > 0 && origSW > 0) {
                     var newSx = sx * (origSW / newSW);
+                    // Cap horizontal scaling to prevent unnecessary stretching of short text
                     newSx = Math.min(newSx, sx);
+                    // newSx = Math.max(newSx, sx * 0.82);
                     divT.style.transform = 'matrix(' + newSx + ',0,0,' + sy + ',0,0)';
                 }
             } catch (e) {
@@ -610,6 +626,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
             var page = pages[pageIdx];
             if (!page) return;
 
+            // Smoothly fade out and hide the waiting overlay to reveal the underlying page structure [1.2.6]
             var glass = document.getElementById('glass-overlay-t-' + pageIdx);
             if (glass) {
                 glass.style.transition = 'opacity 0.3s ease-out';
@@ -617,6 +634,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 setTimeout(function() { glass.style.display = 'none'; }, 300);
             }
 
+            // Apply shimmer skeletal loaders to all targeted translation units on this page [1.2.6]
             page.querySelectorAll('span[data-trans-id]').forEach(function(span) {
                 span.classList.add('shimmer-line');
             });
@@ -627,10 +645,13 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
             var page = pages[pageIdx];
             if (!page) return;
 
+            // Remove shimmering animation states to clean up DOM rendering [1.2.6]
             page.querySelectorAll('span[data-trans-id]').forEach(function(span) {
                 span.classList.remove('shimmer-line');
             });
 
+            // Reconstruct the waiting overlay if missing, or restore its visibility.
+            // This prevents unrendered pages from displaying blank gaps if translation halts midway.
             var glass = document.getElementById('glass-overlay-t-' + pageIdx);
             if (!glass) {
                 glass = document.createElement('div');
@@ -657,6 +678,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
             }
         };
 
+        // Secure message bus routing to receive events and updates from parent window contexts
         window.addEventListener('message', function(event) {
             var msg = event.data;
             if (!msg) return;
