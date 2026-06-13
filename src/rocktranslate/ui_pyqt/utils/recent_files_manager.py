@@ -68,7 +68,7 @@ class RecentFilesManager(QObject):
     def add_file(self, file_path: str) -> None:
         """
         Appends an absolute document path to the top of the history list,
-        enforcing historical limits (max 10) and cleaning duplicates.
+        enforcing historical limits and cleaning duplicates.
 
         Args:
             file_path: Absolute path to the PDF document.
@@ -76,18 +76,27 @@ class RecentFilesManager(QObject):
         if not file_path:
             return
 
-        absolute_path: str = os.path.abspath(file_path)
+        # Normalize slash directions and resolve the absolute filesystem path
+        absolute_path: str = os.path.normpath(os.path.abspath(file_path))
         recent_list: List[str] = self.get_recent_files()
 
-        # Evade duplicates by pulling existing references to index 0
-        if absolute_path in recent_list:
-            recent_list.remove(absolute_path)
+        # Create a normalized footprint for cross-platform case-insensitive comparisons
+        normalized_target = os.path.normcase(absolute_path)
+
+        # Filter out any duplicate pointing to the same physical file.
+        # This cleanly handles variations in casing (e.g., drive letters) and slash directions.
+        recent_list = [
+            path for path in recent_list
+            if os.path.normcase(os.path.normpath(path)) != normalized_target
+        ]
             
+        # Insert the new normalized path at the top of the history list
         recent_list.insert(0, absolute_path)
         recent_list = recent_list[:self.max_limit]  # Truncate to maximum limit boundaries
 
         self.settings.setValue(self.settings_key, recent_list)
         self.history_changed.emit()  # Signal connected visual panels to rebuild
+        
 
     def clear_history(self) -> None:
         """ Securely purges all historical files from the registry database. """

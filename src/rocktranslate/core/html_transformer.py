@@ -378,7 +378,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
 
             # Iterate through DOM elements to apply scaled grouping
             for child in children:
-                # child_text = child.get_text().strip() if hasattr(child, "get_text") else str(child).strip()
+                child_text = child.get_text().strip() if hasattr(child, "get_text") else str(child).strip()
                 
                 # Silently skip legacy PDF floating accents
                 # if child_text in ACCENTS_TO_IGNORE:
@@ -428,9 +428,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                         # Extract raw text content
                         text_content = child.get_text()
                         # --- NORMALIZATION FIX: Convert custom symbol parentheses back to standard Unicode ---
-                        # todo : remplace this by a very table map avec specific writer of pdf
                         text_content = text_content.replace("ð", "(").replace("Þ", ")")
-                        text_content = text_content.replace("¼", "=")
                         
                         color_hex = None
                         for cls in child_classes:
