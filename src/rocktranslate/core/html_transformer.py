@@ -24,9 +24,12 @@ from typing import Callable, Optional, Dict, Tuple, List, Set, Any
 from bs4 import BeautifulSoup, NavigableString
 from loguru import logger
 
-from PyQt6.QtCore import QSettings
+try:
+    from PyQt6.QtCore import QSettings
+except ImportError:
+    QSettings = None
 # Safe fallback imports supporting both standard package modules and direct scripts
-from .constants import DEFAULT_ASSETS_DIR, ACCENTS_TO_IGNORE
+from .constants import DEFAULT_ASSETS_DIR, ACCENTS_TO_IGNORE, THRESHOLD_PX
 from .downloader import check_and_download_pdf2htmlex
 
 
@@ -251,10 +254,16 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
     x_map, y_map = parse_position_classes(soup)
     pages_list = soup.find_all("div", class_="pf")
 
-    settings = QSettings("RockTranslate", "TranslationConfig")
+    # Safely load structural spacing threshold configurations [1]
     # Load dynamic threshold, falling back to THRESHOLD_PX (12.0) if not configured
-    threshold_px = settings.value("threshold_px", 12.0, type=float)
-    
+    if QSettings is not None:
+        try:
+            settings = QSettings("RockTranslate", "TranslationConfig")
+            threshold_px = float(settings.value("threshold_px", 12.0))
+        except Exception:
+            threshold_px = THRESHOLD_PX
+    else:
+        threshold_px = THRESHOLD_PX  # Safe visual spacing default for CLI/API [1]
 
     original_texts_map: Dict[str, str] = {}
     tid_to_page: Dict[str, int] = {}
