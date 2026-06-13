@@ -774,7 +774,11 @@ class MainWindow(QMainWindow):
         self._tid_to_page = tid_to_page
         
         self._translated_pages = {}
-        self.progress_panel.clear()
+
+         # --- OPTIMIZATION: Initialize progress panel with real document dimensions ---
+        total_pages = max(tid_to_page.values()) + 1 if tid_to_page else 1
+        total_segments = len(original_texts_map)
+        self.progress_panel.initialize_bounds(total_pages, total_segments)
 
         # Update historical persistent states via our clean manager
         self._add_to_recent_files(self._pdf_path)

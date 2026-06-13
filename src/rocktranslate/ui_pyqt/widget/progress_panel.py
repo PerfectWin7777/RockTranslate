@@ -166,6 +166,30 @@ class ProgressPanel(QWidget):
             parent=self
         )
         layout.addWidget(self.local_progress)
+    
+    
+    def initialize_bounds(self, total_pages: int, total_segments: int) -> None:
+        """
+        Initializes progress bar boundaries based on the newly loaded PDF document
+        without starting active execution timers or ETA countdowns.
+
+        Args:
+            total_pages: Total physical pages inside the parsed PDF.
+            total_segments: Total count of translatable text blocks mapped.
+        """
+        self._timer.stop()
+        self._total_pages = total_pages
+        self._total_segments = total_segments
+        self._done_pages = 0
+        self._done_segments = 0
+        self._batches_done = 0
+        self._batches_total = 0
+        self._start_time = None
+        self._target_pages = None
+
+        self.global_progress.update_values(0, total_pages, "")
+        self.local_progress.update_values(0, total_segments, "")
+
 
     def reset(
         self, 
