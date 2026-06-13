@@ -24,7 +24,6 @@ from bs4 import BeautifulSoup
 
 # ── DYNAMIC SYSTEM PATH RESOLUTION ──
 # Resolves search paths so that subscripts run directly without ModuleNotFound errors.
-# Path: src/rocktranslate/cli.py
 current_dir = os.path.dirname(os.path.abspath(__file__))  # src/rocktranslate
 src_dir = os.path.dirname(current_dir)                    # src
 project_root = os.path.dirname(src_dir)                   # Project root
@@ -35,7 +34,19 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 # ────────────────────────────────────
 
-# Exclude heavy PyQt GUI modules from standard library requirements
+# ── RESILIENT LOGGING FALLBACK ──
+# Falls back to standard logging if loguru is not installed in the system environment
+try:
+    from loguru import logger
+except ImportError:
+    import logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
+    logger = logging.getLogger("RockTranslate-CLI")
+
 # Absolute package imports from the rocktranslate package
 from .core.constants import (
     DEFAULT_ASSETS_DIR,
@@ -62,19 +73,18 @@ else:
 
 
 def get_safe_setting(config_scope: str, key: str, fallback_default: Any) -> Any:
-    """Safely retrieves a user configuration.
+    """Safely retrieves a configuration value without crashing if PyQt6 is absent.
 
-    If PyQt6 is installed in the active environment, it queries QSettings.
-    If PyQt6 is missing (CLI-only installation), it silently falls back 
-    to the provided default value without raising ImportErrors.
+    If PyQt6 is installed, it queries QSettings. If PyQt6 is missing (CLI-only 
+    environment), it silently falls back to the provided default value [1].
 
     Args:
-        config_scope: The QSettings group/scope (e.g., 'TranslationConfig').
-        key: The configuration setting key.
-        fallback_default: Default value if setting is unconfigured or PyQt is absent.
+        config_scope: The configuration group/scope (e.g., 'TranslationConfig').
+        key: The target setting key.
+        fallback_default: Default value used if unconfigured or PyQt6 is missing.
 
     Returns:
-        The retrieved setting value or fallback_default.
+        The configuration setting value, or fallback_default [1].
     """
     try:
         from PyQt6.QtCore import QSettings
@@ -87,21 +97,36 @@ def get_safe_setting(config_scope: str, key: str, fallback_default: Any) -> Any:
         if isinstance(fallback_default, float):
             return float(val)
         return val
-    except ImportError:
+    except (ImportError, Exception):
+        # Gracefully handle missing PyQt6 library or registry errors [1]
         return fallback_default
-
 
 
 def main() -> None:
     """Primary CLI execution routine.
 
-    Resolves arguments, manages API batches, applies translations offline, 
-    and triggers headless vector printing.
+    Parses arguments, executes layout conversions, batches segments, 
+    manages translations, and prints high-fidelity vector PDFs headlessly.
     """
     parser = argparse.ArgumentParser(
         description="RockTranslate CLI: High-fidelity layout-preserved PDF document translator.",
-        formatter_class=argparse.RawTextHelpFormatter  # Permet un affichage propre multi-lignes
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog="""
+        Usage Examples:
+        1. Translate to French (default) using the default Gemini model:
+            rocktranslate article_scientifique.pdf -l French
+
+        2. Translate to Spanish and save to a custom output file:
+            rocktranslate paper.pdf -l Spanish -o report_es.pdf
+
+        3. Translate to German using OpenAI with an explicit API key:
+            rocktranslate document.pdf -m openai/gpt-4o-mini -k YOUR_OPENAI_KEY -l German
+
+        4. Run fully local translation using Ollama (no API key required):
+            rocktranslate document.pdf -m ollama/llama3 -l French
+        """
     )
+    
     parser.add_argument(
         "input", 
         help="Path to the source scientific/academic PDF file to translate."
@@ -146,34 +171,36 @@ def main() -> None:
     
     args = parser.parse_args()
     
+    # Ensure input file exists and is a PDF
     if not os.path.exists(args.input) or not args.input.lower().endswith(".pdf"):
-        print(f"❌ Error: Invalid input PDF path: {args.input}")
+        logger.error(f"Invalid input PDF path: {args.input}")
         sys.exit(1)
 
-    print("🔍 Inspecting system environment for available headless browser engines...")
+    logger.info("Inspecting system environment for headless browser engines...")
     browser_path = find_system_chromium_browser()
     if not browser_path:
-        print(
-            "❌ Error: No compatible Chromium-based browser (Chrome, Edge, or Chromium) was found.\n"
+        logger.error(
+            "No compatible Chromium-based browser (Chrome, Edge, or Chromium) was found.\n"
             "A system browser is required to export high-fidelity vector PDFs in CLI mode.\n"
             "Please install Google Chrome or Microsoft Edge and try again."
         )
         sys.exit(1)
         
-    print(f"   -> Discovered browser: '{os.path.basename(browser_path)}'")
+    logger.info(f"Discovered browser: '{os.path.basename(browser_path)}'")
 
-    # Load Dynamic configurations
-    temp = args.temp or get_safe_setting("TranslationConfig", "temperature", 1.0)
+    # Load configuration parameters (using QSettings if available, otherwise defaults) [1]
+    temp = args.temp if args.temp is not None else get_safe_setting("TranslationConfig", "temperature", 1.0)
     max_retries = get_safe_setting("TranslationConfig", "max_retries", MAX_RETRIES)
     max_batch_size = get_safe_setting("TranslationConfig", "max_segments_per_batch", MAX_SEGMENTS_PER_BATCH)
     
-    # Resolve API Credentials
+    # Parse API settings and credentials
     api_settings = get_safe_setting("APIConfig", "api_keys_by_provider", "{}")
     try:
         keys_dict = json.loads(api_settings) if isinstance(api_settings, str) else api_settings
     except Exception:
         keys_dict = {}
 
+    # Resolve the correct target model
     model_name = args.model
     if not model_name:
         provider = get_safe_setting("APIConfig", "provider", "Google Gemini")
@@ -181,47 +208,50 @@ def main() -> None:
         if provider == "Google Gemini" and not model_name.startswith("gemini/"):
             model_name = f"gemini/{model_name}"
 
+    # Resolve API Key credentials from argument, environment, or saved configurations
     api_key = args.api_key
     if not api_key:
         api_key = os.getenv("GEMINI_API_KEY") or keys_dict.get("Google Gemini", "")
 
+    # Skip key enforcement only for local Ollama deployments
     if not api_key and "ollama" not in model_name.lower():
-        print(f"❌ Error: Missing API Key for model: {model_name}. Specify -k or configure GEMINI_API_KEY environment variable.")
+        logger.error(f"Missing API Key for model: {model_name}. Specify -k or configure the GEMINI_API_KEY environment variable.")
         sys.exit(1)
 
-    print(f"📄 Processing document: '{os.path.basename(args.input)}'")
-    print(f"🤖 LLM Target: '{model_name}' | Language: '{args.lang}' | Temperature: {temp}")
+    logger.info(f"Processing document: '{os.path.basename(args.input)}'")
+    logger.info(f"LLM Target: '{model_name}' | Language: '{args.lang}' | Temperature: {temp}")
 
+    # Use a secure temporary directory to prevent messy residues on the file system
     with tempfile.TemporaryDirectory() as temp_dir:
         raw_html_path = os.path.join(temp_dir, "raw.html")
         workspace_html_path = os.path.join(temp_dir, "workspace.html")
         translated_html_path = os.path.join(temp_dir, "translated.html")
 
-        # Step 1: Geometric layout conversion via local pdf2htmlEX
-        print("⚡ Extracting physical PDF layout coordinates (pdf2htmlEX)...")
+        # Step 1: Execute pdf2htmlEX layout conversion
+        logger.info("Extracting physical PDF layout coordinates (pdf2htmlEX)...")
         convert_pdf_to_html(args.input, DEFAULT_ASSETS_DIR)
         
-        # Determine raw output name
+        # Resolve path for raw output generated by pdf2htmlEX
         pdf_dir = os.path.dirname(os.path.abspath(args.input))
         pdf_basename = os.path.splitext(os.path.basename(args.input))[0]
         generated_raw = os.path.join(pdf_dir, f"{pdf_basename}_raw.html")
         
         if not os.path.exists(generated_raw):
-            print("❌ Error: Geometric conversion failed.")
+            logger.error("Geometric conversion failed.")
             sys.exit(1)
             
         shutil.move(generated_raw, raw_html_path)
 
         # Step 2: Semantic HTML DOM instrumentation
-        print("🧩 Segmenting DOM structures into translatable blocks...")
+        logger.info("Segmenting DOM structures into translatable blocks...")
         original_texts, tid_to_page = instrument_html(raw_html_path, workspace_html_path)
 
-        # Step 3: Build token-controlled batches
-        print("📦 Building optimized translation batches...")
+        # Step 3: Group elements into token-controlled payload packages
+        logger.info("Building optimized translation batches...")
         batches = build_batches(original_texts, model_name)
         total_batches = len(batches)
 
-        # Retrieve original PDF page dimensions dynamically
+        # Dynamically calculate page dimension configurations
         metadata = get_pdf_metadata(args.input)
         page_size_raw = metadata.get("page_size", "")  # e.g., "[21.00 x 29.70 cm]"
         
@@ -233,7 +263,7 @@ def main() -> None:
         else:
             page_size_css = "A4"
 
-        # Step 4: Execute API translations
+        # Step 4: Run LiteLLM Translation Worker Client
         client = LLMClient(
             model=model_name,
             api_key=api_key,
@@ -243,23 +273,26 @@ def main() -> None:
 
         translated_results: Dict[str, str] = {}
         
+        # Identify non-translatable text indices (e.g. math formulas, page metrics)
         trans_ids = set()
         for b in batches:
             trans_ids.update(b.ids)
             
+        # Instantly bypass translation for non-prose segments to protect token quotas
         skipped_ids = set(original_texts.keys()) - trans_ids
         for skip_id in skipped_ids:
             translated_results[skip_id] = original_texts[skip_id]
 
-        print(f"🔄 Translating {len(trans_ids)} segment(s) in {total_batches} batch(es)...")
+        logger.info(f"Translating {len(trans_ids)} segment(s) across {total_batches} batch(es)...")
         
         for idx, batch in enumerate(batches):
-            sys.stdout.write(f"\r[CLI] Batch progress: {idx + 1}/{total_batches}...")
+            sys.stdout.write(f"\r[CLI] Progress: Batch {idx + 1}/{total_batches}...")
             sys.stdout.flush()
             
             results = client.translate_batch(batch.segments)
             if results is None:
-                print("\n❌ Error: Translation interrupted due to connection issues.")
+                print("\n")
+                logger.error("Translation was interrupted due to connection failures.")
                 sys.exit(1)
                 
             for res in results:
@@ -269,20 +302,20 @@ def main() -> None:
                     translated_results[seg_id] = translated_text
 
         sys.stdout.write("\n")
-        print("✅ Translation batches completed successfully.")
+        logger.info("Translation batches completed successfully.")
 
-        # Step 5: Inject translations back into HTML offline
-        print("🪡 Rebuilding HTML DOM with translation overlays...")
+        # Step 5: Inject translated strings back into the HTML DOM structure
+        logger.info("Rebuilding HTML DOM with translation overlays...")
         apply_translations_offline(workspace_html_path, translated_html_path, translated_results, page_size_css)
 
-        # Step 6: Export final vector PDF
+        # Step 6: Render final vector PDF using headless system browser
         output_pdf = args.output or os.path.join(pdf_dir, f"{pdf_basename}_translated.pdf")
-        print("🖨️ Headless Chromium vector printing in progress...")
+        logger.info("Headless Chromium vector printing in progress...")
         
         if print_html_to_vector_pdf(browser_path, translated_html_path, output_pdf):
-            print(f"🎉 Success! Translated vector PDF saved at: '{output_pdf}'")
+            logger.info(f"Success! Translated vector PDF saved at: '{output_pdf}'")
         else:
-            print("❌ Error: Vector PDF printing failed.")
+            logger.error("Vector PDF printing failed.")
             sys.exit(1)
 
 
