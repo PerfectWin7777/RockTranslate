@@ -19,6 +19,7 @@ Version: 1.0.0
 import os
 import re
 import subprocess
+import unicodedata
 from typing import Callable, Optional, Dict, Tuple, List, Set, Any
 from bs4 import BeautifulSoup, NavigableString
 from loguru import logger
@@ -56,9 +57,9 @@ def convert_pdf_to_html(
     html_filename: str = f"{os.path.splitext(pdf_filename)[0]}_raw.html"
     output_html_path: str = os.path.join(pdf_dir, html_filename)
 
-    # Bypass compilation if raw HTML is already generated on disk
-    if os.path.exists(output_html_path):
-        logger.info(f"Raw HTML already exists. Skipping compilation for: {pdf_filename}")
+    # Bypass compilation ONLY if raw HTML is already generated and is not empty
+    if os.path.exists(output_html_path) and os.path.getsize(output_html_path) > 0:
+        logger.info(f"Raw HTML already exists and is valid. Skipping compilation for: {pdf_filename}")
         return output_html_path
 
     cmd: List[str] = [
@@ -227,7 +228,6 @@ def parse_position_classes(soup: BeautifulSoup) -> Tuple[Dict[str, float], Dict[
     return x_map, y_map
 
 
-
 def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str, str], Dict[str, int]]:
     """
     Instruments the raw HTML layout by applying the high-fidelity scaled grouping algorithm.
@@ -265,23 +265,24 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
         div_t_elements = page_el.find_all("div", class_="t")
         
         # 2. Extract real geometric positions for layout sorting
-        def get_div_sort_key(div_t_node: Any) -> Tuple[float, float]:
-            classes = div_t_node.get("class", [])
-            x_val = 0.0
-            y_val = 0.0
-            for cls in classes:
-                if cls in x_map:
-                    x_val = x_map[cls]
-                if cls in y_map:
-                    y_val = y_map[cls]
-            # pdf2htmlEX uses 'bottom' for Y coordinates. Larger values are at the top.
-            return -y_val, x_val
+        # def get_div_sort_key(div_t_node: Any) -> Tuple[float, float]:
+        #     classes = div_t_node.get("class", [])
+        #     x_val = 0.0
+        #     y_val = 0.0
+        #     for cls in classes:
+        #         if cls in x_map:
+        #             x_val = x_map[cls]
+        #         if cls in y_map:
+        #             y_val = y_map[cls]
+        #     # pdf2htmlEX uses 'bottom' for Y coordinates. Larger values are at the top.
+        #     return -y_val, x_val
 
         # 3. Sort line containers visually from top-to-bottom and left-to-right
         # sorted_div_t = sorted(div_t_elements, key=get_div_sort_key)
 
         # 3. Preserve the native DOM reading order from pdf2htmlEX to support multi-column layouts
         sorted_div_t = div_t_elements
+
 
         for div_t in sorted_div_t:
             # Determine line scaling factors (scaleX, scaleY)
@@ -336,8 +337,12 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 # Fuse the textual values gathered in the current group
                 merged_text = "".join(current_group_text).strip()
                 if merged_text:
+                    # --- UNIVERSAL ACCENT NORMALIZATION (NFC) ---
+                    # Merges split floating accents (like e + ´) into standard unicode characters (like é)
+                    normalized_text = unicodedata.normalize('NFC', merged_text)
+                    
                     gid = f"g-{idx[0]}"
-                    original_texts_map[gid] = merged_text
+                    original_texts_map[gid] = normalized_text
                     tid_to_page[gid] = page_idx
 
                     # Copy font styles from the children, but DO NOT inherit fc (font color) classes.
@@ -373,11 +378,11 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
 
             # Iterate through DOM elements to apply scaled grouping
             for child in children:
-                child_text = child.get_text().strip() if hasattr(child, "get_text") else str(child).strip()
+                # child_text = child.get_text().strip() if hasattr(child, "get_text") else str(child).strip()
                 
                 # Silently skip legacy PDF floating accents
-                if child_text in ACCENTS_TO_IGNORE:
-                    continue
+                # if child_text in ACCENTS_TO_IGNORE:
+                #     continue
 
                 is_spacer = False
                 width = 0.0
@@ -423,7 +428,9 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                         # Extract raw text content
                         text_content = child.get_text()
                         # --- NORMALIZATION FIX: Convert custom symbol parentheses back to standard Unicode ---
+                        # todo : remplace this by a very table map avec specific writer of pdf
                         text_content = text_content.replace("ð", "(").replace("Þ", ")")
+                        text_content = text_content.replace("¼", "=")
                         
                         color_hex = None
                         for cls in child_classes:
@@ -445,7 +452,6 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
 
             commit_group()
 
-    # ── 2. EMBED GLASS OVERLAYS ON ALL PAGES ──
     # ── 2. EMBED GLASS OVERLAYS ON ALL PAGES ──
     for p_idx, page in enumerate(pages_list):
         glass_div = soup.new_tag("div", attrs={
@@ -556,44 +562,48 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
     script_tag = soup.new_tag("script")
     script_tag.string = r"""
         window.applyTranslation = function(transId, translatedText) {
-            var span = document.querySelector('[data-trans-id="' + transId + '"]');
-            if (!span) return;
+            try {
+                var span = document.querySelector('[data-trans-id="' + transId + '"]');
+                if (!span) return;
 
-            // --- FIX: If the text is identical (segment ignored), we just remove the shimmer ---
-            // This preserves all the original spacers and the lsc letter spacing class!
-            if (span.textContent.trim() === translatedText.trim()) {
-                 span.classList.remove('shimmer-line');
-                return;
-             }
+                if (span.textContent.trim() === translatedText.trim()) {
+                    span.classList.remove('shimmer-line');
+                    return;
+                }
 
+                var divT = span.closest('div.t');
+                if (!divT) return;
 
-            var divT = span.closest('div.t');
-            if (!divT) return;
+                var sxOrig = parseFloat(span.getAttribute('data-sx') || '1');
+                var syOrig = parseFloat(span.getAttribute('data-sy') || '1');
 
-            var sxOrig = parseFloat(span.getAttribute('data-sx') || '1');
-            var syOrig = parseFloat(span.getAttribute('data-sy') || '1');
+                if (!divT.hasAttribute('data-orig-sw')) {
+                    // Nettoyage des classes d'espacement de l'anglais pour mesurer la vraie largeur naturelle
+                    // divT.className = divT.className.replace(/\b(ls|ws)\w+\b/g, '');
+                    
+                    divT.style.transform = 'matrix(' + sxOrig + ',0,0,' + syOrig + ',0,0)';
+                    divT.setAttribute('data-orig-sw', divT.scrollWidth);
+                    divT.setAttribute('data-sx-orig', sxOrig);
+                    divT.setAttribute('data-sy-orig', syOrig);
+                }
 
-            if (!divT.hasAttribute('data-orig-sw')) {
-                divT.style.transform = 'matrix(' + sxOrig + ',0,0,' + syOrig + ',0,0)';
-                divT.setAttribute('data-orig-sw', divT.scrollWidth);
-                divT.setAttribute('data-sx-orig', sxOrig);
-                divT.setAttribute('data-sy-orig', syOrig);
-            }
+                var origSW = parseFloat(divT.getAttribute('data-orig-sw'));
+                var sx     = parseFloat(divT.getAttribute('data-sx-orig'));
+                var sy     = parseFloat(divT.getAttribute('data-sy-orig'));
 
-            var origSW = parseFloat(divT.getAttribute('data-orig-sw'));
-            var sx     = parseFloat(divT.getAttribute('data-sx-orig'));
-            var sy     = parseFloat(divT.getAttribute('data-sy-orig'));
+                var formattedHTML = translatedText.replace(/<color_([0-9a-fA-F]{6})>([\s\S]*?)<\/color(?:_\w+)?>/g, '<span style="color: #$1;">$2</span>');
+                span.innerHTML = formattedHTML;
 
-            var formattedHTML = translatedText.replace(/<color_([0-9a-fA-F]{6})>(.*?)<\/color_\w+>/g, '<span style="color: #$1;">$2</span>');
-            span.innerHTML = formattedHTML;
+                span.classList.remove('shimmer-line');
 
-            span.classList.remove('shimmer-line');
-
-            var newSW = divT.scrollWidth;
-            if (newSW > 0 && origSW > 0) {
-                var newSx = sx * (origSW / newSW);
-                newSx = Math.min(newSx, sx);
-                divT.style.transform = 'matrix(' + newSx + ',0,0,' + sy + ',0,0)';
+                var newSW = divT.scrollWidth;
+                if (newSW > 0 && origSW > 0) {
+                    var newSx = sx * (origSW / newSW);
+                    newSx = Math.min(newSx, sx);
+                    divT.style.transform = 'matrix(' + newSx + ',0,0,' + sy + ',0,0)';
+                }
+            } catch (e) {
+                console.error("Error in applyTranslation:", e);
             }
         };
 

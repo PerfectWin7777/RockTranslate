@@ -43,6 +43,9 @@ class SilentWebEnginePage(QWebEnginePage):
         # Silently discard editor and scroll alerts to avoid Python CLI clutter
         if "editor_alt_text" in message or "scrollPageIntoView" in message:
             return
+        # --- PRINT ALL CONSOLE LOGS DIRECTLY TO PYTHON TERMINAL ---
+        # print(f"🌐 [JS Console] {message}")
+        # --------------------------------------------------------
         super().javaScriptConsoleMessage(level, message, lineNumber, sourceId)
 
 
@@ -416,7 +419,7 @@ class WorkspaceViewer(QWebEngineView):
         """
         self.page().runJavaScript(js)
 
-        
+
     def set_pane_layout(self, layout_mode: str) -> None:
         """
         Adjusts split pane layout profiles.
