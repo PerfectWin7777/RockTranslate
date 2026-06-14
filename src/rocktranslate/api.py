@@ -192,7 +192,7 @@ if __name__ == "__main__":
 
     # import the library 
     import os
-    from RockTranslate import RockTranslator
+    from rocktranslate import RockTranslator
     
     # import the logger
     try:

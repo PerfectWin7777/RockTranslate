@@ -36,7 +36,6 @@ src/rocktranslate.egg-info
 # IDEs
 .vscode/
 .idea/
-.github/
 
 dev_tools/create_comparison.py
 
