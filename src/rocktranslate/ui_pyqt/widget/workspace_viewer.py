@@ -43,6 +43,9 @@ class SilentWebEnginePage(QWebEnginePage):
         # Silently discard editor and scroll alerts to avoid Python CLI clutter
         if "editor_alt_text" in message or "scrollPageIntoView" in message:
             return
+        
+        if "Failed to decode downloaded font" in message or "OTS parsing error" in message:
+            return
         # --- PRINT ALL CONSOLE LOGS DIRECTLY TO PYTHON TERMINAL ---
         # print(f"🌐 [JS Console] {message}")
         # --------------------------------------------------------

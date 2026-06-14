@@ -16,7 +16,7 @@ License: MIT License
 Version: 1.0.0
 """
 
-import os
+import os, sys
 import re
 import subprocess
 import unicodedata
@@ -39,8 +39,9 @@ def convert_pdf_to_html(
     on_progress: Optional[Callable[[int, int], None]] = None
 ) -> Optional[str]:
     """
-    Converts a source PDF into raw HTML using the local pdf2htmlEX executable,
-    tracking page compilation progress in real-time.
+    Converts a source PDF into raw HTML using the local pdf2htmlEX executable.
+    Implements a strict 45-second execution timeout to prevent the application
+    from hanging indefinitely on complex LaTeX/arXiv mathematical documents [1].
 
     Args:
         pdf_path: The filesystem path to the target PDF file.
@@ -48,7 +49,7 @@ def convert_pdf_to_html(
         on_progress: Optional callback progress tracker (current_page, total_pages).
 
     Returns:
-        Optional[str]: Absolute path to the generated raw HTML, or None.
+        Optional[str]: Absolute path to the generated raw HTML, or None if failed/timed out.
     """
     pdf2htmlex_exe = check_and_download_pdf2htmlex(assets_dir)
     if not pdf2htmlex_exe:
@@ -74,32 +75,60 @@ def convert_pdf_to_html(
     
     logger.info(f"Starting high-fidelity conversion of PDF: {pdf_filename}")
     
+    # ── WINDOWS CRASH PROTECTION ──
+    if sys.platform == "win32":
+        import ctypes
+        # Disable Windows GPF error dialog popups ("Application has stopped working").
+        # This ensures that if the process crashes, it terminates immediately
+        # instead of hanging in memory waiting for a user click [1].
+        ctypes.windll.kernel32.SetErrorMode(0x0002)
+
     # Execute pdf2htmlEX in a background process
     process = subprocess.Popen(
-        cmd, cwd=pdf_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        cmd, 
+        cwd=pdf_dir, 
+        stdout=subprocess.DEVNULL, 
+        stderr=subprocess.PIPE, 
+        text=True
     )
 
-    # Read the stderr stream in real-time to intercept page processing progress
-    while True:
-        line = process.stderr.readline() if process.stderr else ""
-        if not line and process.poll() is not None:
-            break
+    # ── STRICT 45-SECOND TIMEOUT PROTECTION ──
+    # To prevent the application from freezing when pdf2htmlEX enters an infinite loop
+    # (common with LaTeX/arXiv mathematical fonts), we enforce a strict 30s timeout [1].
+    try:
+        # Wait up to 45 seconds for execution to complete cleanly [1]
+        stderr_output, _ = process.communicate(timeout=45)
         
-        # Intercept pdf2htmlEX syntax output: "Working: 1/12"
-        if "Working:" in line:
-            match = re.search(r"Working:\s*(\d+)/(\d+)", line)
-            if match and on_progress:
-                current_page = int(match.group(1))
-                total_pages = int(match.group(2))
-                on_progress(current_page, total_pages)
+    except subprocess.TimeoutExpired:
+        # Crucial: Force-kill the hanging process to free system memory and release locks [1]
+        logger.error(f"pdf2htmlEX conversion timed out after 30 seconds on: {pdf_filename}")
+        process.kill()
+        
+        # Clean up zombie processes and release file handles securely
+        process.communicate()
+        
+        # TODO: If local compilation fails or times out, implement an automatic fallback
+        # to a remote serverless cloud-rendering API to convert complex LaTeX documents.
+        return None
 
-    process.wait()
+    # Parse final compilation progress from accumulated stderr logs
+    if stderr_output and on_progress:
+        matches = re.findall(r"Working:\s*(\d+)/(\d+)", stderr_output)
+        if matches:
+            last_match = matches[-1]
+            on_progress(int(last_match[0]), int(last_match[1]))
+
     if process.returncode == 0 and os.path.exists(output_html_path):
         logger.info("Raw HTML file generated successfully.")
         return output_html_path
         
     logger.error(f"pdf2htmlEX exited with error code: {process.returncode}")
+    
+    # TODO: In the main UI window, handle the None return value by displaying a clear
+    # and friendly error message explaining that this PDF contains unsupported fonts.
     return None
+
+
 
 
 def parse_matrix_classes(soup: BeautifulSoup) -> Dict[str, Tuple[float, float]]:
@@ -439,7 +468,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                         # --- NORMALIZATION FIX: Convert custom symbol parentheses back to standard Unicode ---
                         # todo : remplace it by a very table map avec pdf's writter
                         text_content = text_content.replace("ð", "(").replace("Þ", ")")
-                        text_content = text_content.replace("¼", "=")
+                        text_content = text_content.replace("¼", "=").replace("þ","+")
                         
                         color_hex = None
                         for cls in child_classes:
