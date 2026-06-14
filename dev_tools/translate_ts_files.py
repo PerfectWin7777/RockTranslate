@@ -182,7 +182,7 @@ def main() -> None:
         return
 
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    ts_dir = os.path.join(project_root, "src", "assets", "translations")
+    ts_dir = os.path.join(project_root, "src", "rocktranslate",  "assets", "translations")
     
     # Locale files and their explicit language mappings
     targets = [

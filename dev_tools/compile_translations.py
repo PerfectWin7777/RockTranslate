@@ -74,7 +74,7 @@ def main() -> None:
     print("⚙️ Running translation compilation pipeline...")
     
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    ts_dir = os.path.join(project_root, "src", "assets", "translations")
+    ts_dir = os.path.join(project_root, "src", "rocktranslate",  "assets", "translations")
     locales = ["fr", "es", "de"]
     
     # 1. Resolve compiler tool executable
@@ -84,7 +84,7 @@ def main() -> None:
     if not shutil_which(lrelease_tool) and not shutil_which("lrelease"):
         if os.name == "nt":
             # On Windows, trigger our automated lightweight download if missing
-            assets_dir = os.path.join(project_root, "src", "assets")
+            assets_dir = os.path.join(project_root, "src", "rocktranslate", "assets")
             downloaded_exe = download_lightweight_lrelease(assets_dir)
             if downloaded_exe:
                 lrelease_tool = downloaded_exe
