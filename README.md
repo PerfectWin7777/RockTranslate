@@ -1,5 +1,4 @@
 
-```markdown
 # <img src="src/rocktranslate/assets/rocktranslate_icon.png" width="48" align="center" alt="RockTranslate Icon" /> RockTranslate
 
 <p align="center">
