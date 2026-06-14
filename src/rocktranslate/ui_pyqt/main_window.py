@@ -1101,6 +1101,27 @@ class MainWindow(QMainWindow):
         else:
             self.showFullScreen()
             self.a_fullscreen.setChecked(True)
+    
+    def _reset_translation_state(self) -> None:
+        """
+        Clears all translation memories and reloads the original English HTML 
+        workspace to prevent old translations from remaining on the screen [1].
+        """
+        self._translated_pages = {}
+        self._current_translating_page = -1
+        
+        # Reload the original document to clear any visual translation from the DOM
+        if self._pdf_path and self._instrumented_html_path:
+            pdfjs_absolute_path = os.path.join(DEFAULT_ASSETS_DIR, "pdfjs")
+            self.workspace_view.load_document(
+                self._pdf_path, 
+                self._instrumented_html_path, 
+                pdfjs_absolute_path
+            )
+            
+        self.progress_panel.clear()
+        self.status.showMessage(self.tr("Translation state reset for the new language."))
+
 
     def _on_lang_selected(self) -> None:
         a = self.sender()
@@ -1109,6 +1130,8 @@ class MainWindow(QMainWindow):
             for act in self._lang_actions.values():
                 act.setChecked(False)
             a.setChecked(True)
+            # --- FIX: Reset the state to prevent ghost text from other languages ---
+            self._reset_translation_state()
 
     def _populate_recent_menu(self) -> None:
         """ Dynamically builds file historical menu rows. """
