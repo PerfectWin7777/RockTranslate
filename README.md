@@ -49,26 +49,36 @@ Built with a local-first architecture, RockTranslate prioritizes performance, re
 
 ---
 
-## 3. Visual Demonstration (Before & After)
+## 3. Visual Comparisons (Before & After)
 
-### Real-Time Application Lifecycle
-*The following animation demonstrates opening, rendering, and translating a multi-column paper dynamically:*
+These high-resolution comparisons demonstrate how RockTranslate retains 100% of the original document geometry, including complex double-column alignments, compared to traditional text translators.
 
-<p align="center">
-  <img src=".github/assets/readme_animation.gif" width="800" alt="RockTranslate Application Demo" />
-</p>
+---
 
-### Layout Preservation Proof
-These high-resolution side-by-side comparisons demonstrate how RockTranslate retains 100% of the original document geometry, including complex double-column alignments, compared to traditional text translators [2]:
+### 🔬 1. English to Spanish (Elsevier Double-Column Layout)
+*Demonstrating perfect preservation of multi-column text flow, publisher headers, and author blocks.*
 
-| Original English Document | Translated Layout |
-| :---: | :---: |
-| **English Original** | **Spanish High-Fidelity Translation** |
-| <img src=".github/assets/readme_comparison_en_to_spa.png" width="450" alt="English to Spanish Translation" /> | *The original Elsevier double-column layout is fully retained.* |
-| **English Original** | **French High-Fidelity Translation** |
-| <img src=".github/assets/readme_comparison_en_to_fr.png" width="450" alt="English to French Translation" /> | *Math formulas and column flow remain intact.* |
-| **English Original** | **Japanese High-Fidelity Translation** |
-| <img src=".github/assets/readme_comparison_en_to_jn.png" width="450" alt="English to Japanese Translation" /> | *CJK text fits perfectly without overlapping adjacent text lines.* |
+![English to Spanish Comparison](.github/assets/readme_comparison_en_to_spa.png)
+
+*The original Elsevier double-column layout is fully retained with zero text-overlapping or margin drift.*
+
+---
+
+### 🧠 2. English to French (Attention Is All You Need — Abstract & Title)
+*Demonstrating precise preservation of scientific structures, titles, and mathematical equations.*
+
+![English to French Comparison](.github/assets/readme_comparison_en_to_fr.png)
+
+*Mathematical formulas, paragraph flows, and proper academic register remain completely intact.*
+
+---
+
+### 🌸 3. English to Japanese (Attention Is All You Need — Paragraph Flow)
+*Demonstrating robust handling of double-byte CJK characters without vertical line collapses or overlapping.*
+
+![English to Japanese Comparison](.github/assets/readme_comparison_en_to_jn.png)
+
+*Japanese Kanji and Kana characters are rendered cleanly with proportional horizontal scaling.*
 
 ---
 
