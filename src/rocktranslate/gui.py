@@ -148,13 +148,20 @@ def main() -> None:
         active_lang = system_locale.split("_")[0]
         logger.info(f"No user preference found. Defaulting to system locale: {active_lang}")
         
-    translations_path = os.path.join(current_dir, "src", "assets", "translations")
+    translations_path = os.path.join(DEFAULT_ASSETS_DIR, "translations")
+    print(translations_path)
     if os.path.exists(translations_path):
+        translator = QTranslator()
         if translator.load(f"rocktranslate_{active_lang}", translations_path):
             app.installTranslator(translator)
+            
+            # Secure translator reference on QApplication to prevent Garbage Collection [1.2.2]
+            app.translator = translator 
             logger.info(f"Loaded active translation package for locale: {active_lang}")
         else:
             logger.info(f"No translation package found for locale: {active_lang}. Defaulting to English.")
+    else:
+        logger.warning(f"Translations directory not found: {translations_path}")
 
     
     if splash:
