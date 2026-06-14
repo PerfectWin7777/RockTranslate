@@ -38,6 +38,7 @@ src/rocktranslate.egg-info
 .idea/
 .github/
 
+dev_tools/create_comparison.py
 
 old_pdfium/
 old_pymupdf/

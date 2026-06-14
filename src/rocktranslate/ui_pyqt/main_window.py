@@ -894,7 +894,7 @@ class MainWindow(QMainWindow):
             )
             
             if reply == QMessageBox.StandardButton.Yes:
-                self._translated_pages = {}
+                self._reset_translation_state() # reset immediatly
                 already_translated_ids = set()
                 if target_pages is not None:
                     untranslated_texts = {
@@ -1104,23 +1104,18 @@ class MainWindow(QMainWindow):
     
     def _reset_translation_state(self) -> None:
         """
-        Clears all translation memories and reloads the original English HTML 
-        workspace to prevent old translations from remaining on the screen [1].
+        Clears translation memories and smoothly restores the original English text 
+        and scale matrices in the browser without reloading the page, preventing flashes.
         """
         self._translated_pages = {}
         self._current_translating_page = -1
         
-        # Reload the original document to clear any visual translation from the DOM
-        if self._pdf_path and self._instrumented_html_path:
-            pdfjs_absolute_path = os.path.join(DEFAULT_ASSETS_DIR, "pdfjs")
-            self.workspace_view.load_document(
-                self._pdf_path, 
-                self._instrumented_html_path, 
-                pdfjs_absolute_path
-            )
+        if self._original_texts:
+            # Execute the script in-memory inside the Chromium engine
+            self.workspace_view.reset_translation_state(self._original_texts)
             
         self.progress_panel.clear()
-        self.status.showMessage(self.tr("Translation state reset for the new language."))
+        self.status.showMessage(self.tr("Translation state reset smoothly."))
 
 
     def _on_lang_selected(self) -> None:

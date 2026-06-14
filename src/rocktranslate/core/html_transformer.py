@@ -521,6 +521,10 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
             word-spacing: 0.25em !important;
         }
 
+        div.t {
+            white-space: nowrap !important;
+        }
+
        @keyframes loading-shimmer {
             0% {
                 background-position: -150px 0;
