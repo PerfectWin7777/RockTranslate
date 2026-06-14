@@ -319,7 +319,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 elif element.name == "span" and element.get("class") and "_" in element.get("class"):
                     # Spacers are kept flat without wrapping
                     flattened_children.append(element)
-                elif element.name in ["span", "a", "b", "i", "sup", "sub", "em", "strong"]:
+                elif element.name in ["span", "b", "i", "sup", "sub", "em", "strong"]:
                     current_classes = list(active_classes)
                     if element.get("class"):
                         current_classes.extend(element.get("class"))
