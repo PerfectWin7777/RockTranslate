@@ -49,9 +49,14 @@ Built with a local-first architecture, RockTranslate prioritizes performance, re
 
 ---
 
-## 3. Visual Comparisons (Before & After)
+## 3. Visual Demonstration (Before & After)
 
-These high-resolution comparisons demonstrate how RockTranslate retains 100% of the original document geometry, including complex double-column alignments, compared to traditional text translators.
+### Real-Time Application Lifecycle
+*The following animation demonstrates opening, rendering, and translating a multi-column paper dynamically:*
+
+<p align="center">
+  <img src=".github/assets/readme_animation.gif" width="800" alt="RockTranslate Application Demo" />
+</p>
 
 ---
 
