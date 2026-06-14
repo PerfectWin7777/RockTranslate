@@ -87,6 +87,15 @@ Built with a local-first architecture, RockTranslate prioritizes performance, re
 
 ---
 
+### 🌸 4. English to German (Elsevier Double-Column Layout— Paragraph Flow and Table)
+*Demonstrating robust preservation of tables and math formulas in a double-column layout..*
+
+![English to German Comparison](.github/assets/readme_comparison_en_to_ge.png)
+
+*Clarity of paragraphs, tables and styles, preservation of mathematical formulas.*
+
+---
+
 ## 4. The Three Versions
 
 RockTranslate provides three entry points to support any workflow:
@@ -118,6 +127,22 @@ A lightweight execution engine that can be run globally from the terminal once i
     rocktranslate document.pdf -m ollama/llama3 -l French
     ```
 
+---
+
+### 💡 Dynamic Model Routing & Frontier Models Guidance
+
+#### 1. Model Naming Convention (LiteLLM Integration)
+RockTranslate inherits its entire model routing architecture directly from **LiteLLM**. All model identifiers passed through the `-m / --model` CLI flag (or through the API) must strictly follow the standard `provider/model_name` syntax. 
+
+Both the provider prefix and the model name must match the exact naming conventions defined in the [LiteLLM Supported Providers & Models Documentation](https://docs.litellm.ai/docs/providers).
+
+#### 2. Why Frontier Models are Essential for Perfect Visual Layouts
+While local or lightweight models function perfectly, we highly recommend using advanced **frontier models**—such as **Gemini 3.5 Flash**, **GPT 5.5**, **Claude 4.X**, **DeepSeek V4**, **Kimi K2.6**, or **GLM 5.5 ; Any other open-source LLM provider**—for complex scientific papers. 
+
+*   **Instruction-Following & Tag Integrity:** Frontier models possess superior reasoning capabilities. They strictly preserve nested XML style tags (like `<color_HEX>`) and structural JSON mapping arrays, allowing the renderer to position text segments with pixel-perfect accuracy.
+*   **Academic Register & Context:** They avoid literal, broken word-by-word translations of fragmented segments. Instead, they understand the global paragraph context, translating complex double-column academic layouts into natural scientific prose.
+
+
 ### C. API Developer Library
 Integrate layout-preserved document translation directly into your Python scripts or data pipelines.
 
@@ -135,9 +160,10 @@ else:
     # ──────────────────────────────────────────────────────────────────────
     # SCENARIO 1: Basic Translation (Using Google Gemini with environment key)
     # ──────────────────────────────────────────────────────────────────────
-    # Automatically searches for GEMINI_API_KEY inside system environment variables
+    # Automatically searches for GEMINI_API_KEY inside system environment variables.
+    # Uses the advanced Gemini 3.5 Flash model for superior layout preservation.
     translator_gemini = RockTranslator(
-        model="gemini/gemini-3.1-flash-lite",
+        model="gemini/gemini-3.5-flash",
         target_lang="Spanish"
     )
     
@@ -149,7 +175,7 @@ else:
     # SCENARIO 2: Custom Output Path and Language Customization
     # ──────────────────────────────────────────────────────────────────────
     translator_custom = RockTranslator(
-        model="gemini/gemini-3.1-flash-lite",
+        model="gemini/gemini-3.5-flash",
         target_lang="German"
     )
     
@@ -164,11 +190,13 @@ else:
     print(f"Scenario 2 complete. Translated PDF written to: {custom_output} (Success: {success_custom})")
 
     # ──────────────────────────────────────────────────────────────────────
-    # SCENARIO 3: Alternative Provider (OpenAI) with Explicit API Key
+    # SCENARIO 3: Frontier Provider (OpenAI GPT 5.5) with Explicit API Key
     # ──────────────────────────────────────────────────────────────────────
-    # Explicit credentials pass overrides local environment configurations
+    # Explicit credentials pass overrides local environment configurations.
+    # We route the request using the exact LiteLLM naming convention (provider/model_name).
+    # Learn more at: https://docs.litellm.ai/docs/providers
     translator_openai = RockTranslator(
-        model="openai/gpt-4o-mini",
+        model="openai/gpt-5.5",
         api_key="sk-your-openai-api-key-here",  # Replace with a valid credentials key
         target_lang="Italian",
         temperature=0.3  # Lower temperature for more rigid, literal academic translation
