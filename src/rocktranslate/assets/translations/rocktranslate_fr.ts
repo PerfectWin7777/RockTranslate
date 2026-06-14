@@ -390,15 +390,15 @@ La traduction pourrait ne pas fonctionner.</translation>
         <translation>Traduction</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="980" />
-        <location filename="..\..\ui_pyqt\main_window.py" line="949" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="986" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="955" />
         <location filename="..\..\ui_pyqt\main_window.py" line="541" />
         <source>Start Translation</source>
         <translation>Démarrer la traduction</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="981" />
-        <location filename="..\..\ui_pyqt\main_window.py" line="950" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="987" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="956" />
         <location filename="..\..\ui_pyqt\main_window.py" line="547" />
         <source>Translate Specific Pages...</source>
         <translation>Traduire des pages spécifiques...</translation>
@@ -544,7 +544,7 @@ La traduction pourrait ne pas fonctionner.</translation>
         <translation>Impossible d'analyser le document cible :</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="997" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1003" />
         <location filename="..\..\ui_pyqt\main_window.py" line="812" />
         <source>Stopping translation process...</source>
         <translation>Arrêt du processus de traduction...</translation>
@@ -584,181 +584,186 @@ Do you want to reset historical structures and translate again?</source>
 Voulez-vous réinitialiser les structures historiques et traduire à nouveau ?</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="901" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="907" />
         <source>Translation already complete.</source>
         <translation>Traduction déjà terminée.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="926" />
-        <location filename="..\..\ui_pyqt\main_window.py" line="924" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="932" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="930" />
         <source>Stop Translation</source>
         <translation>Arrêter la traduction</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="956" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="962" />
         <source>Translation completed successfully.</source>
         <translation>Traduction terminée avec succès.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="960" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="966" />
         <source>Finished ✓</source>
         <translation>Terminé ✓</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1199" />
-        <location filename="..\..\ui_pyqt\main_window.py" line="971" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1228" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="977" />
         <source>Success</source>
         <translation>Succès</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="971" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="977" />
         <source>Document translation succeeded!</source>
         <translation>La traduction du document a réussi !</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="973" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="979" />
         <source>Translation process canceled.</source>
         <translation>Processus de traduction annulé.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="985" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="991" />
         <source>Translation Interrupted</source>
         <translation>Traduction interrompue</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="986" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="992" />
         <source>An error occurred during translation:</source>
         <translation>Une erreur est survenue lors de la traduction :</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1006" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1012" />
         <source>Enter page numbers or ranges to translate (Total Pages:</source>
         <translation>Saisissez les numéros ou plages de pages à traduire (Total des pages :</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1007" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1013" />
         <source>Syntax Guide:</source>
         <translation>Guide de syntaxe :</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1008" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1014" />
         <source>If you want to translate a single page, enter its number. Example: '4' translates only page 4.</source>
         <translation>Si vous souhaitez traduire une seule page, saisissez son numéro. Exemple : '4' traduit uniquement la page 4.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1009" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1015" />
         <source>Use '-' for a sequential range of pages. Example: '2-5' translates pages 2, 3, 4, and 5.</source>
         <translation>Utilisez '-' pour une plage séquentielle de pages. Exemple : '2-5' traduit les pages 2, 3, 4 et 5.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1010" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1016" />
         <source>Use ',' to separate distinct pages or ranges. Example: '1, 3, 5' translates pages 1, 3, and 5.</source>
-        <translation type="unfinished" />
+        <translation>Utilisez « , » pour séparer les pages ou plages de pages distinctes. Exemple : « 1, 3, 5 » traduit les pages 1, 3 et 5.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1011" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1017" />
         <source>Combine both formats. Example: '2-4, 7, 9' translates pages 2, 3, 4, 7, and 9.</source>
         <translation>Combinez les deux formats. Exemple : '2-4, 7, 9' traduit les pages 2, 3, 4, 7 et 9.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1012" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1018" />
         <source>Note: Pages out-of-bounds (e.g., page 12 on a 10-page document) will be skipped.</source>
         <translation>Remarque : les pages hors limites (par ex., la page 12 pour un document de 10 pages) seront ignorées.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1017" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1023" />
         <source>Translate Specific Pages</source>
         <translation>Traduire des pages spécifiques</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1035" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1041" />
         <source>Invalid Page Scope</source>
         <translation>Plage de pages invalide</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1036" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1042" />
         <source>The entered pages ({pages}) are out of boundaries.
 This document only has {total} pages.</source>
         <translation>Les pages saisies ({pages}) sont hors limites.
 Ce document ne contient que {total} pages.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1047" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1053" />
         <source>No Valid Pages</source>
         <translation>Aucune page valide</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1048" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1054" />
         <source>Please enter a valid page range matching the syntax guide.</source>
         <translation>Veuillez saisir une plage de pages valide correspondant au guide de syntaxe.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1063" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1069" />
         <source>Display: Dual split layout active.</source>
         <translation>Affichage : mise en page fractionnée double active.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1067" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1073" />
         <source>Display: Original PDF layout active.</source>
         <translation>Affichage : mise en page du PDF original active.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1071" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1077" />
         <source>Display: Translated layout active.</source>
         <translation>Affichage : mise en page traduite active.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1080" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1086" />
         <source>Zoom set to: {percent}%</source>
         <translation>Zoom réglé sur : {percent} %</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1088" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1094" />
         <source>displayed</source>
         <translation>affiché</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1088" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1094" />
         <source>hidden</source>
         <translation>masqué</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1089" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1095" />
         <source>Display: Progress tracking panel {state}.</source>
         <translation>Affichage : panneau de suivi de la progression {state}.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1113" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1123" />
+        <source>Translation state reset for the new language.</source>
+        <translation>Réinitialisation de l'état de la traduction pour la nouvelle langue.</translation>
+    </message>
+    <message>
+        <location filename="..\..\ui_pyqt\main_window.py" line="1142" />
         <source>No recent documents found</source>
         <translation>Aucun document récent trouvé</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1127" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1156" />
         <source>Clear History</source>
         <translation>Effacer l'historique</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1189" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1218" />
         <source>Reset Settings</source>
         <translation>Réinitialiser les paramètres</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1190" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1219" />
         <source>Are you sure you want to reset all engine and system configurations to their defaults?</source>
         <translation>Êtes-vous sûr de vouloir réinitialiser toutes les configurations du moteur et du système à leurs valeurs par défaut ?</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1200" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1229" />
         <source>All workflow configurations have been reset successfully.</source>
         <translation>Toutes les configurations de flux de travail ont été réinitialisées avec succès.</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1224" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1253" />
         <source>Restart Required</source>
         <translation>Redémarrage requis</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1225" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1254" />
         <source>The language has been updated.
 
 Would you like to restart RockTranslate now to apply the changes?</source>
@@ -767,7 +772,7 @@ Would you like to restart RockTranslate now to apply the changes?</source>
 Souhaitez-vous redémarrer RockTranslate maintenant pour appliquer les modifications ?</translation>
     </message>
     <message>
-        <location filename="..\..\ui_pyqt\main_window.py" line="1291" />
+        <location filename="..\..\ui_pyqt\main_window.py" line="1320" />
         <source>Document closed.</source>
         <translation>Document fermé.</translation>
     </message>
