@@ -49,7 +49,37 @@ Built with a local-first architecture, RockTranslate prioritizes performance, re
 
 ---
 
-## 3. Visual Demonstration (Before & After)
+
+## 3. Installation
+
+Choose the installation method that best suits your requirements:
+
+### A. Package Installation (via pip)
+Once published on PyPI, you can install the latest stable version of RockTranslate directly:
+```bash
+pip install rocktranslate
+```
+
+### B. Development Installation (via Git)
+For the most up-to-date features, or to run the application directly from source:
+```bash
+# Clone the repository
+git clone https://github.com/PerfectWin7777/RockTranslate.git
+cd RockTranslate
+
+# Install dependencies and the package in editable mode
+pip install -e .
+```
+
+### C. Direct Remote Install
+You can also install the development version directly from GitHub without cloning the repository manually:
+```bash
+pip install git+https://github.com/PerfectWin7777/RockTranslate.git
+```
+
+---
+
+## 4. Visual Demonstration (Before & After)
 
 ### Real-Time Application Lifecycle
 *The following animation demonstrates opening, rendering, and translating a multi-column paper dynamically:*
@@ -96,7 +126,7 @@ Built with a local-first architecture, RockTranslate prioritizes performance, re
 
 ---
 
-## 4. The Three Versions
+## 5. The Three Versions
 
 RockTranslate provides three entry points to support any workflow:
 
@@ -221,7 +251,7 @@ else:
 
 ---
 
-## 5. Known Limitations & Roadmap (TODO)
+## 6. Known Limitations & Roadmap (TODO)
 
 ### Current Limitations:
 *   **The LaTeX FontForge Crash (Windows):** Older standalone versions of `pdf2htmlEX` on Windows occasionally experience segmentation faults or infinite loops when compiling complex, customized LaTeX mathematical fonts (Type-1 vector fonts) [2.2.6].
@@ -234,11 +264,25 @@ else:
 
 ---
 
-## 6. Acknowledgements & Credits
+## 7. Contributing & Community Support
+
+We believe in making scientific literature universally accessible and welcome contributions from researchers, developers, and educators. Here is how you can help advance the project:
+
+*   **Core UI Refactoring:** Help us migrate from the resource-intensive PyQt6/QWebEngine setup to a lightweight `pywebview` client.
+*   **Bug Reports & Edge Cases:** Found a PDF with highly complex LaTeX layout issues? Open an issue and upload the file (or a sample page) so we can optimize our BeautifulSoup parser rules.
+*   **Translation & Localization:** Contribute internationalization files (`.qm`/`.ts` translations) to make the user interface available in more languages.
+*   **Prompt Optimization:** Help us refine the instructions in `prompts.py` to further improve terminology preservation and tag alignment across different languages.
+
+To contribute, please fork the repository, make your changes in a dedicated branch, and submit a pull request. For major architectural modifications, feel free to open an issue first to discuss your ideas with the core maintainers.
+
+---
+
+## 8. Acknowledgements & Credits
 
 RockTranslate stands on the shoulders of giants. We would like to express our deepest gratitude to the open-source projects that made this tool possible:
 *   **pdf2htmlEX:** The magnificent geometric engine used to compile PDF structures into HTML [2.2.1].
 *   **Poppler & FontForge:** The underlying vector engines driving pdf2htmlEX [3.2.4].
 *   **LiteLLM:** The robust multi-provider AI routing wrapper [2.3.1].
 *   **BeautifulSoup4 & lxml:** Driving high-speed, programmatic DOM analysis.
+
 ---
