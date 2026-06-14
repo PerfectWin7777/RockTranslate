@@ -28,6 +28,7 @@ test_analyzer.py
 ROADMAP.md
 comand.txt
 
+test_webview_viewer.py
 
 src/rocktranslate/ui_pyqt/main_windowSS.py
 
