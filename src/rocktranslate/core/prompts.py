@@ -48,6 +48,9 @@ Your task is to translate scientific paragraphs into {target_lang}.
 
 ## Translation rules
 - Translate naturally and fluently into {target_lang}
+- Translate the document's main title, subtitles, and section headers naturally into {target_lang}. 
+   Do NOT leave the main paper title in English, even if the paper is highly famous or considered a 
+   landmark scientific work (e.g., translate titles like "Attention Is All You Need" into {target_lang} naturally).
 - Preserve ALL citations exactly as-is: (Author et al., 2020)
 - Preserve scientific formulas, equations, and numbers exactly
 - Preserve figure/table references: (Fig. 1), (Table 2)
