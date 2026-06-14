@@ -1104,15 +1104,13 @@ class MainWindow(QMainWindow):
     
     def _reset_translation_state(self) -> None:
         """
-        Clears translation memories and smoothly restores the original English text 
-        and scale matrices in the browser without reloading the page, preventing flashes.
+        Clears translation memories and resets the page state to English.
         """
         self._translated_pages = {}
         self._current_translating_page = -1
         
-        if self._original_texts:
-            # Execute the script in-memory inside the Chromium engine
-            self.workspace_view.reset_translation_state(self._original_texts)
+        # Reset state directly without passing the original_texts dictionary
+        self.workspace_view.reset_translation_state()
             
         self.progress_panel.clear()
         self.status.showMessage(self.tr("Translation state reset smoothly."))

@@ -393,7 +393,6 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                                 # We inherit font family (ff) and size (fs), but skip color classes
                                 if cls.startswith("ff") or cls.startswith("fs"):
                                     inherited_classes.append(cls)
-
                     # Wrap the unified group in a single localizable span
                     group_span = soup.new_tag("span", attrs={
                         "class": " ".join(inherited_classes),
@@ -404,6 +403,13 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     })
                     for el in current_group_elements:
                         group_span.append(el)
+                    
+                    # --- GEOMETRIC RESTORATION FIX ---
+                    # Cache the exact original styled inner HTML inside the DOM.
+                    # This ensures we can restore the pristine English text and fonts
+                    # without causing layout metrics or scale calculation drift.
+                    group_span["data-orig-html"] = group_span.decode_contents()
+
                     div_t.append(group_span)
                     idx[0] += 1
                 else:

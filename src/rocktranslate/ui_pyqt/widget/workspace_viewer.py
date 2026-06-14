@@ -423,53 +423,44 @@ class WorkspaceViewer(QWebEngineView):
         self.page().runJavaScript(js)
 
     
-    def reset_translation_state(self, original_texts : str) -> None:
+    def reset_translation_state(self) -> None:
         """
-        Clears translation memories and smoothly restores the original English text 
-        and scale matrices in the browser without reloading the page, preventing flashes.
+        Clears translation memories and restores the original styled HTML
+        and scale matrices in the browser without reloading the page.
         """
-        # Convert python dict to a JSON string to pass it safely to JavaScript
-        original_texts_json = json.dumps(original_texts)
-        
-        # This JS block traverses the DOM instantly, restoring the original text
-        # and resetting the layout matrices to their clean English scale
-        js_code = f"""
-        (function() {{
+        js_code = """
+        (function() {
             var iframe = document.getElementById('html-iframe');
-            if (iframe && iframe.contentWindow) {{
-                var origTexts = {original_texts_json};
+            if (iframe && iframe.contentWindow) {
                 var doc = iframe.contentWindow.document;
                 
-                doc.querySelectorAll('span[data-trans-id]').forEach(function(span) {{
-                    var transId = span.getAttribute('data-trans-id');
-                    var originalText = origTexts[transId];
+                doc.querySelectorAll('span[data-trans-id]').forEach(function(span) {
+                    var originalHtml = span.getAttribute('data-orig-html');
                     
-                    if (originalText !== undefined) {{
-                        // 1. Restore the original English text
-                        span.innerHTML = originalText;
+                    if (originalHtml !== null && originalHtml !== undefined) {
+                        // 1. Restore the original styled HTML with correct font families
+                        span.innerHTML = originalHtml;
                         span.classList.remove('shimmer-line');
                         
-                        // 2. Reset scale matrices of the parent div.t to their original dimensions
+                        // 2. Reset the scale matrices of the parent container div.t
                         var divT = span.closest('div.t');
-                        if (divT) {{
+                        if (divT) {
                             var sxOrig = parseFloat(span.getAttribute('data-sx') || '1');
                             var syOrig = parseFloat(span.getAttribute('data-sy') || '1');
                             divT.style.transform = 'matrix(' + sxOrig + ',0,0,' + syOrig + ',0,0)';
                             
-                            // Remove temporary width tracking to allow fresh calculations for the next language
+                            // Remove temporary width metrics to force clean recalculations for the next language
                             divT.removeAttribute('data-orig-sw');
                             divT.removeAttribute('data-sx-orig');
                             divT.removeAttribute('data-sy-orig');
-                        }}
-                    }}
-                }});
-            }}
-        }})();
+                        }
+                    }
+                });
+            }
+        })();
         """
-        # Execute the script in-memory inside the Chromium engine
         self.page().runJavaScript(js_code)
         
-    
 
     def set_pane_layout(self, layout_mode: str) -> None:
         """
