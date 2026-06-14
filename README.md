@@ -280,9 +280,7 @@ To contribute, please fork the repository, make your changes in a dedicated bran
 ## 8. Acknowledgements & Credits
 
 RockTranslate stands on the shoulders of giants. We would like to express our deepest gratitude to the open-source projects that made this tool possible:
-*   **pdf2htmlEX:** The magnificent geometric engine used to compile PDF structures into HTML [2.2.1].
-*   **Poppler & FontForge:** The underlying vector engines driving pdf2htmlEX [3.2.4].
-*   **LiteLLM:** The robust multi-provider AI routing wrapper [2.3.1].
-*   **BeautifulSoup4 & lxml:** Driving high-speed, programmatic DOM analysis.
-
----
+*   **pdf2htmlEX:** The geometric engine used to compile PDF structures into HTML [2.2.1] ([GitHub](https://github.com/pdf2htmlEX/pdf2htmlEX)).
+*   **Poppler & FontForge:** The underlying vector engines driving pdf2htmlEX [3.2.4] ([Poppler Website](https://poppler.freedesktop.org/) | [FontForge Website](https://fontforge.org/)).
+*   **LiteLLM:** The multi-provider AI routing wrapper [2.3.1] ([Official Documentation](https://docs.litellm.ai/)).
+*   **BeautifulSoup4 & lxml:** Driving high-speed, programmatic DOM analysis ([BeautifulSoup Documentation](https://www.crummy.com/software/BeautifulSoup/bs4/doc/) | [lxml Website](https://lxml.de/)).
