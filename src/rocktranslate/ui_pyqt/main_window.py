@@ -896,7 +896,13 @@ class MainWindow(QMainWindow):
             if reply == QMessageBox.StandardButton.Yes:
                 self._translated_pages = {}
                 already_translated_ids = set()
-                untranslated_texts = self._original_texts.copy()
+                if target_pages is not None:
+                    untranslated_texts = {
+                        k: v for k, v in self._original_texts.items()
+                        if self._tid_to_page.get(k, 0) in target_pages
+                    }
+                else:
+                    untranslated_texts = self._original_texts.copy()
             else:
                 self.status.showMessage(self.tr("Translation already complete."))
                 self.a_export.setEnabled(True)
