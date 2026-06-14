@@ -1,0 +1,67 @@
+<!-- 
+  RockTranslate — Translate Specific Pages Dialog Modal
+  Path: src/rocktranslate/assets/ui/components/range_modal.html
+-->
+
+<div id="range-modal-overlay" class="modal-overlay" x-data="rangeSettingsController()"
+    x-show="$store.modals.active === 'range_settings'" x-transition x-cloak>
+    <div class="modal-card" style="width: 580px;" @click.away="$store.modals.close()">
+
+        <!-- Header -->
+        <div class="modal-header">
+            <div class="modal-title-block">
+                <h2 x-text="$store.i18n.translate('range_subtitle_total', { total: totalPages })"></h2>
+            </div>
+        </div>
+
+        <!-- Form Body -->
+        <div class="modal-body">
+            <div class="settings-form">
+
+                <!-- Instruction Panel Card -->
+                <div
+                    style="background-color: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-bottom: 5px;">
+                    <h3
+                        style="font-size: 12px; font-weight: bold; color: var(--text-primary); margin: 0 0 10px 0; display: flex; align-items: center; gap: 6px;">
+                        <span>📖</span> <span x-text="$store.i18n.translate('range_syntax_guide')"></span>
+                    </h3>
+
+                    <ul
+                        style="margin: 0; padding-left: 20px; font-size: 11px; color: var(--text-muted); display: flex; flex-direction: column; gap: 6px; line-height: 1.4;">
+                        <li x-text="$store.i18n.translate('range_guide_1')"></li>
+                        <li x-text="$store.i18n.translate('range_guide_2')"></li>
+                        <li x-text="$store.i18n.translate('range_guide_3')"></li>
+                        <li x-text="$store.i18n.translate('range_guide_4')"></li>
+                    </ul>
+                </div>
+
+                <!-- Range Input Row -->
+                <div class="form-row" style="margin-top: 5px;">
+                    <label class="form-label" style="width: 25%;" x-text="$store.i18n.translate('range_title')"></label>
+                    <div class="form-value" style="width: 75%;">
+                        <input type="text" x-model="pageRange"
+                            :placeholder="$store.i18n.translate('range_input_placeholder')" @keydown.enter="submit()"
+                            style="width: 100%;">
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Out-Of-Bounds Warning Block -->
+            <div class="info-disclosure"
+                style="font-size: 11px; color: var(--accent-red); margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 12px; display: flex; align-items: center; gap: 8px;">
+                <span>⚠️</span> <span x-text="$store.i18n.translate('range_warning')"></span>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="modal-actions" style="gap: 10px;">
+            <button class="modal-btn-close" @click="$store.modals.close()"
+                x-text="$store.i18n.translate('cancel_btn')"></button>
+            <button class="modal-btn-close" @click="submit()"
+                style="background-color: var(--accent-blue); color: white; border-color: var(--accent-blue);"
+                x-text="$store.i18n.translate('translate_btn')"></button>
+        </div>
+
+    </div>
+</div>

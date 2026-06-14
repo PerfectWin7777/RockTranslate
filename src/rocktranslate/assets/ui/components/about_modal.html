@@ -1,0 +1,56 @@
+<!-- 
+  RockTranslate — Contextual About Dialog Modal
+  Path: src/rocktranslate/assets/ui/components/about_modal.html
+-->
+
+<div id="about-modal-overlay" class="modal-overlay" x-data x-show="$store.modals.active === 'about'" x-transition
+    x-cloak>
+    <div class="modal-card" @click.away="$store.modals.close()">
+
+        <!-- Header: Logo and Title text -->
+        <div class="modal-header">
+            <img src="../rocktranslate_icon.png" alt="Logo" class="modal-logo">
+            <div class="modal-title-block">
+                <h2 x-text="$store.i18n.translate('about_version')"></h2>
+                <p>
+                    <b x-text="$store.i18n.translate('about_tagline')"></b><br />
+                    <span x-text="$store.i18n.translate('about_motto')"
+                        style="color: var(--text-muted); font-size: 11px;"></span>
+                </p>
+            </div>
+        </div>
+
+        <!-- Scrollable Description Body -->
+        <div class="modal-body">
+            <p x-text="$store.i18n.translate('about_desc_1')"></p>
+            <p x-text="$store.i18n.translate('about_desc_2')"></p>
+
+            <ul class="features-list">
+                <li x-text="$store.i18n.translate('about_feature_1')"></li>
+                <li x-text="$store.i18n.translate('about_feature_2')"></li>
+                <li x-text="$store.i18n.translate('about_feature_3')"></li>
+                <li x-text="$store.i18n.translate('about_feature_4')"></li>
+                <li x-text="$store.i18n.translate('about_feature_5')"></li>
+                <li x-text="$store.i18n.translate('about_feature_6')"></li>
+                <li x-text="$store.i18n.translate('about_feature_7')"></li>
+            </ul>
+
+            <div class="modal-footer-info">
+                <p>
+                    <b x-text="$store.i18n.translate('about_license') + ':'"></b> MIT License<br />
+                    <b x-text="$store.i18n.translate('about_authors') + ':'"></b> RockTranslate Contributors
+                </p>
+                <p style="color: var(--text-muted); font-size: 10px; margin-top: 5px;">
+                    © 2026 RockTranslate Contributors
+                </p>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="modal-actions">
+            <button class="modal-btn-close" @click="$store.modals.close()"
+                x-text="$store.i18n.translate('close_btn')"></button>
+        </div>
+
+    </div>
+</div>

@@ -1,0 +1,82 @@
+<!-- 
+  RockTranslate — Translation Engine Configuration Modal
+  Path: src/rocktranslate/assets/ui/components/translation_settings_modal.html
+-->
+
+<div id="trans-settings-modal-overlay" class="modal-overlay" x-data="translationSettingsController()"
+    x-show="$store.modals.active === 'trans_settings'" x-transition x-cloak>
+    <div class="modal-card" @click.away="$store.modals.close()">
+
+        <!-- Header -->
+        <div class="modal-header">
+            <div class="modal-title-block">
+                <h2 x-text="$store.i18n.translate('trans_settings_title')"></h2>
+            </div>
+        </div>
+
+        <!-- Form Body -->
+        <div class="modal-body">
+            <div class="settings-form">
+
+                <!-- Model Temperature (0.0 to 2.0) -->
+                <div class="form-row">
+                    <label class="form-label" x-text="$store.i18n.translate('trans_temp_lbl')"></label>
+                    <div class="form-value">
+                        <input type="number" step="0.1" min="0.0" max="2.0" x-model.number="fields.temperature"
+                            :title="$store.i18n.translate('trans_temp_tip')">
+                    </div>
+                </div>
+
+                <!-- Sliding Context Depth -->
+                <div class="form-row">
+                    <label class="form-label" x-text="$store.i18n.translate('trans_context_lbl')"></label>
+                    <div class="form-value">
+                        <input type="number" min="1" max="30" x-model.number="fields.sliding_context_size"
+                            :title="$store.i18n.translate('trans_context_tip')">
+                    </div>
+                </div>
+
+                <!-- Max Segments Per Batch -->
+                <div class="form-row">
+                    <label class="form-label" x-text="$store.i18n.translate('trans_batch_lbl')"></label>
+                    <div class="form-value">
+                        <input type="number" min="5" max="200" x-model.number="fields.max_segments_per_batch"
+                            :title="$store.i18n.translate('trans_batch_tip')">
+                    </div>
+                </div>
+
+                <!-- Column Split Threshold (px) -->
+                <div class="form-row">
+                    <label class="form-label" x-text="$store.i18n.translate('trans_threshold_lbl')"></label>
+                    <div class="form-value">
+                        <input type="number" step="0.5" min="2.0" max="50.0" x-model.number="fields.threshold_px"
+                            :title="$store.i18n.translate('trans_threshold_tip')">
+                    </div>
+                </div>
+
+                <!-- Max Connection Retries -->
+                <div class="form-row">
+                    <label class="form-label" x-text="$store.i18n.translate('trans_retries_lbl')"></label>
+                    <div class="form-value">
+                        <input type="number" min="1" max="10" x-model.number="fields.max_retries"
+                            :title="$store.i18n.translate('trans_retries_tip')">
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Disclosure Info -->
+            <div class="info-disclosure" x-text="$store.i18n.translate('trans_info_disclosure')"></div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="modal-actions" style="gap: 10px;">
+            <button class="modal-btn-close" @click="$store.modals.close()"
+                x-text="$store.i18n.translate('cancel_btn')"></button>
+            <button class="modal-btn-close" @click="save()"
+                style="background-color: var(--accent-blue); color: white; border-color: var(--accent-blue);"
+                x-text="$store.i18n.translate('save_btn')"></button>
+        </div>
+
+    </div>
+</div>

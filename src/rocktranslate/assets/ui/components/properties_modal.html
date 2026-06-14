@@ -1,0 +1,150 @@
+<!-- 
+  RockTranslate — Document Properties Dialog Modal
+  Path: src/rocktranslate/assets/ui/components/properties_modal.html
+-->
+
+<div id="properties-modal-overlay" class="modal-overlay" x-data="propertiesController()"
+    x-show="$store.modals.active === 'properties_modal'" x-transition x-cloak>
+    <div class="modal-card" style="width: 580px;" @click.away="$store.modals.close()">
+
+        <!-- Header -->
+        <div class="modal-header">
+            <div class="modal-title-block">
+                <h2 x-text="$store.i18n.translate('item_properties')"></h2>
+            </div>
+        </div>
+
+        <!-- Form Body -->
+        <div class="modal-body" style="height: 300px;" x-cloak>
+
+            <!-- Loading Spinner -->
+            <div x-show="loading"
+                style="display: flex; justify-content: center; align-items: center; height: 100%; width: 100%;">
+                <div class="circular-loader" style="border-top-color: var(--accent-blue); width: 32px; height: 32px;">
+                </div>
+            </div>
+
+            <!-- Main Render Content -->
+            <template x-if="!loading && Object.keys(metadata).length > 0">
+                <div style="display: flex; flex-direction: column; height: 100%;">
+
+                    <!-- Tab Selector Row -->
+                    <div class="properties-tabs">
+                        <div class="prop-tab" :class="{ 'active': activeTab === 'general' }"
+                            @click="activeTab = 'general'" x-text="$store.i18n.translate('prop_tab_general')"></div>
+                        <div class="prop-tab" :class="{ 'active': activeTab === 'description' }"
+                            @click="activeTab = 'description'" x-text="$store.i18n.translate('prop_tab_description')">
+                        </div>
+                        <div class="prop-tab" :class="{ 'active': activeTab === 'custom' }"
+                            @click="activeTab = 'custom'" x-text="$store.i18n.translate('prop_tab_custom')"></div>
+                    </div>
+
+                    <!-- TAB PANE 1: General Specs -->
+                    <div x-show="activeTab === 'general'" class="metadata-table">
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_file')"></span>
+                            <span class="meta-value" x-text="metadata.file_path"></span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_size')"></span>
+                            <span class="meta-value" x-text="metadata.file_size"></span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_pages')"></span>
+                            <span class="meta-value" x-text="metadata.pages_count"></span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_version')"></span>
+                            <span class="meta-value" x-text="metadata.pdf_version"></span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_linearized')"></span>
+                            <span class="meta-value" x-text="$store.i18n.translate(metadata.linearized)"></span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_tagged')"></span>
+                            <span class="meta-value" x-text="$store.i18n.translate(metadata.tagged)"></span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_page_size')"></span>
+                            <span class="meta-value" x-text="metadata.page_size"></span>
+                        </div>
+                    </div>
+
+                    <!-- TAB PANE 2: Metadata Descriptions -->
+                    <div x-show="activeTab === 'description'" class="metadata-table"
+                        style="max-height: 250px; overflow-y: auto;">
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_title')"></span>
+                            <span class="meta-value" x-text="metadata.title"></span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_subject')"></span>
+                            <span class="meta-value" x-text="metadata.subject"></span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_author')"></span>
+                            <span class="meta-value" x-text="metadata.author"></span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_creator')"></span>
+                            <span class="meta-value" x-text="metadata.creator"></span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_producer')"></span>
+                            <span class="meta-value" x-text="metadata.producer"></span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_keywords')"></span>
+                            <span class="meta-value" x-text="metadata.keywords"></span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_created')"></span>
+                            <span class="meta-value" x-text="metadata.created_date"></span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_modified')"></span>
+                            <span class="meta-value" x-text="metadata.mod_date"></span>
+                        </div>
+                    </div>
+
+                    <!-- TAB PANE 3: RockTranslate Statistics -->
+                    <div x-show="activeTab === 'custom'" class="metadata-table">
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_status')"></span>
+                            <span class="meta-value" x-text="$store.i18n.translate(metadata.trans_status)"></span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_tab_custom')"></span>
+                            <span class="meta-value" x-text="metadata.trans_lang"></span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_ai_model')"></span>
+                            <span class="meta-value" x-text="metadata.trans_model"></span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_blocks')"></span>
+                            <span class="meta-value" x-text="metadata.trans_segments"></span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_avg_scale')"></span>
+                            <span class="meta-value" x-text="metadata.trans_scale_avg"></span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label" x-text="$store.i18n.translate('prop_date')"></span>
+                            <span class="meta-value" x-text="metadata.trans_date"></span>
+                        </div>
+                    </div>
+
+                </div>
+            </template>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="modal-actions">
+            <button class="modal-btn-close" @click="$store.modals.close()"
+                x-text="$store.i18n.translate('close_btn')"></button>
+        </div>
+
+    </div>
+</div>

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<!-- 
+  RockTranslate — Main SPA Container Shell
+  Path: src/rocktranslate/assets/ui/index.html
+-->
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RockTranslate</title>
+
+    <!-- Global & Component Styling Rules -->
+    <link rel="stylesheet" href="css/global.css">
+    <link rel="stylesheet" href="css/menubar.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/settings_modals.css">
+    <link rel="stylesheet" href="css/statusbar.css">
+    <link rel="stylesheet" href="css/toast.css">
+    <link rel="stylesheet" href="css/workspace.css">
+    <link rel="stylesheet" href="css/progress.css">
+
+    <!-- External Standalone Libraries (Offline Local Files) -->
+    <script src="js/alpine.min.js" defer></script>
+
+    <!-- Central Translation State Store -->
+    <script src="js/i18n.js"></script>
+
+    <!-- Component JS Controllers -->
+    <script src="js/menubar.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/settings.js"></script>
+    <script src="js/statusbar.js"></script>
+    <script src="js/workspace.js"></script>
+    <script src="js/progress.js"></script>
+</head>
+
+<body x-data="appShell()"
+    @document-ready.window="transitionToWorkspace($event.detail.pdfPath, $event.detail.htmlPath, $event.detail.totalPages, $event.detail.totalSegments)"
+    @trigger-file-picker.window="triggerFilePicker()" @trigger-show-about.window="$store.modals.open('about')"
+    @trigger-show-trans-settings.window="$store.modals.open('trans_settings')"
+    @trigger-show-system-settings.window="$store.modals.open('system_settings')"
+    @trigger-show-api-config.window="$store.modals.open('api_config')"
+    @trigger-show-trans-range.window="$store.modals.open('range_settings')"
+    @trigger-show-properties.window="$store.modals.open('properties_modal')"
+    @trigger-reset-settings.window="resetSettingsToDefault()" @trigger-close-document.window="closeDocument()">
+
+    <!-- 1. Top Global Menu Bar Mount Point -->
+    <div id="menubar-mount"></div>
+
+    <!-- 2. Core Viewport Switcher Router -->
+    <!-- Dynamically scales the height of workspace viewports to fit the 90px progress panel when active -->
+    <div id="main-viewports"
+        :style="`height: calc(100vh - ${showProgressPanel && currentScreen === 'workspace' ? '150px' : '60px'}); width: 100vw;`"
+        style="transition: height 0.2s ease-out;">
+
+        <!-- Welcome Screen Viewport -->
+        <div x-show="currentScreen === 'dashboard'" x-transition:enter="transition ease-out duration-200">
+            <div id="dashboard-mount"></div>
+        </div>
+
+        <!-- Workspace Screen Viewport -->
+        <div x-show="currentScreen === 'workspace'" x-transition:enter="transition ease-out duration-200"
+            style="height: 100%; width: 100%;">
+            <div id="workspace-mount" style="height: 100%; width: 100%;">
+                <div style="padding: 20px; color: var(--text-muted);">Loading workspace...</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 3. Bottom Progress Bar Mount Point -->
+    <div id="progress-mount"></div>
+
+    <!-- 4. Bottom Status Bar Mount Point -->
+    <div id="statusbar-mount"></div>
+
+    <!-- 5. Global Toast Notification Anchor Stack Panel -->
+    <div id="toast-anchor-panel" class="unselectable">
+        <template x-for="toast in $store.toasts.items" :key="toast.id">
+            <div class="toast-card" :class="toast.type">
+                <span class="toast-icon" x-text="getToastIcon(toast.type)"></span>
+                <span class="toast-message" x-text="toast.message"></span>
+            </div>
+        </template>
+    </div>
+
+    <!-- 6. Global Modals Mounting Points -->
+    <div id="about-modal-mount"></div>
+    <div id="system-settings-modal-mount"></div>
+    <div id="trans-settings-modal-mount"></div>
+    <div id="api-config-modal-mount"></div>
+    <div id="range-modal-mount"></div>
+    <div id="properties-modal-mount"></div>
+
+    <!-- Core App Shell Routing JavaScript Logic -->
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.store('modals', {
+                active: null,
+                open(modalName) { this.active = modalName; },
+                close() { this.active = null; }
+            });
+
+            Alpine.store('toasts', {
+                items: [],
+                show(message, type = 'info', duration = 4000) {
+                    const id = Date.now() + Math.random().toString(36).substr(2, 5);
+                    const toast = { id, message, type };
+                    this.items.push(toast);
+                    setTimeout(() => { this.remove(id); }, duration);
+                },
+                remove(id) {
+                    this.items = this.items.filter(item => item.id !== id);
+                }
+            });
+        });
+
+        window.showStatusMessage = function (text) {
+            window.dispatchEvent(new CustomEvent('update-status-text', { detail: { text: text } }));
+        };
+
+        window.showToast = function (message, type = 'info') {
+            Alpine.store('toasts').show(message, type);
+        };
+
+        function appShell() {
+            return {
+                currentScreen: 'dashboard',
+                activeFilePath: null,
+                activeHtmlPath: null,
+
+                // Sychronizes state to shrink viewport heights reactively
+                showProgressPanel: true,
+
+                async init() {
+                    window.addEventListener('pywebviewready', async () => {
+                        try {
+                            const configLocale = await window.pywebview.api.get_system_locale();
+                            if (configLocale) {
+                                Alpine.store('i18n').setLocale(configLocale);
+                                window.showStatusMessage(Alpine.store('i18n').translate('status_ready'));
+                            }
+                        } catch (e) {
+                            console.error("[Shell] Could not load system locale config:", e);
+                        }
+                    });
+
+                    // Sync progress visibility toggles
+                    window.addEventListener('trigger-toggle-progress', (e) => {
+                        this.showProgressPanel = e.detail.visible;
+                    });
+
+                    // Mount components asynchronously
+                    await this.mountComponent('menubar-mount', 'components/menubar.html');
+                    await this.mountComponent('dashboard-mount', 'components/dashboard.html');
+                    await this.mountComponent('progress-mount', 'components/progress.html');
+                    await this.mountComponent('statusbar-mount', 'components/statusbar.html');
+
+                    // Mount settings, about and properties modals
+                    await this.mountComponent('about-modal-mount', 'components/about_modal.html');
+                    await this.mountComponent('system-settings-modal-mount', 'components/system_settings_modal.html');
+                    await this.mountComponent('trans-settings-modal-mount', 'components/translation_settings_modal.html');
+                    await this.mountComponent('api-config-modal-mount', 'components/api_config_modal.html');
+                    await this.mountComponent('range-modal-mount', 'components/range_modal.html');
+                    await this.mountComponent('properties-modal-mount', 'components/properties_modal.html');
+                },
+
+                async mountComponent(elementId, componentPath) {
+                    try {
+                        const response = await fetch(componentPath);
+                        if (!response.ok) throw new Error(`Failed to load ${componentPath}`);
+                        const html = await response.text();
+
+                        const mountPoint = document.getElementById(elementId);
+                        mountPoint.innerHTML = html;
+
+                        if (window.Alpine) {
+                            window.Alpine.process(mountPoint);
+                        }
+                    } catch (error) {
+                        console.error(`[Shell] Error mounting ${componentPath}:`, error);
+                    }
+                },
+
+                getToastIcon(type) {
+                    switch (type) {
+                        case 'success': return '✓';
+                        case 'error': return '✗';
+                        case 'warning': return '⚠️';
+                        case 'info':
+                        default:
+                            return 'ℹ';
+                    }
+                },
+
+                async transitionToWorkspace(pdfPath, htmlPath, totalPages, totalSegments) {
+                    console.log("[Shell] Layout compiled successfully. Swapping viewports...");
+                    this.activeFilePath = pdfPath;
+                    this.activeHtmlPath = htmlPath;
+                    this.currentScreen = 'workspace';
+                    this.$dispatch('refresh-menu-data');
+
+                    await this.mountComponent('workspace-mount', 'components/workspace.html');
+
+                    const filename = pdfPath.split('\\').pop().split('/').pop();
+                    const loadedText = Alpine.store('i18n').translate('doc_loaded_msg', {
+                        filename: filename,
+                        pages: totalPages,
+                        segments: totalSegments
+                    });
+                    window.showStatusMessage(loadedText);
+                },
+
+                async triggerFilePicker() {
+                    try {
+                        const result = await window.pywebview.api.open_file_dialog();
+                        if (result && result.status === 'success') {
+                            window.pywebview.api.extract_pdf(result.path);
+                        }
+                    } catch (e) {
+                        console.error("[Shell] Error opening file picker:", e);
+                    }
+                },
+
+                async resetSettingsToDefault() {
+                    const i18n = Alpine.store('i18n');
+                    if (confirm(i18n.translate('reset_confirm_msg'))) {
+                        try {
+                            const result = await window.pywebview.api.reset_settings_to_default();
+                            if (result && result.status === 'success') {
+                                alert(i18n.translate('reset_success_msg'));
+                                window.location.reload();
+                            }
+                        } catch (e) {
+                            console.error("[Shell] Error resetting default configurations:", e);
+                        }
+                    }
+                },
+
+                closeDocument() {
+                    this.activeFilePath = null;
+                    this.activeHtmlPath = null;
+                    this.currentScreen = 'dashboard';
+                    this.$dispatch('refresh-menu-data');
+                }
+            };
+        }
+    </script>
+</body>
+
+</html>

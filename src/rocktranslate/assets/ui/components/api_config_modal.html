@@ -1,0 +1,139 @@
+<!-- 
+  RockTranslate — API Configuration Dialog Modal (Thread-Safe Timing Version)
+  Path: src/rocktranslate/assets/ui/components/api_config_modal.html
+-->
+
+<div id="api-config-modal-overlay" class="modal-overlay" x-data="apiConfigController()"
+    x-show="$store.modals.active === 'api_config'" x-transition x-cloak>
+    <div class="modal-card" style="width: 680px;" @click.away="$store.modals.close()">
+
+        <!-- Header -->
+        <div class="modal-header">
+            <div class="modal-title-block">
+                <h2 x-text="$store.i18n.translate('item_api_config')"></h2>
+            </div>
+        </div>
+
+        <!-- Form Body -->
+        <div class="modal-body" x-cloak>
+
+            <!-- 1. Sleek Loading Spinner (Renders while Python is serving config data) -->
+            <div x-show="loading"
+                style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 0; gap: 15px; width: 100%;">
+                <div class="circular-loader"
+                    style="border-top-color: var(--accent-blue); width: 32px; height: 32px; margin: 0;"></div>
+            </div>
+
+            <!-- 2. Main Form (Only parsed and compiled after data is 100% loaded and safe) -->
+            <template x-if="!loading && Object.keys(isolatedConfigs).length > 0">
+                <div class="settings-form">
+
+                    <!-- API Provider Dropdown Selector -->
+                    <div class="form-row">
+                        <label class="form-label" x-text="$store.i18n.translate('api_config_provider_lbl')"></label>
+                        <div class="form-value">
+                            <select x-model="currentProvider"
+                                style="width: 100%; border: 1px solid var(--border-color); border-radius: 4px; padding: 6px 10px; font-size: 12px; outline: none; background: white; height: 32px;"
+                                @change="showSuccessLabel = false">
+                                <template x-for="provider in Object.keys(providersConfig)" :key="provider">
+                                    <option :value="provider" :selected="currentProvider === provider" x-text="provider">
+                                    </option>
+                                </template>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- API Key Entry (Hidden completely for Ollama local loops) -->
+                    <div class="form-row" x-show="currentProvider !== 'Ollama (Local)'">
+                        <label class="form-label" x-text="$store.i18n.translate('lbl_key')"></label>
+                        <div class="form-value">
+                            <div class="browse-input-group"
+                                style="display: flex; width: 100%; gap: 8px; align-items: center;">
+                            <input type="password" x-model="isolatedConfigs[currentProvider].api_key" placeholder="Enter your API key" style="
+                                        flex: 1;
+                                        height: 28px;
+                                        padding: 0 10px;
+                                        border: 1px solid #d1d5db;
+                                        border-radius: 6px;
+                                        background: #ffffff;
+                                        font-size: 13px;
+                                        transition: all 0.2s ease;
+                                        box-sizing: border-box;
+                                    " onfocus="this.style.borderColor='#4299e1';this.style.boxShadow='0 0 0 2px rgba(66,153,225,0.15)'"
+                                onblur="this.style.borderColor='#d1d5db';this.style.boxShadow='none'">
+                                <button class="btn-browse"
+                                    style="color: var(--accent-red); border-color: #feb2b2; background-color: #fff5f5; display: flex; align-items: center; justify-content: center; height: 28px;"
+                                    @click="deleteKey()">🗑️ Delete</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Delete Key Success Feedback Label -->
+                    <div class="form-row" x-show="showSuccessLabel && currentProvider !== 'Ollama (Local)'">
+                        <label class="form-label"></label>
+                        <div class="form-value">
+                            <span style="color: var(--accent-green); font-size: 11px; font-weight: bold;">✓ API Key
+                                deleted successfully.</span>
+                        </div>
+                    </div>
+
+                    <!-- Custom Base URL Checkbox -->
+                    <div class="form-row" x-show="currentProvider !== 'Ollama (Local)'">
+                        <label class="form-label"></label>
+                        <div class="form-value">
+                            <input type="checkbox" id="chk-api-custom-base"
+                                x-model="isolatedConfigs[currentProvider].use_custom_base">
+                            <label for="chk-api-custom-base"
+                                style="font-size: 11px; margin-left: 8px; cursor: pointer; user-select: none;"
+                                x-text="$store.i18n.translate('chk_custom_base')"></label>
+                        </div>
+                    </div>
+
+                    <!-- Custom Base URL Field (Forces display for Ollama) -->
+                    <div class="form-row"
+                        x-show="currentProvider === 'Ollama (Local)' || isolatedConfigs[currentProvider].use_custom_base">
+                        <label class="form-label" x-text="$store.i18n.translate('system_pdf2html_lbl_url')"></label>
+                        <div class="form-value">
+                            <input type="text" x-model="isolatedConfigs[currentProvider].custom_base_url"
+                                placeholder="http://localhost:11434">
+                        </div>
+                    </div>
+
+                    <!-- Target Model Selection -->
+                    <div class="form-row">
+                        <label class="form-label" x-text="$store.i18n.translate('system_model_lbl')"></label>
+                        <div class="form-value">
+                            <select x-model="isolatedConfigs[currentProvider].last_model"
+                                style="width: 100%; border: 1px solid var(--border-color); border-radius: 4px; padding: 6px 10px; font-size: 12px; outline: none; background: white; height: 32px;">
+                                <template x-for="model in getSuggestedModels()" :key="model">
+                                    <option :value="model"
+                                        :selected="isolatedConfigs[currentProvider] && isolatedConfigs[currentProvider].last_model === model"
+                                        x-text="model">
+                                    </option>
+                                </template>
+                            </select>
+                        </div>
+                    </div>
+
+                </div>
+            </template>
+        </div>
+
+        <!-- Disclosure Info -->
+        <div class="modal-body" style="padding-top: 0;">
+            <div class="info-disclosure"
+                style="font-size: 11px; color: var(--text-muted); margin-top: 0; padding-top: 10px;"
+                x-text="$store.i18n.translate('api_info_disclosure')"></div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="modal-actions" style="gap: 10px;">
+            <button class="modal-btn-close" @click="$store.modals.close()"
+                x-text="$store.i18n.translate('cancel_btn')"></button>
+            <button class="modal-btn-close" x-show="!loading" @click="save()"
+                style="background-color: var(--accent-blue); color: white; border-color: var(--accent-blue);"
+                x-text="$store.i18n.translate('save_btn')"></button>
+        </div>
+
+    </div>
+</div>

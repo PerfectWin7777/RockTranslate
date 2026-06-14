@@ -1,0 +1,170 @@
+/**
+ * RockTranslate — Settings Modals Stylesheet
+ * Path: src/rocktranslate/assets/ui/css/settings_modals.css
+ * 
+ * Styles form groups, inline browsing inputs, and custom numerical inputs.
+ * 
+ * Author: RockTranslate Contributors
+ * License: MIT License
+ * Version: 1.0.0
+ */
+
+.settings-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.form-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 15px;
+}
+
+.form-label {
+    width: 40%;
+    font-size: 11px;
+    font-weight: bold;
+    color: #4a5568;
+    user-select: none;
+}
+
+.form-value {
+    width: 60%;
+    display: flex;
+    align-items: center;
+}
+
+/* Base form fields inputs matching the PyQt6 dialogue styling rules */
+.form-value input[type="text"],
+.form-value input[type="number"] {
+    width: 100%;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--text-primary);
+    outline: none;
+    height: 32px;
+    transition: border-color 0.15s;
+}
+
+.form-value input[type="text"]:focus,
+.form-value input[type="number"]:focus {
+    border-color: var(--accent-blue);
+}
+
+/* Inline browse button layout */
+.browse-input-group {
+    display: flex;
+    width: 100%;
+    gap: 8px;
+}
+
+.btn-browse {
+    background-color: #edf2f7;
+    border: 1px solid #cbd5e0;
+    border-radius: 4px;
+    color: #4a5568;
+    padding: 0 14px;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s;
+    outline: none;
+    height: 32px;
+    white-space: nowrap;
+}
+
+.btn-browse:hover {
+    background-color: #e2e8f0;
+    border-color: #cbd5e0;
+}
+
+/* Custom checkbox configurations */
+.form-value input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--accent-blue);
+}
+
+.info-disclosure {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.4;
+    margin-top: 15px;
+    border-top: 1px solid var(--border-color);
+    padding-top: 12px;
+}
+
+
+
+/* ── COMPONENT: DYNAMIC METADATA PROPERTIES TABS ── */
+.properties-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 16px;
+    gap: 4px;
+    user-select: none;
+}
+
+.prop-tab {
+    padding: 8px 16px;
+    font-size: 11px;
+    font-weight: bold;
+    color: var(--text-muted);
+    cursor: pointer;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    margin-bottom: -1px;
+    transition: background-color 0.12s, color 0.12s;
+}
+
+.prop-tab:hover {
+    color: var(--text-primary);
+    background-color: #f7fafc;
+}
+
+.prop-tab.active {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+    border-bottom: 1px solid var(--bg-secondary);
+    /* Cover up the active bottom border */
+}
+
+/* Metadata grid table rows */
+.metadata-table {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.meta-row {
+    display: flex;
+    align-items: flex-start;
+}
+
+.meta-label {
+    width: 180px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #4a5568;
+    user-select: none;
+}
+
+.meta-value {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text-primary);
+    word-break: break-all;
+    user-select: text;
+    -webkit-user-select: text;
+    /* Allow mouse text selections */
+}

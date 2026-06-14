@@ -1,0 +1,25 @@
+<!-- 
+  RockTranslate — Synchronous Split-Pane Workspace Component (Global Drags Version)
+  Path: src/rocktranslate/assets/ui/components/workspace.html
+-->
+
+<div id="workspace-container" x-data="workspaceController()">
+
+    <div id="workspace-grid">
+
+        <!-- LEFT PANE: Original Vector PDF (Mozilla PDF.js) -->
+        <div id="left-pane" class="workspace-pane">
+            <iframe id="pdf-iframe" class="pane-frame"></iframe>
+        </div>
+
+        <!-- Drag-resize splitter divider -->
+        <div id="workspace-splitter" @mousedown="startSplitterDrag()"></div>
+
+        <!-- RIGHT PANE: Instrumented HTML Document -->
+        <div id="right-pane" class="workspace-pane">
+            <iframe id="html-iframe" class="pane-frame"></iframe>
+        </div>
+
+    </div>
+
+</div>

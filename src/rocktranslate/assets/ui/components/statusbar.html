@@ -1,0 +1,27 @@
+<!-- 
+  RockTranslate — Bottom Status Bar and Zoom Widgets Component
+  Path: src/rocktranslate/assets/ui/components/statusbar.html
+-->
+
+<div id="statusbar-container" x-data="statusbarController()">
+
+    <!-- LEFT PANEL: Status message text -->
+    <div class="status-text-left" x-text="statusText"></div>
+
+    <!-- RIGHT PANEL: Zoom percentage increments widget -->
+    <div class="status-zoom-widget">
+        <!-- Decrement button (-) -->
+        <button class="status-zoom-btn" @click="decrement()" :title="$store.i18n.translate('item_zoom_out')">-</button>
+
+        <!-- Slider groove -->
+        <input type="range" class="status-zoom-slider" min="50" max="250" step="5" x-model="zoomPercent"
+            @input="updateZoom()">
+
+        <!-- Increment button (+) -->
+        <button class="status-zoom-btn" @click="increment()" :title="$store.i18n.translate('item_zoom_in')">+</button>
+
+        <!-- Value percent read-out -->
+        <div class="status-zoom-percent" x-text="zoomPercent + '%'"></div>
+    </div>
+
+</div>

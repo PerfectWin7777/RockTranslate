@@ -1,0 +1,99 @@
+/**
+ * RockTranslate — Reactive Toast Notification Panel Stylesheet
+ * Path: src/rocktranslate/assets/ui/css/toast.css
+ * 
+ * Styles floating alert card stack overlays and their slide-in animations.
+ * 
+ * Author: RockTranslate Contributors
+ * License: MIT License
+ * Version: 1.0.0
+ */
+
+#toast-anchor-panel {
+    position: fixed;
+    bottom: 40px;
+    /* Sits cleanly above the status bar */
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 9999;
+    pointer-events: none;
+    /* Let clicks pass through empty spaces */
+}
+
+.toast-card {
+    pointer-events: auto;
+    /* Re-enable clicks on the cards themselves */
+    background-color: var(--bg-secondary);
+    border-left: 4px solid var(--accent-blue);
+    padding: 12px 20px;
+    border-radius: 6px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 320px;
+    max-width: 450px;
+    animation: toast-slide-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes toast-slide-in {
+    from {
+        transform: translateX(50px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.toast-icon {
+    font-size: 16px;
+    font-weight: bold;
+    display: inline-block;
+}
+
+.toast-message {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1.4;
+    flex: 1;
+}
+
+/* Color thematic overrides */
+.toast-card.success {
+    border-left-color: var(--accent-green);
+}
+
+.toast-card.success .toast-icon {
+    color: var(--accent-green);
+}
+
+.toast-card.error {
+    border-left-color: var(--accent-red);
+}
+
+.toast-card.error .toast-icon {
+    color: var(--accent-red);
+}
+
+.toast-card.warning {
+    border-left-color: #dd6b20;
+    /* Orange Warning */
+}
+
+.toast-card.warning .toast-icon {
+    color: #dd6b20;
+}
+
+.toast-card.info {
+    border-left-color: var(--accent-blue);
+}
+
+.toast-card.info .toast-icon {
+    color: var(--accent-blue);
+}

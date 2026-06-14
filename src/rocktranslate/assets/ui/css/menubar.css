@@ -1,0 +1,155 @@
+/**
+ * RockTranslate — Horizontal Desktop Menu Bar Stylesheet
+ * Path: src/rocktranslate/assets/ui/css/menubar.css
+ * 
+ * Styles the top-level horizontal bar, floating checkable items, and cascading submenus.
+ * 
+ * Author: RockTranslate Contributors
+ * License: MIT License
+ * Version: 1.0.0
+ */
+
+#menubar-container {
+    height: 30px;
+    width: 100%;
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 10px;
+    position: relative;
+    z-index: 1000;
+}
+
+.menu-left-items {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.menu-item {
+    position: relative;
+    font-size: 12px;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 4px 10px;
+    border-radius: 4px;
+    user-select: none;
+    transition: background-color 0.12s;
+}
+
+.menu-item:hover,
+.menu-item.active {
+    background-color: #edf2f7;
+}
+
+/* Dropdown list container */
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 260px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    border-radius: 6px;
+    padding: 4px 0;
+    margin-top: 2px;
+    display: flex;
+    flex-direction: column;
+    z-index: 1100;
+}
+
+/* Base dropdown list item */
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 14px;
+    font-size: 12px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background-color 0.12s;
+    text-decoration: none;
+    position: relative;
+}
+
+.dropdown-item:hover {
+    background-color: var(--accent-blue);
+    color: #ffffff;
+}
+
+.dropdown-item.disabled {
+    color: var(--text-muted);
+    cursor: not-allowed;
+    background-color: transparent !important;
+}
+
+/* Dynamic checkable item spacing and bullet positioning */
+.dropdown-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dropdown-checkmark {
+    font-weight: bold;
+    font-size: 11px;
+    width: 12px;
+    display: inline-block;
+}
+
+.dropdown-shortcut {
+    font-size: 10px;
+    color: var(--text-muted);
+    padding-left: 24px;
+}
+
+.dropdown-item:hover .dropdown-shortcut {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.dropdown-divider {
+    height: 1px;
+    background-color: var(--border-color);
+    margin: 4px 0;
+}
+
+/* ── MULTI-LEVEL CASCADING SUBMENUS ── */
+.dropdown-submenu {
+    position: relative;
+}
+
+/* Hidden container holding nested options */
+.dropdown-submenu .dropdown-menu-sub {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 100%;
+    min-width: 200px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    border-radius: 6px;
+    padding: 4px 0;
+    margin-left: 2px;
+    z-index: 1200;
+}
+
+/* Display nested list on parent hovered states */
+.dropdown-submenu:hover .dropdown-menu-sub {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── TOP-RIGHT CORNER LABEL: Model Indicator ── */
+.menu-model-indicator {
+    font-size: 11px;
+    font-weight: bold;
+    color: #2b6cb0;
+    font-family: 'Segoe UI', sans-serif;
+    margin-right: 15px;
+    user-select: none;
+    pointer-events: none;
+}

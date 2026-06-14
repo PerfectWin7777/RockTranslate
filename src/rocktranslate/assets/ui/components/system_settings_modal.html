@@ -1,0 +1,74 @@
+<!-- 
+  RockTranslate — System and Cache Configuration Modal
+  Path: src/rocktranslate/assets/ui/components/system_settings_modal.html
+-->
+
+<div id="system-settings-modal-overlay" class="modal-overlay" x-data="systemSettingsController()"
+    x-show="$store.modals.active === 'system_settings'" x-transition x-cloak>
+    <div class="modal-card" @click.away="$store.modals.close()">
+
+        <!-- Header -->
+        <div class="modal-header">
+            <div class="modal-title-block">
+                <h2 x-text="$store.i18n.translate('system_settings_title')"></h2>
+            </div>
+        </div>
+
+        <!-- Form Body -->
+        <div class="modal-body">
+            <div class="settings-form">
+
+                <!-- Clear Cache on Exit Row -->
+                <div class="form-row">
+                    <label class="form-label" x-text="$store.i18n.translate('system_cache_lifecycle')"></label>
+                    <div class="form-value">
+                        <input type="checkbox" id="chk-clear-cache" x-model="fields.clear_cache_on_exit"
+                            :title="$store.i18n.translate('system_clear_cache_tip')">
+                        <label for="chk-clear-cache" style="font-size: 11px; margin-left: 8px; cursor: pointer;"
+                            x-text="$store.i18n.translate('system_clear_cache_chk')"></label>
+                    </div>
+                </div>
+
+                <!-- pdf2htmlEX Path Row -->
+                <div class="form-row">
+                    <label class="form-label" x-text="$store.i18n.translate('system_pdf2html_lbl')"></label>
+                    <div class="form-value">
+                        <div class="browse-input-group">
+                            <input type="text" x-model="fields.pdf2htmlex_path_override"
+                                :placeholder="$store.i18n.translate('system_pdf2html_tip')">
+                            <button class="btn-browse" @click="browsePdf2html()"
+                                x-text="$store.i18n.translate('system_browse_btn')"></button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PDF.js Path Row -->
+                <div class="form-row">
+                    <label class="form-label" x-text="$store.i18n.translate('system_pdfjs_lbl')"></label>
+                    <div class="form-value">
+                        <div class="browse-input-group">
+                            <input type="text" x-model="fields.pdfjs_path_override"
+                                :placeholder="$store.i18n.translate('system_pdf2html_tip')">
+                            <button class="btn-browse" @click="browsePdfjs()"
+                                x-text="$store.i18n.translate('system_browse_btn')"></button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Disclosure Info -->
+            <div class="info-disclosure" x-text="$store.i18n.translate('system_info_disclosure')"></div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="modal-actions" style="gap: 10px;">
+            <button class="modal-btn-close" @click="$store.modals.close()"
+                x-text="$store.i18n.translate('cancel_btn')"></button>
+            <button class="modal-btn-close" @click="save()"
+                style="background-color: var(--accent-blue); color: white; border-color: var(--accent-blue);"
+                x-text="$store.i18n.translate('save_btn')"></button>
+        </div>
+
+    </div>
+</div>

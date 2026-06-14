@@ -1,0 +1,320 @@
+<!-- 
+  RockTranslate — Desktop Menu Bar Component (With Hover-Switch UX)
+  Path: src/rocktranslate/assets/ui/components/menubar.html
+  
+  Renders the complete visual navigation dropdown grids, checks, and hover metrics.
+-->
+<div id="menubar-container" x-data="menubarController()" @click.away="closeAll()" @click.self="closeAll()">
+
+    <!-- LEFT ALIGNED MENUS -->
+    <div class="menu-left-items">
+
+        <!-- ── 1. FILE MENU ── -->
+        <div class="menu-item" :class="{ 'active': activeMenu === 'file' }" @click="toggleMenu('file')"
+            @mouseenter="hoverMenu('file')">
+            <span x-text="$store.i18n.translate('menu_file')"></span>
+
+            <div class="dropdown-menu" x-show="activeMenu === 'file'" x-cloak>
+                <div class="dropdown-item" @click="triggerAction('open-pdf')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_open')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+O</span>
+                </div>
+                <div class="dropdown-item" :class="{ 'disabled': !isDocumentLoaded() }"
+                    @click="isDocumentLoaded() && triggerAction('close-doc')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_close')"></span>
+                    </span>
+                </div>
+                <div class="dropdown-item" :class="{ 'disabled': !isDocumentLoaded() }"
+                    @click="isDocumentLoaded() && triggerAction('export-pdf')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_export')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+S</span>
+                </div>
+
+                <div class="dropdown-divider"></div>
+
+                <div class="dropdown-item" :class="{ 'disabled': !isDocumentLoaded() }"
+                    @click="isDocumentLoaded() && triggerAction('show-properties')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_properties')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+D</span>
+                </div>
+
+                <div class="dropdown-divider"></div>
+
+                <!-- Cascading Recent Files Submenu -->
+                <div class="dropdown-item dropdown-submenu">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_recent')"></span>
+                    </span>
+                    <span>▶</span>
+
+                    <div class="dropdown-menu-sub">
+                        <template x-if="recentFiles.length === 0">
+                            <div class="dropdown-item disabled" x-text="$store.i18n.translate('item_no_recent')"></div>
+                        </template>
+                        <template x-for="file in recentFiles" :key="file.path">
+                            <div class="dropdown-item" @click="loadRecentFile(file.path)">
+                                <span class="dropdown-label" :title="file.path" x-text="file.name"></span>
+                            </div>
+                        </template>
+                        <template x-if="recentFiles.length > 0">
+                            <div>
+                                <div class="dropdown-divider"></div>
+                                <div class="dropdown-item" @click="clearHistory()">
+                                    <span class="dropdown-label font-bold"
+                                        x-text="$store.i18n.translate('item_clear_history')"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="dropdown-divider"></div>
+
+                <div class="dropdown-item" @click="window.close()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_quit')"></span>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── 2. TRANSLATION MENU ── -->
+        <div class="menu-item" :class="{ 'active': activeMenu === 'trans' }" @click="toggleMenu('trans')"
+            @mouseenter="hoverMenu('trans')">
+            <span x-text="$store.i18n.translate('menu_translation')"></span>
+
+            <div class="dropdown-menu" x-show="activeMenu === 'trans'" x-cloak>
+                <div class="dropdown-item" :class="{ 'disabled': !isDocumentLoaded() }"
+                    @click="isDocumentLoaded() && triggerAction('toggle-translation')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_start_trans')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+Enter</span>
+                </div>
+                <div class="dropdown-item" :class="{ 'disabled': !isDocumentLoaded() }"
+                    @click="isDocumentLoaded() && triggerAction('toggle-translation-range')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_trans_range')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+Shift+Enter</span>
+                </div>
+
+                <div class="dropdown-divider"></div>
+
+                <div class="dropdown-item" @click="triggerAction('show-api-config')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_api_config')"></span>
+                    </span>
+                </div>
+
+                <!-- Cascading Target Language Submenu -->
+                <div class="dropdown-item dropdown-submenu">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_target_lang')"></span>
+                    </span>
+                    <span>▶</span>
+
+                    <div class="dropdown-menu-sub" style="max-height: 280px; overflow-y: auto;">
+                        <template x-for="[code, name] in [
+                            ['Français', 'French'], ['Español', 'Spanish'], ['English', 'English'],
+                            ['Deutsch', 'German'], ['العربية', 'Arabic'], ['中文', 'Chinese (Simplified)'],
+                            ['Português', 'Portuguese'], ['Italiano', 'Italian'], ['日本語', 'Japanese'], ['Русский', 'Russian']
+                        ]" :key="code">
+                            <div class="dropdown-item" @click="setTargetLanguage(name)">
+                                <span class="dropdown-label">
+                                    <span class="dropdown-checkmark" x-text="targetLang === name ? '✓' : ''"></span>
+                                    <span x-text="code"></span>
+                                </span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── 3. VIEW MENU ── -->
+        <div class="menu-item" :class="{ 'active': activeMenu === 'view' }" @click="toggleMenu('view')"
+            @mouseenter="hoverMenu('view')">
+            <span x-text="$store.i18n.translate('menu_view')"></span>
+
+            <div class="dropdown-menu" x-show="activeMenu === 'view'" x-cloak>
+                <div class="dropdown-item" @click="triggerAction('zoom-in')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_zoom_in')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+=</span>
+                </div>
+                <div class="dropdown-item" @click="triggerAction('zoom-out')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_zoom_out')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+-</span>
+                </div>
+                <div class="dropdown-item" @click="triggerAction('zoom-reset')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_zoom_reset')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+0</span>
+                </div>
+
+                <div class="dropdown-divider"></div>
+
+                <div class="dropdown-item" @click="toggleProgressPanel()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark" x-text="showProgressPanel ? '✓' : ''"></span>
+                        <span x-text="$store.i18n.translate('item_show_progress')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+J</span>
+                </div>
+                <div class="dropdown-item" @click="toggleFullscreen()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark" x-text="isFullscreen ? '✓' : ''"></span>
+                        <span x-text="$store.i18n.translate('item_fullscreen')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">F11</span>
+                </div>
+
+                <div class="dropdown-divider"></div>
+
+                <div class="dropdown-item" @click="setLayoutMode('both')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark" x-text="layoutMode === 'both' ? '✓' : ''"></span>
+                        <span x-text="$store.i18n.translate('item_layout_both')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+3</span>
+                </div>
+                <div class="dropdown-item" @click="setLayoutMode('pdf_only')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark" x-text="layoutMode === 'pdf_only' ? '✓' : ''"></span>
+                        <span x-text="$store.i18n.translate('item_layout_pdf')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+1</span>
+                </div>
+                <div class="dropdown-item" @click="setLayoutMode('trans_only')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark" x-text="layoutMode === 'trans_only' ? '✓' : ''"></span>
+                        <span x-text="$store.i18n.translate('item_layout_trans')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+2</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── 4. SETTINGS MENU ── -->
+        <div class="menu-item" :class="{ 'active': activeMenu === 'settings' }" @click="toggleMenu('settings')"
+            @mouseenter="hoverMenu('settings')">
+            <span x-text="$store.i18n.translate('menu_settings')"></span>
+
+            <div class="dropdown-menu" x-show="activeMenu === 'settings'" x-cloak>
+                <div class="dropdown-item" @click="triggerAction('show-trans-settings')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_trans_engine')"></span>
+                    </span>
+                </div>
+                <div class="dropdown-item" @click="triggerAction('show-system-settings')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_system_settings')"></span>
+                    </span>
+                </div>
+
+                <div class="dropdown-divider"></div>
+
+                <!-- Cascading Application Language Submenu -->
+                <div class="dropdown-item dropdown-submenu">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_app_lang')"></span>
+                    </span>
+                    <span>▶</span>
+
+                    <div class="dropdown-menu-sub">
+                        <template x-for="[name, code] in [
+                            ['English', 'en'], ['Français', 'fr'], ['Español', 'es'], ['Deutsch', 'de']
+                        ]" :key="code">
+                            <div class="dropdown-item" @click="setAppLanguage(code)">
+                                <span class="dropdown-label">
+                                    <span class="dropdown-checkmark"
+                                        x-text="$store.i18n.locale === code ? '✓' : ''"></span>
+                                    <span x-text="name"></span>
+                                </span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="dropdown-divider"></div>
+
+                <div class="dropdown-item" @click="triggerAction('reset-settings')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_reset_settings')"></span>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── 5. HELP MENU ── -->
+        <div class="menu-item" :class="{ 'active': activeMenu === 'help' }" @click="toggleMenu('help')"
+            @mouseenter="hoverMenu('help')">
+            <span x-text="$store.i18n.translate('menu_help')"></span>
+
+            <div class="dropdown-menu" x-show="activeMenu === 'help'" x-cloak>
+                <div class="dropdown-item" @click="triggerAction('show-about')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_about')"></span>
+                    </span>
+                </div>
+
+                <div class="dropdown-divider"></div>
+
+                <div class="dropdown-item" @click="window.open('https://rocktranslate.org')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_website')"></span>
+                    </span>
+                </div>
+                <div class="dropdown-item" @click="window.open('https://github.com/PerfectWin7777/RockTranslate')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_github')"></span>
+                    </span>
+                </div>
+                <div class="dropdown-item"
+                    @click="window.open('https://github.com/PerfectWin7777/RockTranslate/issues')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_issues')"></span>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- RIGHT ALIGNED MODEL STATUS INDICATOR -->
+    <div class="menu-model-indicator" x-text="getModelIndicatorText()"></div>
+
+</div>

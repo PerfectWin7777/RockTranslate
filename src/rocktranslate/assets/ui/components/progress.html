@@ -1,0 +1,33 @@
+<!-- 
+  RockTranslate — Reactive Asynchronous Dual-Progress Panel Component
+  Path: src/rocktranslate/assets/ui/components/progress.html
+-->
+
+<div id="progress-container" x-data="progressController()" x-show="visible && currentScreen === 'workspace'"
+    x-transition x-cloak>
+
+    <!-- 1. Global Document Progress Row (Blue) -->
+    <div class="progress-row">
+        <div class="progress-label-row">
+            <span class="progress-left-text"
+                x-text="$store.i18n.translate('prop_pages_progress', { done: donePages, total: totalPages })"></span>
+            <span class="progress-right-text" x-text="eta ? eta + ' | ' + getPercentText() : ''"></span>
+        </div>
+        <div class="progress-bar-track">
+            <div class="progress-bar-chunk blue" :style="`width: ${getPagesPercent()}%`"></div>
+        </div>
+    </div>
+
+    <!-- 2. Local Segment Progress Row (Green) -->
+    <div class="progress-row">
+        <div class="progress-label-row">
+            <span class="progress-left-text"
+                x-text="$store.i18n.translate('prop_segments_progress', { done: doneSegments, total: totalSegments })"></span>
+            <span class="progress-right-text" x-text="getBatchSpeedLabel()"></span>
+        </div>
+        <div class="progress-bar-track">
+            <div class="progress-bar-chunk green" :style="`width: ${getSegmentsPercent()}%`"></div>
+        </div>
+    </div>
+
+</div>

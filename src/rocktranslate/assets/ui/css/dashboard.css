@@ -1,0 +1,168 @@
+/**
+ * RockTranslate — Welcome Dashboard Stylesheet
+ * Path: src/rocktranslate/assets/ui/css/dashboard.css
+ * 
+ * Sets up the visual rules, dragover animations, and cards for recent items.
+ * 
+ * Author: RockTranslate Contributors
+ * License: MIT License
+ * Version: 1.0.0
+ */
+
+#dashboard-screen {
+    display: flex;
+    width: 100%;
+    height: 100vh;
+    padding: 30px;
+    gap: 30px;
+    background-color: var(--bg-primary);
+}
+
+/* LEFT PANEL: Dynamic Drag & Drop / manual select region */
+.drop-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-secondary);
+    border: 2px dashed #cbd5e0;
+    border-radius: 12px;
+    padding: 40px;
+    transition: border-color 0.2s ease-in-out, background-color 0.2s ease-in-out;
+}
+
+.drop-panel.dragover {
+    border-color: var(--accent-blue);
+    background-color: #f0f6ff;
+}
+
+.logo-container {
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.logo-container img {
+    max-width: 480px;
+    height: auto;
+    object-fit: contain;
+}
+
+.dashboard-title {
+    font-size: 20px;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+    font-weight: normal;
+    text-align: center;
+}
+
+.open-file-btn {
+    background-color: var(--accent-blue);
+    color: white;
+    font-weight: bold;
+    border: none;
+    border-radius: 6px;
+    padding: 12px 30px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    outline: none;
+}
+
+.open-file-btn:hover {
+    background-color: var(--accent-blue-hover);
+}
+
+.connection-status {
+    margin-top: 20px;
+    font-size: 11px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.status-active {
+    color: var(--accent-green);
+}
+
+.status-inactive {
+    color: var(--accent-red);
+}
+
+/* RIGHT PANEL: History files manager */
+.recent-panel {
+    width: 400px;
+    height: 100%;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+.recent-title {
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--text-primary);
+    margin-bottom: 15px;
+}
+
+.recent-list-scroll {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.recent-empty-state {
+    color: var(--text-muted);
+    font-size: 11px;
+    text-align: center;
+    margin-top: 20px;
+}
+
+/* Individual verified file card click trigger */
+.recent-card {
+    display: flex;
+    align-items: center;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 10px;
+    gap: 12px;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+
+.recent-card:hover {
+    background-color: #f7fafc;
+    border-color: var(--accent-blue);
+}
+
+.recent-card-icon {
+    font-size: 22px;
+}
+
+.recent-card-details {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.recent-card-name {
+    font-size: 11px;
+    font-weight: bold;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.recent-card-path {
+    font-size: 9px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

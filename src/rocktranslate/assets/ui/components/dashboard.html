@@ -1,0 +1,62 @@
+<!-- 
+  RockTranslate — Welcome Dashboard Component
+  Path: src/rocktranslate/assets/ui/components/dashboard.html
+  
+  Renders the interactive file loading center.
+  Exposes a dashed drop-area on the left and historical files scroll view on the right.
+-->
+
+<div id="dashboard-screen" x-data="dashboardController()">
+    
+    <!-- LEFT PANEL: Dynamic drag and drop or manual file selection area -->
+    <div class="drop-panel unselectable" 
+         :class="{ 'dragover': isDragging }"
+         @dragover.prevent="isDragging = true"
+         @dragleave.prevent="isDragging = false"
+         @drop.prevent="handleFileDrop($event)">
+        
+        <!-- Logo Container -->
+        <div class="logo-container">
+            <img src="../rocktranslate_logo.png" alt="RockTranslate Logo">
+        </div>
+
+        <!-- Localized drop instructions -->
+        <h2 class="dashboard-title" x-text="$store.i18n.translate('drag_drop_title')"></h2>
+
+        <!-- Select button -->
+        <button class="open-file-btn" 
+                @click="openFilePicker()" 
+                x-text="$store.i18n.translate('open_file_btn')">
+        </button>
+
+        <!-- Reactive connection status indicators -->
+        <div class="connection-status">
+            <span :class="apiState.active ? 'status-active' : 'status-inactive'" 
+                  x-text="getApiStatusText()">
+            </span>
+        </div>
+    </div>
+
+    <!-- RIGHT PANEL: Historically verified opened documents lists -->
+    <div class="recent-panel">
+        <h3 class="recent-title unselectable" x-text="$store.i18n.translate('recent_docs_title')"></h3>
+        
+        <div class="recent-list-scroll">
+            <!-- Render empty state if list is empty -->
+            <template x-if="recentFiles.length === 0">
+                <div class="recent-empty-state unselectable" x-text="$store.i18n.translate('no_recent_docs')"></div>
+            </template>
+
+            <!-- Loop to render card elements -->
+            <template x-for="file in recentFiles" :key="file.path">
+                <div class="recent-card" @click="loadRecentFile(file.path)">
+                    <span class="recent-card-icon">📄</span>
+                    <div class="recent-card-details">
+                        <span class="recent-card-name" x-text="file.name"></span>
+                        <span class="recent-card-path" :title="file.path" x-text="file.path"></span>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+</div>

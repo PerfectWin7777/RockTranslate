@@ -1,0 +1,63 @@
+/**
+ * RockTranslate — Synchronous Split-Pane Workspace Stylesheet
+ * Path: src/rocktranslate/assets/ui/css/workspace.css
+ * 
+ * Styles the dual-pane viewport grid, dragging masks, and divider splitter.
+ * 
+ * Author: RockTranslate Contributors
+ * License: MIT License
+ * Version: 1.0.0
+ */
+
+#workspace-container {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    background-color: #1e202c;
+}
+
+#workspace-grid {
+    display: grid;
+    grid-template-columns: 50% 6px 1fr;
+    /* Initial split-pane bounds matching PyQt6 */
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.workspace-pane {
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Interactive col-resize Divider Splitter */
+#workspace-splitter {
+    width: 6px;
+    height: 100%;
+    background-color: #fafafc;
+    cursor: col-resize;
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+    position: relative;
+    z-index: 100;
+    transition: background-color 0.12s;
+}
+
+#workspace-splitter:hover,
+#workspace-splitter.active {
+    background-color: var(--accent-blue);
+    border-color: var(--accent-blue);
+}
+
+iframe.pane-frame {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: #ffffff;
+}
+
+/* Disable pointer events inside iframes during active drags to prevent scrolling freezes */
+#workspace-grid.dragging iframe {
+    pointer-events: none !important;
+}
