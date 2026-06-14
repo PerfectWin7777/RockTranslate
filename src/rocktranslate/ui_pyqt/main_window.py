@@ -755,7 +755,7 @@ class MainWindow(QMainWindow):
 
         # Background PDF extraction cycles
         self._ext_worker = ExtractionWorker(path)
-        self._ext_worker.status_update.connect(self.status.showMessage)
+        self._ext_worker.status_update.connect(self.status_message_callback)
         self._ext_worker.extraction_progress.connect(self._on_extraction_progress)
         self._ext_worker.finished.connect(self._on_extraction_finished)
         self._ext_worker.error.connect(self._on_extraction_error)
@@ -921,7 +921,7 @@ class MainWindow(QMainWindow):
             all_keys=keys_dict 
         )
         self._current_model = llm_model_name
-        self._trans_worker.status_update.connect(self.status.showMessage)
+        self._trans_worker.status_update.connect(self.status_message_callback)
         self._trans_worker.batch_progress.connect(self.progress_panel.set_batches)
         self._trans_worker.segment_translated.connect(self._on_segment_translated)
         self._trans_worker.finished.connect(self._on_translation_finished)
@@ -1318,6 +1318,11 @@ class MainWindow(QMainWindow):
         self.a_layout_both.setChecked(True)
         self.stacked_widget.setCurrentIndex(0)
         self.status.showMessage(self.tr("Document closed."))
+    
+    def status_message_callback(self, message: str) -> None:
+        """ Thread-safe callback routing module updates to the status bar. """
+        # Translate the incoming status message before showing it [2]
+        self.status.showMessage(self.tr(message))
 
     def closeEvent(self, event: Any) -> None:
         self._close_document()
