@@ -101,7 +101,8 @@
                     @click="isDocumentLoaded() && triggerAction('toggle-translation')">
                     <span class="dropdown-label">
                         <span class="dropdown-checkmark"></span>
-                        <span x-text="$store.i18n.translate('item_start_trans')"></span>
+                        <span
+                            x-text="isTranslating ? $store.i18n.translate('item_stop_trans') : $store.i18n.translate('item_start_trans')"></span>
                     </span>
                     <span class="dropdown-shortcut">Ctrl+Enter</span>
                 </div>

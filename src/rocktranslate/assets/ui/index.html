@@ -163,10 +163,10 @@
                     });
 
                     // Listens to finished triggers to reset action button text states
-                    window.addEventListener('trigger-translation-finished', () => {
-                        this.isTranslating = false;
-                        this.updateMenuTriggerLabel();
-                    });
+                    // window.addEventListener('trigger-translation-finished', () => {
+                    //     this.isTranslating = false;
+                     //    this.updateMenuTriggerLabel();
+                    // });
 
                     this.mountComponent('menubar-mount', 'components/menubar.html');
                     this.mountComponent('dashboard-mount', 'components/dashboard.html');
@@ -249,7 +249,7 @@
                         this.isTranslating = true;
                         window.pywebview.api.start_translation();
                     }
-                    this.updateMenuTriggerLabel();
+                    // this.updateMenuTriggerLabel();
                 },
 
                 /**
@@ -257,24 +257,24 @@
                  */
                 async executeRangeTranslation(rangeStr) {
                     this.isTranslating = true;
-                    this.updateMenuTriggerLabel();
+                   //  this.updateMenuTriggerLabel();
                     window.pywebview.api.translate_pages(rangeStr);
                 },
 
-                updateMenuTriggerLabel() {
-                    const i18n = Alpine.store('i18n');
-                    const menuLabel = this.isTranslating
-                        ? (i18n.translate('item_stop_trans') || 'Stop Translation')
-                        : (i18n.translate('item_start_trans') || 'Start Translation');
+                // updateMenuTriggerLabel() {
+                   //  const i18n = Alpine.store('i18n');
+                 //    const menuLabel = this.isTranslating
+                   //      ? (i18n.translate('item_stop_trans') || 'Stop Translation')
+                 //        : (i18n.translate('item_start_trans') || 'Start Translation');
 
                     // Direct DOM injection to refresh the menu label immediately
-                    document.querySelectorAll('.dropdown-item').forEach(item => {
-                        const labelSpan = item.querySelector('.dropdown-label span:last-child');
-                        if (labelSpan && (labelSpan.textContent === i18n.translate('item_start_trans') || labelSpan.textContent === 'Stop Translation' || labelSpan.textContent === 'Start Translation')) {
-                            labelSpan.textContent = menuLabel;
-                        }
-                    });
-                },
+                   //  document.querySelectorAll('.dropdown-item').forEach(item => {
+                  //       const labelSpan = item.querySelector('.dropdown-label span:last-child');
+                  //       if (labelSpan && (labelSpan.textContent === i18n.translate('item_start_trans') || labelSpan.textContent === 'Stop Translation' || labelSpan.textContent === 'Start Translation')) {
+                  //           labelSpan.textContent = menuLabel;
+                  //       }
+                  //   });
+              //  },
 
                 async resetSettingsToDefault() {
                     const i18n = Alpine.store('i18n');

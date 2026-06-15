@@ -196,6 +196,7 @@ document.addEventListener('alpine:init', () => {
                 status_extraction_error: "Extraction Error: {error}",
                 toast_extraction_error: "Could not parse target document: {error}",
                 status_trans_reset: "Translation state reset cleanly.",
+                retranslate_confirm_msg: 'All selected pages are already translated. Do you want to reset and translate again?',
 
                 status_trans_init: "Initializing AI Translator...",
                 toast_trans_missing_key: "Missing API Key for {provider}. Please configure it in API Settings.",
@@ -413,6 +414,7 @@ document.addEventListener('alpine:init', () => {
                 status_trans_error: "Erreur de traduction : {error}",
                 toast_trans_error: "La traduction a échoué : {error}",
                 status_trans_reset: "État de la traduction réinitialisé proprement.",
+                retranslate_confirm_msg: "Toutes les pages sélectionnées sont déjà traduites. Voulez-vous réinitialiser et traduire à nouveau ?",
 
                 toast_export_no_doc: "Aucun document actif chargé à exporter.",
                 status_export_requesting_layout: "Récupération de la mise en page depuis l'espace de travail...",

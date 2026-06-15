@@ -628,8 +628,27 @@ class TranslationApiMixin:
         except Exception:
             page_size_css = "A4"
 
+        # Write extracted DOM to temporary HTML on disk
+        # Define physical document print margins layout rules
+        page_size_style = f"""
+        <style>
+        @page {{
+            size: {page_size_css};
+            margin: 0;
+        }}
+        body {{
+            margin: 0;
+            padding: 0;
+        }}
+        </style>
+        """
+        
+        # Inject physical layout boundaries to prevent Chromium from fallback-printing to default Letter size
+        if "</head>" in translated_html:
+            translated_html = translated_html.replace("</head>", f"{page_size_style}\n</head>")
+
         try:
-            # Write extracted DOM to temporary HTML on disk
+            # 4. Write extracted DOM to a secure temporary HTML file on disk
             with tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode="w", encoding="utf-8") as temp_file:
                 temp_file.write(translated_html)
                 temp_html_path = temp_file.name
