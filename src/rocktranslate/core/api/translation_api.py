@@ -286,7 +286,7 @@ class TranslationApiMixin:
         # 4. Clear active progress panel indicators
         self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-finished'))")
 
-        self._send_status("Translation state reset cleanly.")
+        self._send_status_i18n("status_trans_reset")
 
     def _run_translation(self, untranslated_texts: Dict[str, str], target_pages: Optional[List[int]]) -> None:
         """
