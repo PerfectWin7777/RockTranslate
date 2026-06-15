@@ -60,7 +60,7 @@ from .core.chunker import build_batches, Batch
 from .core.llm_client import LLMClient
 from .core.pdf_metadata import get_pdf_metadata
 from .core.renderer import (
-    find_system_chromium_browser,
+    resolve_pdf_renderer,
     apply_translations_offline,
     print_html_to_vector_pdf,
 )
@@ -177,12 +177,14 @@ def main() -> None:
         sys.exit(1)
 
     logger.info("Inspecting system environment for headless browser engines...")
-    browser_path = find_system_chromium_browser()
+    # Smart dual-layer resolver: System browser first, automatic download fallback second
+    browser_path = resolve_pdf_renderer()
     if not browser_path:
         logger.error(
             "No compatible Chromium-based browser (Chrome, Edge, or Chromium) was found.\n"
             "A system browser is required to export high-fidelity vector PDFs in CLI mode.\n"
-            "Please install Google Chrome or Microsoft Edge and try again."
+            "Failed to resolve or download a compatible Chromium rendering engine.\n"
+            "Please check your internet connection or install Google Chrome/Microsoft Edge manually."
         )
         sys.exit(1)
         

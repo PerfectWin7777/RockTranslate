@@ -19,7 +19,7 @@ from .core.chunker import build_batches
 from .core.llm_client import LLMClient
 from .core.pdf_metadata import get_pdf_metadata
 from .core.renderer import (
-    find_system_chromium_browser,
+    resolve_pdf_renderer,
     apply_translations_offline,
     print_html_to_vector_pdf
 )
@@ -80,9 +80,11 @@ class RockTranslator:
             output_pdf_path = os.path.join(pdf_dir, f"{pdf_basename}_translated.pdf")
 
         logger.info(f"Scanning system environment for Chromium rendering engines...")
-        browser_path = find_system_chromium_browser()
+        # Smart dual-layer resolver: System browser first, automatic download fallback second
+        browser_path = resolve_pdf_renderer()
         if not browser_path:
-            logger.error("No compatible Chromium-based browser (Chrome, Edge) found. Printing cancelled.")
+            logger.error("No compatible Chromium-based browser (Chrome, Edge) found. Printing cancelled."
+                         "Failed to resolve or download a compatible Chromium rendering engine.")
             return False
         logger.info(f"Using browser renderer: '{os.path.basename(browser_path)}'")
 
