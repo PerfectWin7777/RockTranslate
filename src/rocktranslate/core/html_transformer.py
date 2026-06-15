@@ -29,8 +29,91 @@ from .config_manager import config_db
 from .constants import DEFAULT_ASSETS_DIR, ACCENTS_TO_IGNORE, THRESHOLD_PX
 from .downloader import check_and_download_pdf2htmlex
 
-
 def convert_pdf_to_html(
+    pdf_path: str, 
+    assets_dir: str = DEFAULT_ASSETS_DIR, 
+    on_progress: Optional[Callable[[int, int], None]] = None
+) -> Optional[str]:
+    """
+    Converts a source PDF into raw HTML using the local pdf2htmlEX executable.
+    Streams execution output in real-time to report compilation progress per page.
+
+    Args:
+        pdf_path: The filesystem path to the target PDF file.
+        assets_dir: Assets folder storing the external pdf2htmlEX compiler.
+        on_progress: Optional callback progress tracker (current_page, total_pages).
+
+    Returns:
+        Optional[str]: Absolute path to the generated raw HTML, or None if failed.
+    """
+    pdf2htmlex_exe = check_and_download_pdf2htmlex(assets_dir)
+    if not pdf2htmlex_exe:
+        logger.error("pdf2htmlEX executable could not be resolved.")
+        return None
+
+    pdf_dir: str = os.path.dirname(os.path.abspath(pdf_path))
+    pdf_filename: str = os.path.basename(pdf_path)
+    html_filename: str = f"{os.path.splitext(pdf_filename)[0]}_raw.html"
+    output_html_path: str = os.path.join(pdf_dir, html_filename)
+
+    # Bypass compilation ONLY if raw HTML is already generated and is not empty
+    if os.path.exists(output_html_path) and os.path.getsize(output_html_path) > 0:
+        logger.info(f"Raw HTML already exists and is valid. Skipping compilation for: {pdf_filename}")
+        return output_html_path
+
+    cmd: List[str] = [
+        os.path.abspath(pdf2htmlex_exe),
+        "--zoom", "1.3",
+        pdf_filename,
+        html_filename
+    ]
+    
+    logger.info(f"Starting high-fidelity conversion of PDF: {pdf_filename}")
+    
+    # ── WINDOWS CRASH PROTECTION ──
+    if sys.platform == "win32":
+        import ctypes
+        ctypes.windll.kernel32.SetErrorMode(0x0002)
+
+    # Execute pdf2htmlEX in a background process with line-buffering active
+    process = subprocess.Popen(
+        cmd, 
+        cwd=pdf_dir, 
+        stdout=subprocess.DEVNULL, 
+        stderr=subprocess.PIPE, 
+        text=True,
+        bufsize=1,                  # Line buffered output
+        universal_newlines=True     # Translates carriage returns (\r) to newlines (\n)
+    )
+
+    # ── REAL-TIME NON-BLOCKING PIPE READER ──
+    # Read compile progress line-by-line as the third-party binary executes
+    while True:
+        line = process.stderr.readline()
+        # If stream terminates and process exited, break out
+        if not line and process.poll() is not None:
+            break
+            
+        if line:
+            # Parse progress metrics (Format: "Working: 12/30")
+            match = re.search(r"Working:\s*(\d+)/(\d+)", line)
+            if match and on_progress:
+                current_page = int(match.group(1))
+                total_pages = int(match.group(2))
+                on_progress(current_page, total_pages)
+
+    process.wait()
+
+    if process.returncode == 0 and os.path.exists(output_html_path):
+        logger.info("Raw HTML file generated successfully.")
+        return output_html_path
+        
+    logger.error(f"pdf2htmlEX exited with error code: {process.returncode}")
+    return None
+
+
+
+def convert_pdf_to_htmlSSSS(
     pdf_path: str, 
     assets_dir: str = DEFAULT_ASSETS_DIR, 
     on_progress: Optional[Callable[[int, int], None]] = None

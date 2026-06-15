@@ -86,24 +86,14 @@ function dashboardController() {
         },
 
         /**
-          * Handles local filesystem drops safely on the dashed border panel.
-          * Extracts absolute paths using pywebview's customized full-path injection.
-          */
+         * Handles local filesystem drops safely on the dashed border panel.
+         */
         handleFileDrop(event) {
             this.isDragging = false;
-            const files = event.dataTransfer.files;
-
-            if (files.length > 0) {
-                const file = files[0];
-                if (file.name.toLowerCase().endsWith('.pdf')) {
-                    // SECURE RESOLUTION: Leverage pywebview's custom property or fallback
-                    const path = file.pywebviewFullPath || file.path;
-
-                    // Start Python background extraction worker
-                    window.pywebview.api.extract_pdf(path);
-                }
-            }
+            // Native Python-side handler will automatically capture 'pywebviewFullPath' on drop
         },
+
+        
         /**
          * Loads a file directly when clicked from the recent files panel list.
          */

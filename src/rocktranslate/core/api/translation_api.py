@@ -59,6 +59,27 @@ class TranslationApiMixin:
     # 1. BACKGROUND LAYOUT EXTRACTION WORKER
     # ==============================================================================
 
+    # ==============================================================================
+    # 1. BACKGROUND LAYOUT EXTRACTION WORKER
+    # ==============================================================================
+
+    def extract_pdf(self, file_path: str) -> None:
+        """
+        Launches a background daemon thread to convert, parse, and instrument
+        the layout structure of a target PDF document. This prevents the main
+        GUI thread from freezing during complex compilation runs.
+
+        Args:
+            file_path: Absolute filesystem path to the target PDF document.
+        """
+        thread = threading.Thread(
+            target=self._run_extraction, 
+            args=(file_path,), 
+            daemon=True
+        )
+        thread.start()
+        
+
     def _run_extraction(self, pdf_path: str) -> None:
         """
         Executes layout-preserving geometric extraction using local pdf2htmlEX engines,

@@ -4,11 +4,12 @@ Path: src/rocktranslate/web_gui.py
 
 Initializes the secure environment, configures file logger rotations,
 spins up the local same-origin HTTP assets server with absolute file routing,
-and launches the primary pywebview Chromium viewport window.
+subscribes to secure Python-side DOM Drag & Drop events, and launches the primary
+pywebview Chromium viewport window.
 
 Author: RockTranslate Contributors
 License: MIT License
-Version: 1.0.1
+Version: 1.1.0
 """
 
 import os
@@ -19,6 +20,7 @@ import threading
 import http.server
 import socketserver
 import webview
+from webview.dom import DOMEventHandler
 from urllib.parse import urlparse, parse_qs, unquote
 from loguru import logger
 
@@ -157,9 +159,31 @@ def main() -> None:
 
     api._window = window
 
+    # Callback to register native Python-side event handlers on Webview DOM
+    def bind_native_events(window):
+        
+        
+        def on_drag(e):
+            pass # No-op, simply used to prevent default browser page opening behaviors
+            
+        def on_drop(e):
+            files = e.get('dataTransfer', {}).get('files', [])
+            if files and len(files) > 0:
+                file_path = files[0].get('pywebviewFullPath')
+                if file_path and file_path.lower().endswith('.pdf'):
+                    # Start extraction natively with the verified absolute system path
+                    api.extract_pdf(file_path)
+
+        # Intercept HTML5 drag and drop events directly in Python to bypass JS security sandboxes
+        window.dom.document.events.dragenter += DOMEventHandler(on_drag, prevent_default=True, stop_propagation=True)
+        window.dom.document.events.dragover += DOMEventHandler(on_drag, prevent_default=True, stop_propagation=True, debounce=500)
+        window.dom.document.events.drop += DOMEventHandler(on_drop, prevent_default=True, stop_propagation=True)
+
+
+
     try:
         logger.info("Launching pywebview main loop...")
-        webview.start(debug=not hasattr(sys, "_MEIPASS"))
+        webview.start(bind_native_events, window, debug=not hasattr(sys, "_MEIPASS"))
     except Exception as e:
         import traceback
         error_info = traceback.format_exc()
