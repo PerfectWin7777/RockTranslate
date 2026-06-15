@@ -12,6 +12,7 @@ Version: 1.1.0
 """
 
 import json
+from loguru import logger
 from typing import Dict, Any, Optional
 from ..config_manager import config_db
 from ..constants import (
@@ -36,6 +37,7 @@ class ConfigApiMixin:
         Returns:
             str: The saved language code (e.g., 'en', 'fr'). Defaults to 'en'.
         """
+        print(config_db)
         return str(config_db.get("SystemConfig", "ui_language", "en")).strip()
 
     def set_system_locale(self, locale_code: str) -> None:
@@ -52,19 +54,33 @@ class ConfigApiMixin:
     def set_target_language(self, language_name: str) -> None:
         """
         Saves the target translation language to database configuration,
-        and instantly resets active translation states to prevent cross-language memory leaks.
+        and safely resets active translation states to prevent cross-language memory leaks.
 
         Args:
             language_name: The full string name of the target language (e.g., 'Spanish', 'German').
         """
-        clean_lang = str(language_name).strip()
-        config_db.set("SystemConfig", "target_lang", clean_lang)
-        print(f"[API] Saved target translation language preference: {clean_lang}")
-        
-        # Safely reset active translations cache as the target language changed
-        if hasattr(self, "reset_all_translations"):
-            self.reset_all_translations()
+        try:
+            clean_lang = str(language_name).strip()
+            # 1. Persist to disk instantly
+            config_db.set("SystemConfig", "target_lang", clean_lang)
+            
+            # 2. Run reset within a defensive safety container
+            if hasattr(self, "reset_all_translations"):
+                try:
+                    self.reset_all_translations()
+                except Exception as reset_error:
+                    # Ignore failures if no document is active or DOM is not parsed yet
+                    logger.warning(f"[API] Silence reset_all_translations failure: {reset_error}")
+        except Exception as e:
+            logger.error(f"[API] Critical failure saving target language: {e}")
 
+    def get_target_language(self) -> str:
+        """Returns the currently saved target translation language."""
+        lang = config_db.get("SystemConfig", "target_lang", "French")
+        # Diagnostic Log
+        print(f"[API DEBUG] get_target_language read value: '{lang}' (from file: {config_db.filepath})")
+        return lang
+    
     def get_api_status(self) -> Dict[str, Any]:
         """
         Fetches the connection status and name of the active LLM provider model.
