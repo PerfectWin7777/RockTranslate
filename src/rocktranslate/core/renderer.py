@@ -144,6 +144,37 @@ def apply_translations_offline(
         f.write(optimized_html)
 
 
+
+def resolve_pdf_renderer() -> Optional[str]:
+    """
+    Orchestrates the dual-layer Chromium resolver.
+    Attempts to locate a system-installed browser first. If missing,
+    automatically downloads and extracts the lightweight stable
+    'chrome-headless-shell' as an isolated local fallback.
+
+    Returns:
+        Optional[str]: Absolute path to a valid Chromium-based binary, 
+                       or None if resolution and download both failed.
+    """
+    # 1. Look for a system-installed browser (0MB overhead)
+    system_browser = find_system_chromium_browser()
+    if system_browser:
+        return system_browser
+
+    # 2. Fallback to automated chrome-headless-shell downloader
+    try:
+        from .downloader import check_and_download_headless_shell
+        return check_and_download_headless_shell()
+    except Exception:
+        # Fallback to resolve direct relative imports in CLI/API execution loops
+        try:
+            from rocktranslate.core.downloader import check_and_download_headless_shell
+            return check_and_download_headless_shell()
+        except Exception:
+            return None
+
+            
+
 def print_html_to_vector_pdf(browser_path: str, input_html_path: str, output_pdf_path: str) -> bool:
     """Executes a headless background process using the resolved browser to print HTML to PDF.
 

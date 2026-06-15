@@ -47,6 +47,11 @@ LINUX_APPIMAGE_URL: str = (
 )
 
 
+# Hardcoded known good stable version of Chrome Headless Shell
+CHROME_SHELL_VERSION: str = "134.0.6998.88"
+
+
+
 def _download_and_extract(url: str, dest_dir: str, zip_name: str) -> bool:
     """
     Downloads a ZIP archive from a secure remote URL and extracts its content locally.
@@ -209,6 +214,100 @@ def check_and_download_pdfjs(assets_dir: str = DEFAULT_ASSETS_DIR) -> Optional[s
     return None
 
 
+def get_headless_shell_platform_config() -> Optional[tuple[str, str]]:
+    """
+    Resolves the Google Chrome for Testing platform suffix and binary path 
+    based on the current operating system architecture.
+
+    Returns:
+        Optional[tuple[str, str]]: (platform_suffix, relative_binary_path) or None.
+    """
+    sys_os = platform.system().lower()
+    machine = platform.machine().lower()
+
+    if sys_os == "windows":
+        if "64" in machine:
+            return "win64", os.path.join("chrome-headless-shell-win64", "chrome-headless-shell.exe")
+        return "win32", os.path.join("chrome-headless-shell-win32", "chrome-headless-shell.exe")
+
+    elif sys_os == "darwin":
+        if "arm" in machine or "aarch" in machine:
+            return "mac-arm64", os.path.join(
+                "chrome-headless-shell-mac-arm64", 
+                "chrome-headless-shell"
+            )
+        return "mac-x64", os.path.join(
+            "chrome-headless-shell-mac-x64", 
+            "chrome-headless-shell"
+        )
+
+    elif sys_os == "linux":
+        if "64" in machine:
+            return "linux64", os.path.join(
+                "chrome-headless-shell-linux64", 
+                "chrome-headless-shell"
+            )
+
+    return None
+
+
+def check_and_download_headless_shell(assets_dir: str = DEFAULT_ASSETS_DIR) -> Optional[str]:
+    """
+    Checks if a local copy of Google Chrome Headless Shell is downloaded and extracted.
+    If missing, automatically downloads the lightweight (~50MB) stable binaire ZIP
+    from Google's official testing archives and extracts it to the assets folder.
+
+    Args:
+        assets_dir: Directory where local dependencies are stored.
+
+    Returns:
+        Optional[str]: Absolute path to the headless shell binary, or None if failed.
+    """
+    config = get_headless_shell_platform_config()
+    if not config:
+        logger.error("Could not resolve current OS platform architecture for Chrome Headless Shell.")
+        return None
+
+    platform_suffix, rel_binary_path = config
+    shell_dir = os.path.join(assets_dir, "chromium_headless")
+    local_binary_path = os.path.join(shell_dir, rel_binary_path)
+
+    # 1. Bypass download if binary already exists on the disk
+    if os.path.exists(local_binary_path):
+        return os.path.abspath(local_binary_path)
+
+    # 2. Formulate the official Google Cloud Storage URL
+    download_url = (
+        f"https://storage.googleapis.com/chrome-for-testing-public/"
+        f"{CHROME_SHELL_VERSION}/{platform_suffix}/"
+        f"chrome-headless-shell-{platform_suffix}.zip"
+    )
+
+    logger.warning(
+        f"Local vector rendering browser not found. "
+        f"Downloading ultra-lightweight Headless Chromium ({CHROME_SHELL_VERSION})..."
+    )
+
+    zip_name = f"chrome-headless-shell-{platform_suffix}.zip"
+    success = _download_and_extract(download_url, shell_dir, zip_name)
+
+    if success and os.path.exists(local_binary_path):
+        # On Unix systems (Linux, macOS), ensure execution permissions are active
+        if platform.system().lower() != "windows":
+            try:
+                current_permissions = os.stat(local_binary_path)
+                os.chmod(local_binary_path, current_permissions.st_mode | stat.S_IEXEC)
+            except Exception as e:
+                logger.warning(f"Could not automatically set executable flags on Linux/Mac: {e}")
+
+        logger.info(f"Successfully configured local Headless Chromium at: {local_binary_path}")
+        return os.path.abspath(local_binary_path)
+
+    logger.error("Failed to automatically retrieve or configure Headless Chromium.")
+    return None
+
+
+
 if __name__ == "__main__":
     # Standard terminal diagnostic wrapper
     logger.info("Executing diagnostic run of Downloader...")
@@ -216,5 +315,8 @@ if __name__ == "__main__":
     
     pdfjs_status = check_and_download_pdfjs()
     pdf_exe_status = check_and_download_pdf2htmlex()
+
+    chrome_headless_status = check_and_download_headless_shell()
     
-    logger.info(f"Diagnostic result -> PDF.js: {pdfjs_status} | pdf2htmlEX: {pdf_exe_status}")
+    logger.info(
+        f"Diagnostic result -> PDF.js: {pdfjs_status} | pdf2htmlEX: {pdf_exe_status} | chromeHeadless: {chrome_headless_status}")
