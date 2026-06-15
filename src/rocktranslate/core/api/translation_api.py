@@ -14,8 +14,13 @@ import os
 import json
 import threading
 import webview
+import tempfile
+import re
+import shutil
 from typing import Dict, List, Optional, Any, Set
 from loguru import logger
+from ..renderer import resolve_pdf_renderer, apply_translations_offline, print_html_to_vector_pdf
+from ..pdf_metadata import get_pdf_metadata
 
 from ..html_transformer import convert_pdf_to_html, instrument_html
 from ..config_manager import config_db
@@ -398,3 +403,103 @@ class TranslationApiMixin:
             self._send_js("window.dispatchEvent(new CustomEvent('refresh-menu-data'))")
         except Exception as e:
             print(f"[API] Error updating history registry: {e}")
+
+    
+
+
+     # ── EXPOSED PDF EXPORT ENDPOINT ──
+    def export_translated_pdf(self) -> None:
+        """
+        Extracts the compiled translated DOM from the workspace frame,
+        opens a native OS Save File dialog, and prints it into a high-fidelity
+        vector PDF file using the resolved headless browser.
+        """
+        if not self._active_pdf_path or not self._window:
+            self._send_toast("No active document loaded to export.", "warning")
+            return
+
+        self._send_status("Requesting document layout from workspace...")
+
+        # 1. Extract the translated inner HTML directly from the active workspace iframe
+        js_get_html = (
+            "document.getElementById('html-iframe') ? "
+            "document.getElementById('html-iframe').contentWindow.document.documentElement.outerHTML : ''"
+        )
+        translated_html = self._window.evaluate_js(js_get_html)
+
+        if not translated_html:
+            self._send_toast("Failed to extract active layout from the viewport.", "error")
+            return
+
+        # 2. Offer a clean default filename matching the original PDF name
+        original_name = os.path.basename(self._active_pdf_path)
+        base_name, _ = os.path.splitext(original_name)
+        suggested_name = f"{base_name}_translated.pdf"
+
+        # 3. Trigger native OS file saving dialogues
+        self._send_status("Waiting for file destination path...")
+        file_types = ("PDF Documents (*.pdf)", "All files (*.*)")
+        destination_path = self._window.create_file_dialog(
+            webview.SAVE_DIALOG,
+            allow_multiple=False,
+            file_types=file_types,
+            save_filename=suggested_name
+        )
+
+        if not destination_path:
+            self._send_status("Export cancelled by user.")
+            return
+
+        # Handle formatting tuple returns on specific platforms
+        if isinstance(destination_path, tuple) or isinstance(destination_path, list):
+            if len(destination_path) > 0:
+                destination_path = destination_path[0]
+            else:
+                return
+
+        self._send_status("Generating final vector PDF...")
+
+       
+        # Resolve document page layout cm sizing
+        try:
+            metadata = get_pdf_metadata(self._active_pdf_path)
+            page_size_raw = metadata.get("page_size", "")
+     
+            match = re.search(r'\[([\d\.]+)\s*x\s*([\d\.]+)\s*cm\]', page_size_raw)
+            page_size_css = f"{match.group(1)}cm {match.group(2)}cm" if match else "A4"
+        except Exception:
+            page_size_css = "A4"
+
+        try:
+            # 4. Write extracted DOM to a secure temporary HTML file on disk
+            with tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode="w", encoding="utf-8") as temp_file:
+                temp_file.write(translated_html)
+                temp_html_path = temp_file.name
+
+            # 5. Resolve our safe dual-layer browser print renderer
+            browser_path = resolve_pdf_renderer()
+            if not browser_path:
+                self._send_toast("No compatible Chromium engine found. Export aborted.", "error")
+                return
+
+            # 6. Execute headless background print compiler
+            success = print_html_to_vector_pdf(browser_path, temp_html_path, destination_path)
+
+            # Clean temporary filesystem paths immediately
+            try:
+                os.unlink(temp_html_path)
+            except OSError:
+                pass
+
+            if success:
+                self._send_status(f"File exported successfully: {os.path.basename(destination_path)}")
+                self._send_toast("Document exported successfully!", "success")
+                # Show an OS dialogue success confirmation
+                self._window.evaluate_js(f"alert('The translated PDF was saved successfully at:\\n\\n' + {json.dumps(destination_path)})")
+            else:
+                self._send_toast("PDF generation failed.", "error")
+                self._send_status("Export failed.")
+
+        except Exception as e:
+            logger.error(f"Error during PDF export pipeline: {e}")
+            self._send_toast(f"Export failed: {str(e)}", "error")

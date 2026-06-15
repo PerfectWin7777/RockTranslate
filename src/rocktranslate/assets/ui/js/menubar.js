@@ -46,7 +46,7 @@ function menubarController() {
             // ── CLOSE MENUS ON IFRAME CLICKS LISTENER ──
             window.addEventListener('trigger-close-all-menus', () => this.closeAll());
         },
-        
+
 
         async loadMenuData() {
             try {
@@ -121,7 +121,9 @@ function menubarController() {
         toggleFullscreen() {
             this.isFullscreen = !this.isFullscreen;
             this.closeAll();
-            this.$dispatch('trigger-toggle-fullscreen', { fullscreen: this.isFullscreen });
+            if (window.pywebview && window.pywebview.api && window.pywebview.api.toggle_fullscreen) {
+                window.pywebview.api.toggle_fullscreen();
+            }
         },
 
         setLayoutMode(mode) {
@@ -158,6 +160,16 @@ function menubarController() {
                 this.$dispatch('trigger-file-picker');
             } else if (actionName === 'close-doc') {
                 this.$dispatch('trigger-close-document');
+            } else if (actionName === 'export-pdf') {
+                if (window.pywebview && window.pywebview.api && window.pywebview.api.export_translated_pdf) {
+                    window.pywebview.api.export_translated_pdf();
+                }
+            } else if (actionName === 'zoom-in') {
+                this.$dispatch('trigger-zoom-in');
+            } else if (actionName === 'zoom-out') {
+                this.$dispatch('trigger-zoom-out');
+            } else if (actionName === 'zoom-reset') {
+                this.$dispatch('trigger-zoom-reset');
             } else {
                 this.$dispatch(`trigger-${actionName}`);
             }

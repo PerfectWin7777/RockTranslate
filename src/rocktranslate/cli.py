@@ -55,6 +55,7 @@ from .core.constants import (
     MAX_SEGMENTS_PER_BATCH,
     MAX_RETRIES,
 )
+from .core.config_manager import config_db
 from .core.html_transformer import convert_pdf_to_html, instrument_html
 from .core.chunker import build_batches, Batch
 from .core.llm_client import LLMClient
@@ -72,34 +73,6 @@ else:
     winreg = None
 
 
-def get_safe_setting(config_scope: str, key: str, fallback_default: Any) -> Any:
-    """Safely retrieves a configuration value without crashing if PyQt6 is absent.
-
-    If PyQt6 is installed, it queries QSettings. If PyQt6 is missing (CLI-only 
-    environment), it silently falls back to the provided default value [1].
-
-    Args:
-        config_scope: The configuration group/scope (e.g., 'TranslationConfig').
-        key: The target setting key.
-        fallback_default: Default value used if unconfigured or PyQt6 is missing.
-
-    Returns:
-        The configuration setting value, or fallback_default [1].
-    """
-    try:
-        from PyQt6.QtCore import QSettings
-        settings = QSettings("RockTranslate", config_scope)
-        val = settings.value(key, fallback_default)
-        if isinstance(fallback_default, bool):
-            return str(val).lower() in ("true", "1", "yes")
-        if isinstance(fallback_default, int):
-            return int(val)
-        if isinstance(fallback_default, float):
-            return float(val)
-        return val
-    except (ImportError, Exception):
-        # Gracefully handle missing PyQt6 library or registry errors [1]
-        return fallback_default
 
 
 def main() -> None:
@@ -190,13 +163,13 @@ def main() -> None:
         
     logger.info(f"Discovered browser: '{os.path.basename(browser_path)}'")
 
-    # Load configuration parameters (using QSettings if available, otherwise defaults) [1]
-    temp = args.temp if args.temp is not None else get_safe_setting("TranslationConfig", "temperature", 1.0)
-    max_retries = get_safe_setting("TranslationConfig", "max_retries", MAX_RETRIES)
-    max_batch_size = get_safe_setting("TranslationConfig", "max_segments_per_batch", MAX_SEGMENTS_PER_BATCH)
-    
+   # Load configuration parameters
+    temp = args.temp if args.temp is not None else float(config_db.get("TranslationConfig", "temperature", 1.0))
+    max_retries = int(config_db.get("TranslationConfig", "max_retries", MAX_RETRIES))
+    max_batch_size = int(config_db.get("TranslationConfig", "max_segments_per_batch", MAX_SEGMENTS_PER_BATCH))
+
     # Parse API settings and credentials
-    api_settings = get_safe_setting("APIConfig", "api_keys_by_provider", "{}")
+    api_settings = config_db.get("APIConfig", "api_keys_by_provider", {})
     try:
         keys_dict = json.loads(api_settings) if isinstance(api_settings, str) else api_settings
     except Exception:
@@ -205,8 +178,8 @@ def main() -> None:
     # Resolve the correct target model
     model_name = args.model
     if not model_name:
-        provider = get_safe_setting("APIConfig", "provider", "Google Gemini")
-        model_name = get_safe_setting("APIConfig", f"last_model_{provider}", "gemini-3.1-flash-lite")
+        provider = config_db.get("APIConfig", "provider", "Google Gemini")
+        model_name = config_db.get("APIConfig", f"last_model_{provider}", "gemini-3.1-flash-lite")
         if provider == "Google Gemini" and not model_name.startswith("gemini/"):
             model_name = f"gemini/{model_name}"
 

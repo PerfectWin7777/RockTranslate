@@ -12,6 +12,14 @@ Version: 1.0.1
 
 import webview
 from typing import Optional
+import os
+import tempfile
+import re
+import json
+from loguru import logger
+import shutil
+from .renderer import resolve_pdf_renderer, apply_translations_offline, print_html_to_vector_pdf
+from .pdf_metadata import get_pdf_metadata
 
 # Import our decoupled mixins from the api package folder
 from .api import HistoryApiMixin, ConfigApiMixin, TranslationApiMixin
@@ -44,3 +52,24 @@ class RockTranslateAPI(HistoryApiMixin, ConfigApiMixin, TranslationApiMixin):
     def reset_translation_state(self) -> None:
         """Clears translation memory and restores original document DOM."""
         self.reset_all_translations()
+
+    
+    # ── EXPOSED WINDOW MANAGEMENT ENDPOINTS ──
+    def toggle_fullscreen(self) -> None:
+        """
+        Bascule l'état d'affichage de l'application en mode plein écran 
+        ou en affichage fenêtré standard.
+        """
+        if self._window:
+            self._window.toggle_fullscreen()
+
+    def quit_application(self) -> None:
+        """
+        Ferme proprement l'application de bureau et libère toutes les ressources.
+        """
+        if self._window:
+            self._window.destroy()
+
+
+    
+   
