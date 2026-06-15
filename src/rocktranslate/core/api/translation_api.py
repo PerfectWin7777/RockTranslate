@@ -59,11 +59,11 @@ class TranslationApiMixin:
 
     def _run_extraction(self, pdf_path: str) -> None:
         try:
-            self._send_status("High-fidelity PDF conversion in progress...")
+            self._send_status_i18n("status_extraction_start")
             logger.info(f"Initiating background layout extraction for: {pdf_path}")
 
             def on_pdf_progress(current: int, total: int):
-                self._send_status(f"Analyzing Document layout: Page {current}/{total}...")
+                self._send_status_i18n("status_extraction_pages", {"current": current, "total": total})
 
             assets_dir = config_db.get("SystemConfig", "pdf2htmlex_path_override", "")
             if not assets_dir or not os.path.exists(assets_dir):
@@ -72,11 +72,11 @@ class TranslationApiMixin:
             raw_html_path = convert_pdf_to_html(pdf_path, assets_dir, on_progress=on_pdf_progress)
 
             if not raw_html_path or not os.path.exists(raw_html_path):
-                self._send_status("Geometric conversion by pdf2htmlEX failed.")
-                self._send_toast("Geometric conversion by pdf2htmlEX failed.", "error")
+                self._send_status_i18n("status_extraction_failed")
+                self._send_toast_i18n("status_extraction_failed", "error")
                 return
 
-            self._send_status("Analyzing and instrumenting document...")
+            self._send_status_i18n("status_extraction_instrumenting")
             logger.info("Executing BeautifulSoup semantic tag compilation...")
 
             pdf_dir = os.path.dirname(os.path.abspath(pdf_path))
@@ -95,7 +95,7 @@ class TranslationApiMixin:
             config_db.set("RecentFiles", "active_total_pages", total_pages)
             self._add_to_recent_files(pdf_path)
 
-            self._send_status("Workspace configured successfully.")
+            self._send_status_i18n("status_extraction_success")
             logger.info(f"Document successfully loaded: {total_pages} pages, {len(original_texts_map)} segments.")
 
             total_segments = len(original_texts_map)
@@ -113,8 +113,8 @@ class TranslationApiMixin:
 
         except Exception as error:
             logger.error(f"Critical exception raised during background document processing: {error}")
-            self._send_status(f"Extraction Error: {str(error)}")
-            self._send_toast(f"Could not parse target document: {str(error)}", "error")
+            self._send_status_i18n("status_extraction_error", {"error": str(error)})
+            self._send_toast_i18n("toast_extraction_error", "error", variables={"error": str(error)})
 
 
     # ==============================================================================
@@ -155,10 +155,7 @@ class TranslationApiMixin:
 
         # If all pages in the selection are already translated, prompt the user
         if not untranslated_texts:
-            confirm_msg = "All selected pages are already translated.\n\nDo you want to reset and translate again?"
-            
-            # Synchronous JS prompt evaluation over pywebview native window bridge
-            user_confirmed = self._window.evaluate_js(f"confirm({json.dumps(confirm_msg)})")
+            user_confirmed = self._window.evaluate_js("confirm(Alpine.store('i18n').translate('retranslate_confirm_msg'))")
             
             if user_confirmed:
                 # Clear translation caches in Python and reset DOM states instantly
@@ -173,7 +170,7 @@ class TranslationApiMixin:
                 else:
                     untranslated_texts = self._original_texts.copy()
             else:
-                self._send_status("Translation already complete.")
+                self._send_status_i18n("status_export_cancelled")
                 return
 
         # Start the background thread
@@ -205,7 +202,7 @@ class TranslationApiMixin:
                 f"{{ detail: {{ page: {current_page} }} }}))"
             )
 
-        self._send_status("Translation interrupted by the user.")
+        self._send_status_i18n("reset_success_msg")
 
 
     def reset_all_translations(self) -> None:
@@ -238,7 +235,7 @@ class TranslationApiMixin:
 
     def _run_translation(self, untranslated_texts: Dict[str, str], target_pages: Optional[List[int]]) -> None:
         try:
-            self._send_status("Initializing AI Translator...")
+            self._send_status_i18n("status_trans_init")
             
             provider = config_db.get("APIConfig", "provider", "Google Gemini")
             keys_dict = config_db.get("APIConfig", "api_keys_by_provider", {})
@@ -262,7 +259,7 @@ class TranslationApiMixin:
             active_base_url = config_db.get("APIConfig", "custom_base_url", "") if use_custom_base else None
 
             if provider != "Ollama (Local)" and not active_key:
-                self._send_toast(f"Please setup your API Key for {provider} first.", "error")
+                self._send_toast_i18n("toast_trans_missing_key", "error", duration=8000, variables={"provider": provider})
                 self._send_js("window.dispatchEvent(new CustomEvent('trigger-show-api-config'))")
                 return
 
@@ -285,12 +282,12 @@ class TranslationApiMixin:
                     self._send_js(f"window.dispatchEvent(new CustomEvent('hide-glass-overlays', {{ detail: {{ pages: {unselected_pages} }} }}))")
 
             # Build optimized token batches
-            self._send_status("Building translation batches...")
+            self._send_status_i18n("status_trans_building_batches")
             batches = build_batches(untranslated_texts, llm_model_name)
             total_batches = len(batches)
 
             if not batches:
-                self._send_status("No text to translate was found.")
+                self._send_status_i18n("status_trans_no_text")
                 return
 
             # Initialize progress bar panel in JavaScript
@@ -320,7 +317,7 @@ class TranslationApiMixin:
                     break
 
                 self._send_js(f"window.dispatchEvent(new CustomEvent('update-progress-batches', {{ detail: {{ done: {idx + 1}, total: {total_batches} }} }}))")
-                self._send_status(f"Translating batch {idx + 1}/{total_batches}...")
+                self._send_status_i18n("status_trans_batch_progress", {"current": idx + 1, "total": total_batches})
 
                 first_id = batch.segments[0]["id"]
                 page_idx = self._tid_to_page.get(first_id, 0)
@@ -337,18 +334,17 @@ class TranslationApiMixin:
                     break
 
                 if results is None:
-                    fail_msg = (
-                        "API Connection Error: All connection attempts failed.\n\n"
-                        "Please verify:\n"
-                        "1. Your internet connection.\n"
-                        "2. That your target local host is active (e.g. Ollama).\n"
-                        "3. Your active API key limits."
-                    )
-                    self._send_toast("Connection failed. Check your API settings.", "error")
-                    self._send_js(f"alert({json.dumps(fail_msg)})")
-                    
+                    self._send_toast_i18n("toast_api_connection_error", "error", duration=8000)
+                    # self._send_toast("Connection failed. Check your API settings.", "error")
+                
+                    # Reset the page that was mid-translation back to waiting overlay
                     if current_translating_page != -1:
-                        self._send_js(f"window.dispatchEvent(new CustomEvent('reset-page', {{ detail: {{ page: {current_translating_page} }} }}))")
+                        self._send_js(
+                            f"window.dispatchEvent(new CustomEvent('reset-page', "
+                            f"{{ detail: {{ page: {current_translating_page} }} }}))"
+                        )
+                    # Notify frontend that translation thread has stopped
+                    self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-finished'))")
                     return
 
                 # Stream translation segments sequentially
@@ -366,13 +362,23 @@ class TranslationApiMixin:
 
             self._send_status("Document translation completed successfully.")
             self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-finished'))")
-            self._send_toast("Document translation succeeded!", "success")
+            self._send_toast_i18n("toast_trans_success", "success")
 
         except Exception as error:
             logger.error(f"Critical exception raised during background translation: {error}")
-            self._send_status(f"Translation Error: {str(error)}")
-            self._send_toast(f"Translation failed: {str(error)}", "error")
+            self._send_status_i18n("status_trans_error", {"error": str(error)})
+            self._send_toast_i18n("toast_trans_error", "error", duration=8000, variables={"error": str(error)})
+
+            # Reset the page that was mid-translation back to waiting overlay
+            # Mirrors Qt: if self._current_translating_page != -1: reset_page_to_waiting()
+            if self._current_translating_page != -1:
+                self._send_js(
+                    f"window.dispatchEvent(new CustomEvent('reset-page', "
+                    f"{{ detail: {{ page: {self._current_translating_page} }} }}))"
+                )
             self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-finished'))")
+
+
 
     def _send_translation_stream(self, trans_id: str, text: str):
         self._send_js("window.dispatchEvent(new CustomEvent('update-progress-segment'))")
@@ -416,12 +422,27 @@ class TranslationApiMixin:
     def _send_status(self, text: str):
         self._send_js(f"window.showStatusMessage({json.dumps(text)})")
 
-    def _send_toast(self, message: str, type_str: str = "info"):
-        self._send_js(f"window.showToast({json.dumps(message)}, '{type_str}')")
+    def _send_toast(self, message: str, type_str: str = "info", duration: int = 5000):
+        """
+        Sends a toast notification to the frontend UI.
+        
+        Args:
+            message: The text to display in the toast card.
+            type_str: Visual style type — 'info', 'success', 'warning', or 'error'.
+            duration: Display duration in milliseconds (default: 5000ms).
+        """
+        self._send_js(f"window.showToast({json.dumps(message)}, '{type_str}', {duration})")
 
     def _send_js(self, js_code: str):
         if hasattr(self, "_window") and self._window:
             self._window.evaluate_js(js_code)
+    
+    def _send_status_i18n(self, key: str, variables: Optional[dict] = None) -> None:
+        self._send_js(f"window.showStatusMessage_i18n('{key}', {json.dumps(variables or {})})")
+
+    def _send_toast_i18n(self, key: str, type_str: str = "info", duration: int = 5000, variables: Optional[dict] = None) -> None:
+        self._send_js(f"window.showToast_i18n('{key}', '{type_str}', {duration}, {json.dumps(variables or {})})")
+
 
     def _add_to_recent_files(self, file_path: str):
         try:
@@ -456,10 +477,10 @@ class TranslationApiMixin:
         vector PDF file using the resolved headless browser.
         """
         if not self._active_pdf_path or not self._window:
-            self._send_toast("No active document loaded to export.", "warning")
+            self._send_toast_i18n("toast_export_no_doc", "warning")
             return
 
-        self._send_status("Requesting document layout from workspace...")
+        self._send_status_i18n("status_export_requesting_layout")
 
         # 1. Extract the translated inner HTML directly from the active workspace iframe
         js_get_html = (
@@ -469,7 +490,7 @@ class TranslationApiMixin:
         translated_html = self._window.evaluate_js(js_get_html)
 
         if not translated_html:
-            self._send_toast("Failed to extract active layout from the viewport.", "error")
+            self._send_toast_i18n("toast_export_failed_extract", "error")
             return
 
         # 2. Offer a clean default filename matching the original PDF name
@@ -478,7 +499,7 @@ class TranslationApiMixin:
         suggested_name = f"{base_name}_translated.pdf"
 
         # 3. Trigger native OS file saving dialogues
-        self._send_status("Waiting for file destination path...")
+        self._send_status_i18n("status_export_waiting_path")
         file_types = ("PDF Documents (*.pdf)", "All files (*.*)")
         destination_path = self._window.create_file_dialog(
             webview.SAVE_DIALOG,
@@ -488,7 +509,7 @@ class TranslationApiMixin:
         )
 
         if not destination_path:
-            self._send_status("Export cancelled by user.")
+            self._send_status_i18n("status_export_cancelled")
             return
 
         # Handle formatting tuple returns on specific platforms
@@ -498,7 +519,7 @@ class TranslationApiMixin:
             else:
                 return
 
-        self._send_status("Generating final vector PDF...")
+        self._send_status_i18n("status_export_generating_pdf")
 
        
         # Resolve document page layout cm sizing
@@ -520,7 +541,7 @@ class TranslationApiMixin:
             # 5. Resolve our safe dual-layer browser print renderer
             browser_path = resolve_pdf_renderer()
             if not browser_path:
-                self._send_toast("No compatible Chromium engine found. Export aborted.", "error")
+                self._send_toast_i18n("toast_export_no_chromium", "error")
                 return
 
             # 6. Execute headless background print compiler
@@ -533,14 +554,12 @@ class TranslationApiMixin:
                 pass
 
             if success:
-                self._send_status(f"File exported successfully: {os.path.basename(destination_path)}")
-                self._send_toast("Document exported successfully!", "success")
-                # Show an OS dialogue success confirmation
-                self._window.evaluate_js(f"alert('The translated PDF was saved successfully at:\\n\\n' + {json.dumps(destination_path)})")
+                self._send_status_i18n("status_export_success", {"filename": os.path.basename(destination_path)})
+                self._send_toast_i18n("toast_export_success", "success", duration=6000)
             else:
-                self._send_toast("PDF generation failed.", "error")
-                self._send_status("Export failed.")
+                self._send_toast_i18n("toast_export_failed", "error")
+                self._send_status_i18n("status_export_failed")
 
         except Exception as e:
             logger.error(f"Error during PDF export pipeline: {e}")
-            self._send_toast(f"Export failed: {str(e)}", "error")
+            self._send_toast_i18n("toast_export_error", "error", variables={"error": str(e)})

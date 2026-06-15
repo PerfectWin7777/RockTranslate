@@ -140,15 +140,33 @@ function menubarController() {
             this.$dispatch('trigger-layout-change', { mode: mode });
         },
 
+        /**
+         * Clears recent documents history with a localized safety confirmation check.
+         */
         async clearHistory() {
             this.closeAll();
-            if (confirm("Are you sure you want to clear the recent files list?")) {
+            const i18n = Alpine.store('i18n');
+            if (confirm(i18n.translate('clear_history_confirm_msg'))) {
                 if (window.pywebview.api && window.pywebview.api.clear_recent_history) {
                     await window.pywebview.api.clear_recent_history();
                 }
                 this.loadMenuData();
             }
         },
+
+        /**
+         * Requests confirmation and gracefully shuts down the PyWebview environment.
+         */
+        quitApplication() {
+            this.closeAll();
+            const i18n = Alpine.store('i18n');
+            if (confirm(i18n.translate('quit_confirm_msg'))) {
+                if (window.pywebview && window.pywebview.api && window.pywebview.api.quit_application) {
+                    window.pywebview.api.quit_application();
+                }
+            }
+        },
+        
 
         triggerAction(actionName) {
             this.closeAll();

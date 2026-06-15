@@ -121,8 +121,18 @@
             window.dispatchEvent(new CustomEvent('update-status-text', { detail: { text: text } }));
         };
 
-        window.showToast = function (message, type = 'info') {
-            Alpine.store('toasts').show(message, type);
+        window.showToast = function (message, type = 'info', duration) {
+            Alpine.store('toasts').show(message, type, duration);
+        };
+
+        window.showStatusMessage_i18n = function (key, variables = {}) {
+                const translated = Alpine.store('i18n').translate(key, variables);
+                window.showStatusMessage(translated);
+        };
+
+        window.showToast_i18n = function (key, type = 'info', duration = 5000, variables = {}) {
+            const translated = Alpine.store('i18n').translate(key, variables);
+            window.showToast(translated, type, duration);
         };
 
         function appShell() {
@@ -280,13 +290,16 @@
                 },
 
                 closeDocument() {
-                    // Force-halt any active threads on closing documents
-                    window.pywebview.api.cancel_translation();
-                    this.activeFilePath = null;
-                    this.activeHtmlPath = null;
-                    this.currentScreen = 'dashboard';
-                    this.isTranslating = false;
-                    this.$dispatch('refresh-menu-data');
+                    const i18n = Alpine.store('i18n');
+                    if (confirm(i18n.translate('close_doc_confirm_msg'))) {
+                        // Force-halt any active threads on closing documents
+                        window.pywebview.api.cancel_translation();
+                        this.activeFilePath = null;
+                        this.activeHtmlPath = null;
+                        this.currentScreen = 'dashboard';
+                        this.isTranslating = false;
+                        this.$dispatch('refresh-menu-data');
+                    }
                 }
             };
         }

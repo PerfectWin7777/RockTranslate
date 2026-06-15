@@ -82,7 +82,7 @@
 
                 <div class="dropdown-divider"></div>
 
-                <div class="dropdown-item" @click="window.pywebview && window.pywebview.api && window.pywebview.api.quit_application()">
+                <div class="dropdown-item" @click="quitApplication()">
                     <span class="dropdown-label">
                         <span class="dropdown-checkmark"></span>
                         <span x-text="$store.i18n.translate('item_quit')"></span>

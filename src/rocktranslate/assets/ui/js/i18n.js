@@ -34,6 +34,7 @@ document.addEventListener('alpine:init', () => {
 
                 // Translation Menu items
                 item_start_trans: "Start Translation",
+                item_stop_trans: 'Stop Translation',
                 item_trans_range: "Translate Specific Pages...",
                 item_api_config: "API & Model Configuration...",
                 item_target_lang: "Target Language",
@@ -177,6 +178,45 @@ document.addEventListener('alpine:init', () => {
                 finished_status: "Finished ✓",
                 calc_status: "Calculating...",
 
+                delete_key_confirm_msg: "Are you sure you want to delete this API key?",
+                quit_confirm_msg: "Are you sure you want to quit RockTranslate?",
+                close_doc_confirm_msg: "Are you sure you want to close the active document?",
+                invalid_range_msg: "Please enter a valid page range.",
+                clear_history_confirm_msg: "Are you sure you want to clear the recent files list?",
+                save_error_msg: "An error occurred while saving settings.",
+
+
+                status_extraction_start: "High-fidelity PDF conversion in progress...",
+                status_extraction_pages: "Analyzing Document layout: Page {current}/{total}...",
+                status_extraction_failed: "Geometric conversion by pdf2htmlEX failed.",
+                status_extraction_instrumenting: "Analyzing and instrumenting document...",
+                status_extraction_success: "Workspace configured successfully.",
+                status_extraction_error: "Extraction Error: {error}",
+                toast_extraction_error: "Could not parse target document: {error}",
+
+                status_trans_init: "Initializing AI Translator...",
+                toast_trans_missing_key: "Missing API Key for {provider}. Please configure it in API Settings.",
+                status_trans_building_batches: "Building translation batches...",
+                status_trans_no_text: "No text to translate was found.",
+                status_trans_batch_progress: "Translating batch {current}/{total}...",
+                status_trans_completed: "Document translation completed successfully.",
+                toast_trans_success: "Document translation succeeded!",
+                status_trans_error: "Translation Error: {error}",
+                toast_trans_error: "Translation failed: {error}",
+
+                toast_export_no_doc: "No active document loaded to export.",
+                status_export_requesting_layout: "Requesting document layout from workspace...",
+                toast_export_failed_extract: "Failed to extract active layout from the viewport.",
+                status_export_waiting_path: "Waiting for file destination path...",
+                status_export_cancelled: "Export cancelled by user.",
+                status_export_generating_pdf: "Generating final vector PDF...",
+                toast_export_no_chromium: "No compatible Chromium engine found. Export aborted.",
+                status_export_success: "File exported successfully: {filename}",
+                toast_export_success: "Document exported successfully!",
+                toast_export_failed: "PDF generation failed.",
+                status_export_failed: "Export failed.",
+                toast_export_error: "Export failed: {error}",
+
 
 
 
@@ -201,6 +241,7 @@ document.addEventListener('alpine:init', () => {
 
                 // Translation Menu items
                 item_start_trans: "Démarrer la traduction",
+                item_stop_trans: "Arreter la traduction",
                 item_trans_range: "Traduire des pages spécifiques...",
                 item_api_config: "Configuration de l'API & des modèles...",
                 item_target_lang: "Langue cible",
@@ -340,6 +381,45 @@ document.addEventListener('alpine:init', () => {
                 range_duration_secs: "~{secs}s",
                 finished_status: "Terminé ✓",
                 calc_status: "Calcul en cours...",
+
+
+                delete_key_confirm_msg: "Êtes-vous sûr de vouloir supprimer cette clé API ?",
+                quit_confirm_msg: "Êtes-vous sûr de vouloir quitter RockTranslate ?",
+                close_doc_confirm_msg: "Êtes-vous sûr de vouloir fermer le document actif ?",
+                invalid_range_msg: "Veuillez saisir une plage de pages valide.",
+                clear_history_confirm_msg: "Êtes-vous sûr de vouloir effacer la liste des fichiers récents ?",
+                save_error_msg: "Une erreur est survenue lors de l'enregistrement des paramètres.",
+
+                status_extraction_start: "Conversion haute fidélité du PDF en cours...",
+                status_extraction_pages: "Analyse de la mise en page : Page {current}/{total}...",
+                status_extraction_failed: "La conversion géométrique par pdf2htmlEX a échoué.",
+                status_extraction_instrumenting: "Analyse et balisage du document en cours...",
+                status_extraction_success: "Espace de travail configuré avec succès.",
+                status_extraction_error: "Erreur d'extraction : {error}",
+                toast_extraction_error: "Impossible d'analyser le document cible : {error}",
+
+                status_trans_init: "Initialisation du traducteur IA...",
+                toast_trans_missing_key: "Clé API manquante pour {provider}. Veuillez la configurer dans les paramètres API.",
+                status_trans_building_batches: "Consolidation des lots de traduction...",
+                status_trans_no_text: "Aucun texte à traduire n'a été trouvé.",
+                status_trans_batch_progress: "Traduction du lot {current}/{total}...",
+                status_trans_completed: "Traduction du document terminée avec succès.",
+                toast_trans_success: "Traduction du document réussie !",
+                status_trans_error: "Erreur de traduction : {error}",
+                toast_trans_error: "La traduction a échoué : {error}",
+
+                toast_export_no_doc: "Aucun document actif chargé à exporter.",
+                status_export_requesting_layout: "Récupération de la mise en page depuis l'espace de travail...",
+                toast_export_failed_extract: "Échec de l'extraction de la mise en page depuis la vue active.",
+                status_export_waiting_path: "En attente du dossier d'enregistrement...",
+                status_export_cancelled: "Exportation annulée par l'utilisateur.",
+                status_export_generating_pdf: "Génération du PDF vectoriel final...",
+                toast_export_no_chromium: "Aucun moteur Chromium compatible trouvé. Exportation abandonnée.",
+                status_export_success: "Fichier exporté avec succès : {filename}",
+                toast_export_success: "Document exporté avec succès !",
+                toast_export_failed: "Échec de la génération du PDF.",
+                status_export_failed: "Échec de l'exportation.",
+                toast_export_error: "L'exportation a échoué : {error}",
              
 
             }

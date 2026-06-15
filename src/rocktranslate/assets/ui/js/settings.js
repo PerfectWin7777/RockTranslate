@@ -38,17 +38,19 @@ function systemSettingsController() {
         },
 
         async save() {
+            const i18n = Alpine.store('i18n');
             try {
                 const response = await window.pywebview.api.save_system_settings(this.fields);
                 if (response && response.status === 'success') {
-                    alert(Alpine.store('i18n').translate('save_success_msg'));
+                    window.showToast(i18n.translate('save_success_msg'), 'success');
                     Alpine.store('modals').close();
                 } else {
-                    const errMsg = (response && response.message) ? response.message : 'Save failed';
-                    alert("Error: " + errMsg);
+                    const errMsg = (response && response.message) ? response.message : i18n.translate('save_error_msg');
+                    window.showToast(errMsg, 'error');
                 }
             } catch (error) {
                 console.error("[Settings] Error saving system configs:", error);
+                window.showToast(i18n.translate('save_error_msg'), 'error');
             }
         },
 
@@ -106,17 +108,19 @@ function translationSettingsController() {
         },
 
         async save() {
+            const i18n = Alpine.store('i18n');
             try {
                 const response = await window.pywebview.api.save_translation_settings(this.fields);
                 if (response && response.status === 'success') {
-                    alert(Alpine.store('i18n').translate('save_success_msg'));
+                    window.showToast(i18n.translate('save_success_msg'), 'success');
                     Alpine.store('modals').close();
                 } else {
-                    const errMsg = (response && response.message) ? response.message : 'Save failed';
-                    alert("Error: " + errMsg);
+                    const errMsg = (response && response.message) ? response.message : i18n.translate('save_error_msg');
+                    window.showToast(errMsg, 'error');
                 }
             } catch (error) {
                 console.error("[Settings] Error saving translation configs:", error);
+                window.showToast(i18n.translate('save_error_msg'), 'error');
             }
         }
     };
@@ -186,13 +190,16 @@ function apiConfigController() {
         },
 
         /**
-         * Safely deletes the stored key for the active provider.
-         */
+        * Clears the API Key for the active provider with confirmation safety logic.
+        */
         deleteKey() {
-            if (this.isolatedConfigs[this.currentProvider]) {
-                this.isolatedConfigs[this.currentProvider].api_key = '';
-                this.showSuccessLabel = true;
-                setTimeout(() => this.showSuccessLabel = false, 3000);
+            const i18n = Alpine.store('i18n');
+            if (confirm(i18n.translate('delete_key_confirm_msg'))) {
+                if (this.isolatedConfigs[this.currentProvider]) {
+                    this.isolatedConfigs[this.currentProvider].api_key = '';
+                    this.showSuccessLabel = true;
+                    setTimeout(() => this.showSuccessLabel = false, 3000);
+                }
             }
         },
 
@@ -200,6 +207,7 @@ function apiConfigController() {
          * Saves credentials and variables to the persistent JSON database.
          */
         async save() {
+            const i18n = Alpine.store('i18n');
             try {
                 const payload = {
                     current_provider: this.currentProvider,
@@ -208,7 +216,7 @@ function apiConfigController() {
 
                 const response = await window.pywebview.api.save_api_config(payload);
                 if (response && response.status === 'success') {
-                    alert(Alpine.store('i18n').translate('save_success_msg'));
+                    window.showToast(i18n.translate('save_success_msg'), 'success');
 
                     // Fire refresh to update main dashboard and menubar statuses immediately
                     window.dispatchEvent(new CustomEvent('refresh-menu-data'));
@@ -216,11 +224,12 @@ function apiConfigController() {
 
                     Alpine.store('modals').close();
                 } else {
-                    const errMsg = (response && response.message) ? response.message : 'Save failed';
-                    alert("Error: " + errMsg);
+                    const errMsg = (response && response.message) ? response.message : i18n.translate('save_error_msg');
+                    window.showToast(errMsg, 'error');
                 }
             } catch (error) {
-                console.error("[API Config] Save execution failure:", error);
+                    console.error("[API Config] Save execution failure:", error);
+                    window.showToast(i18n.translate('save_error_msg'), 'error');
             }
         }
     };
@@ -266,9 +275,10 @@ function apiConfigController() {
              * Closes the modal and dispatches range values to the translation pipeline.
              */
             submit() {
+                const i18n = Alpine.store('i18n');
                 const rangeStr = this.pageRange.trim();
                 if (!rangeStr) {
-                    alert("Please enter a valid page range.");
+                    window.showToast(i18n.translate('invalid_range_msg'), 'warning');
                     return;
                 }
 
