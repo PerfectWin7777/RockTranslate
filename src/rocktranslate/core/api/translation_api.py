@@ -198,7 +198,7 @@ class TranslationApiMixin:
         if range_str:
             target_pages = self._parse_page_range(range_str, total_pages)
             if not target_pages:
-                self._send_toast("Please enter a valid page range.", "warning")
+                self._send_toast_i18n("enter_valid_page_range", "warning")
                 return
 
         # Gather already translated IDs from page caches

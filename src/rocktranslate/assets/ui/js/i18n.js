@@ -142,6 +142,7 @@ document.addEventListener('alpine:init', () => {
                 range_guide_4: "Combine both formats (e.g., '2-4, 7, 9' translates pages 2, 3, 4, 7, and 9).",
                 range_warning: "Pages out-of-bounds (e.g., page 12 on a 10-page document) will be skipped.",
                 range_input_placeholder: "e.g., 2-4, 7, 9",
+                enter_valid_page_range: "Please enter a valid page range.",
                 translate_btn: "Translate",
 
 
@@ -353,6 +354,7 @@ document.addEventListener('alpine:init', () => {
                 range_guide_4: "Combinez les deux formats (ex. '2-4, 7, 9' traduit les pages 2, 3, 4, 7 et 9).",
                 range_warning: "Les pages hors limites (ex. page 12 sur un document de 10 pages) seront ignorées.",
                 range_input_placeholder: "ex. 2-4, 7, 9",
+                enter_valid_page_range: "Saisissez un intervalle de pages valide.",
                 translate_btn: "Traduire",
 
                 prop_tab_general: "Général",

@@ -12,14 +12,8 @@ Version: 1.0.1
 
 import webview
 from typing import Optional
-import os
-import tempfile
-import re
-import json
+import webbrowser
 from loguru import logger
-import shutil
-from .renderer import resolve_pdf_renderer, apply_translations_offline, print_html_to_vector_pdf
-from .pdf_metadata import get_pdf_metadata
 
 # Import our decoupled mixins from the api package folder
 from .api import HistoryApiMixin, ConfigApiMixin, TranslationApiMixin
@@ -58,6 +52,17 @@ class RockTranslateAPI(HistoryApiMixin, ConfigApiMixin, TranslationApiMixin):
         """Exposed endpoint to check if document is already fully translated."""
         return super().is_document_translated()
     
+    def open_external_link(self, url: str) -> None:
+        """
+        Safely opens an external hyperlink inside the host machine's 
+        default native web browser, protecting the workspace session.
+        """
+        try:
+            logger.info(f"Opening external link in system browser: {url}")
+            webbrowser.open(url)
+        except Exception as e:
+            logger.error(f"Failed to open external link: {e}")
+
     # ── EXPOSED WINDOW MANAGEMENT ENDPOINTS ──
     def toggle_fullscreen(self) -> None:
         """

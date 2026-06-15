@@ -145,14 +145,38 @@ function workspaceController() {
             this.setupSyncScrolls(pdfFrame, htmlFrame);
         },
 
-        startSplitterDrag() {
+        startSplitterDrag(e) {
             this.isDragging = true;
+
+            // Empêche la sélection de texte native et le drag & drop accidentel
+            if (e) e.preventDefault();
 
             const grid = document.getElementById('workspace-grid');
             if (grid) {
                 grid.classList.add('dragging');
             }
             document.body.style.cursor = 'col-resize';
+
+            // Désactive les pointer-events pour éviter que les iframes ne capturent le mouvement
+            document.getElementById('pdf-iframe').style.pointerEvents = 'none';
+            document.getElementById('html-iframe').style.pointerEvents = 'none';
+        },
+
+        startSplitterDrag(e) {
+            this.isDragging = true;
+
+            // Prevent native text selections and text dragging artifacts during movement
+            if (e) e.preventDefault();
+
+            const grid = document.getElementById('workspace-grid');
+            if (grid) {
+                grid.classList.add('dragging');
+            }
+            document.body.style.cursor = 'col-resize';
+
+            // Disable pointer-events inside iframes to prevent them from swallowing mouse movements
+            document.getElementById('pdf-iframe').style.pointerEvents = 'none';
+            document.getElementById('html-iframe').style.pointerEvents = 'none';
         },
 
         handleSplitterMove(e) {
@@ -160,9 +184,16 @@ function workspaceController() {
             const grid = document.getElementById('workspace-grid');
             if (!grid) return;
 
-            const containerWidth = grid.clientWidth;
-            const percentage = (e.clientX / containerWidth) * 100;
+            // Use bounding rect calculations to automatically factor out global CSS Zooms and absolute container shifts
+            const rect = grid.getBoundingClientRect();
 
+            // Extract accurate pixel offset relative to workspace boundaries
+            const relativeX = e.clientX - rect.left;
+
+            // Compute percentage directly on rendering dimension profiles
+            const percentage = (relativeX / rect.width) * 100;
+
+            // Apply layout constraints with safety margins
             if (percentage > 15 && percentage < 85) {
                 grid.style.gridTemplateColumns = `${percentage}% 6px 1fr`;
             }
@@ -177,6 +208,18 @@ function workspaceController() {
                     grid.classList.remove('dragging');
                 }
                 document.body.style.cursor = 'default';
+
+                // Restore interactive pointer events on iframes
+                document.getElementById('pdf-iframe').style.pointerEvents = 'auto';
+                document.getElementById('html-iframe').style.pointerEvents = 'auto';
+
+                // Force PDF.js to redraw its canvas configurations to adapt to the new viewport box rules
+                const pdfFrame = document.getElementById('pdf-iframe');
+                if (pdfFrame && pdfFrame.contentWindow) {
+                    try {
+                        pdfFrame.contentWindow.dispatchEvent(new Event('resize'));
+                    } catch (e) { }
+                }
             }
         },
 
@@ -237,6 +280,20 @@ function workspaceController() {
                 iframeDoc.addEventListener('click', () => {
                     window.dispatchEvent(new CustomEvent('trigger-close-all-menus'));
                 });
+                
+                iframeDoc.addEventListener('click', (e) => {
+                    const link = e.target.closest('a');
+                    if (link && link.href) {
+                        const href = link.href;
+                        // If it is an external link (not our local server files)
+                        if (href.startsWith('http') && !href.includes(window.location.host)) {
+                            e.preventDefault();
+                            // Call Python API to open in native default system browser
+                            window.pywebview.api.open_external_link(href);
+                        }
+                    }
+                });
+
 
                 const checkInterval = setInterval(() => {
                     try {
@@ -282,6 +339,19 @@ function workspaceController() {
 
                 rightDoc.addEventListener('click', () => {
                     window.dispatchEvent(new CustomEvent('trigger-close-all-menus'));
+                });
+
+                iframeDoc.addEventListener('click', (e) => {
+                    const link = e.target.closest('a');
+                    if (link && link.href) {
+                        const href = link.href;
+                        // If it is an external link (not our local server files)
+                        if (href.startsWith('http') && !href.includes(window.location.host)) {
+                            e.preventDefault();
+                            // Call Python API to open in native default system browser
+                            window.pywebview.api.open_external_link(href);
+                        }
+                    }
                 });
 
                 try {

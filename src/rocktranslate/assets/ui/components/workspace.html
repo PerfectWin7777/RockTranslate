@@ -13,7 +13,7 @@
         </div>
 
         <!-- Drag-resize splitter divider -->
-        <div id="workspace-splitter" @mousedown="startSplitterDrag()"></div>
+        <div id="workspace-splitter" @mousedown="startSplitterDrag($event)"></div>
 
         <!-- RIGHT PANE: Instrumented HTML Document -->
         <div id="right-pane" class="workspace-pane">

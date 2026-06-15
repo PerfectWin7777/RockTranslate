@@ -148,16 +148,35 @@ def main() -> None:
 
     api = RockTranslateAPI()
 
+    # 1. Create a lightweight, instantaneous frameless splash screen window
+    # splash = webview.create_window(
+    #     title="RockTranslate Loading",
+    #     url=f"http://localhost:{port}/ui/splash.html",
+    #     width=500,
+    #     height=300,
+    #     frameless=True,
+    #     easy_drag=True
+    # )
+
     window = webview.create_window(
         title="RockTranslate",
         url=f"http://localhost:{port}/ui/index.html",
         width=1440,
         height=900,
         min_size=(1024, 768),
-        js_api=api
+        js_api=api,
+        # hidden=True
     )
 
     api._window = window
+
+    # 3. Double-layer transition: Close splash and reveal main window upon completion
+    # def on_window_loaded():
+    #     splash.destroy()
+    #     window.show()
+    #     logger.info("Workspace viewport successfully rendered. Splash screen closed.")
+
+    # window.events.loaded += on_window_loaded
 
     # Callback to register native Python-side event handlers on Webview DOM
     def bind_native_events(window):
@@ -179,7 +198,23 @@ def main() -> None:
         window.dom.document.events.dragover += DOMEventHandler(on_drag, prevent_default=True, stop_propagation=True, debounce=500)
         window.dom.document.events.drop += DOMEventHandler(on_drop, prevent_default=True, stop_propagation=True)
 
+    
+    # 4. Intercept close (X) button triggers to run confirmation prompts and cache cleanups
+    # def on_window_closing():
+    #     try:
+    #         # Query translated prompt directly from frontend store
+    #         user_confirmed = window.evaluate_js(
+    #             "confirm(Alpine.store('i18n').translate('quit_confirm_msg') || 'Are you sure you want to quit?')"
+    #         )
+    #         if user_confirmed:
+    #             # Clean up temporary workspace cache files from disk
+    #             api.close_document()
+    #         return user_confirmed
+    #     except Exception as e:
+    #         logger.error(f"Fallback close execution triggered: {e}")
+    #         return True
 
+    # window.events.closing += on_window_closing
 
     try:
         logger.info("Launching pywebview main loop...")
