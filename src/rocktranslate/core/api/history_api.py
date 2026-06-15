@@ -89,8 +89,15 @@ class HistoryApiMixin:
 
     def clear_recent_history(self) -> None:
         config_db.set("RecentFiles", "recent_list", [])
+        # Send event to JS to refresh recent files across all views in real-time
+        if hasattr(self, "_send_js"):
+            self._send_js("window.dispatchEvent(new CustomEvent('refresh-menu-data'))")
         print("[API] Recent files history cleared successfully.")
+    
 
+    def _send_js(self, js_code: str):
+        if hasattr(self, "_window") and self._window:
+            self._window.evaluate_js(js_code)
 
     def get_document_properties(self, file_path: str) -> Dict[str, Any]:
         """

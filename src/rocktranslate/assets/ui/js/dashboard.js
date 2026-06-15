@@ -35,6 +35,9 @@ function dashboardController() {
             } else {
                 window.addEventListener('pywebviewready', () => this.loadDashboardData());
             }
+
+            // Real-time synchronization of recent documents list and API credential status
+            window.addEventListener('refresh-menu-data', () => this.loadDashboardData());
         },
 
         /**
@@ -93,7 +96,7 @@ function dashboardController() {
             // Native Python-side handler will automatically capture 'pywebviewFullPath' on drop
         },
 
-        
+
         /**
          * Loads a file directly when clicked from the recent files panel list.
          */
