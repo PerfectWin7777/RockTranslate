@@ -92,6 +92,8 @@ document.addEventListener('alpine:init', () => {
                 about_authors: "Authors",
                 close_btn: "Close",
 
+                status_ready: "Ready. Open or drag a PDF document to begin.",
+
 
                 system_settings_title: "System & Cache Settings",
                 system_cache_lifecycle: "Cache Lifecycle",
@@ -297,6 +299,8 @@ document.addEventListener('alpine:init', () => {
                 about_license: "Licence",
                 about_authors: "Auteurs",
                 close_btn: "Fermer",
+
+                status_ready: "Prêt. Ouvrez ou glissez un document PDF pour commencer.",
 
 
                 system_settings_title: "Paramètres Système & Cache",

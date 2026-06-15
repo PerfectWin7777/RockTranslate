@@ -73,3 +73,33 @@
     height: 5px;
     /* Local segments bar is slightly thinner matching progress_panel.py */
 }
+
+
+/* ── SLIDE TRANSITION ANIMATION FOR ALPINE.JS ── */
+.progress-enter {
+    transition: transform 0.25s ease-out, opacity 0.25s ease-out;
+}
+
+.progress-enter-start {
+    transform: translateY(100%);
+    opacity: 0;
+}
+
+.progress-enter-end {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.progress-leave {
+    transition: transform 0.2s ease-in, opacity 0.2s ease-in;
+}
+
+.progress-leave-start {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.progress-leave-end {
+    transform: translateY(100%);
+    opacity: 0;
+}

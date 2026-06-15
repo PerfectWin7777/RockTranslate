@@ -4,7 +4,9 @@
 -->
 
 <div id="progress-container" x-data="progressController()" x-show="visible && currentScreen === 'workspace'"
-    x-transition x-cloak>
+    x-transition:enter="progress-enter" x-transition:enter-start="progress-enter-start"
+    x-transition:enter-end="progress-enter-end" x-transition:leave="progress-leave"
+    x-transition:leave-start="progress-leave-start" x-transition:leave-end="progress-leave-end" x-cloak>
 
     <!-- 1. Global Document Progress Row (Blue) -->
     <div class="progress-row">
