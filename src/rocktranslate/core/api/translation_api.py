@@ -535,8 +535,16 @@ class TranslationApiMixin:
         self._send_js(f"window.showToast({json.dumps(message)}, '{type_str}', {duration})")
 
     def _send_js(self, js_code: str):
+        """
+        Sends a JavaScript command to the frontend.
+        Gracefully ignores errors if the window is closing or already destroyed.
+        """
         if hasattr(self, "_window") and self._window:
-            self._window.evaluate_js(js_code)
+            try:
+                self._window.evaluate_js(js_code)
+            except Exception:
+                # The window might be in the process of closing or already destroyed
+                pass
     
     def _send_status_i18n(self, key: str, variables: Optional[dict] = None) -> None:
         self._send_js(f"window.showStatusMessage_i18n('{key}', {json.dumps(variables or {})})")

@@ -115,6 +115,9 @@ def start_local_server(port: int, directory: str):
 
 
 def main() -> None:
+    # Accurately record the Splash Screen startup time
+    start_time = datetime.datetime.now()
+
     try:
         if hasattr(sys, "_MEIPASS"):
             if os.name == "nt":
@@ -148,16 +151,31 @@ def main() -> None:
 
     api = RockTranslateAPI()
 
-    # 1. Create a lightweight, instantaneous frameless splash screen window
-    # splash = webview.create_window(
-    #     title="RockTranslate Loading",
-    #     url=f"http://localhost:{port}/ui/splash.html",
-    #     width=500,
-    #     height=300,
-    #     frameless=True,
-    #     easy_drag=True
-    # )
+    # Robust coordinate calculation for perfect Splash Screen centering
+    splash_width, splash_height = 850, 520
+    splash_x, splash_y = None, None
+    try:
+        screens = webview.screens
+        if screens:
+            primary = screens[0]
+            splash_x = (primary.width - splash_width) // 2
+            splash_y = (primary.height - splash_height) // 2
+    except Exception:
+        pass
 
+    # 1. Create a lightweight, frameless splash screen window
+    splash = webview.create_window(
+        title="RockTranslate Loading",
+        url=f"http://localhost:{port}/ui/splash.html",
+        width=splash_width,
+        height=splash_height,
+        x=splash_x,
+        y=splash_y,
+        frameless=True,
+        easy_drag=True
+    )
+
+    # 2. Create the main workspace window (hidden on load)
     window = webview.create_window(
         title="RockTranslate",
         url=f"http://localhost:{port}/ui/index.html",
@@ -165,18 +183,42 @@ def main() -> None:
         height=900,
         min_size=(1024, 768),
         js_api=api,
-        # hidden=True
+        confirm_close=True, # Option C : Native anti-crash closing prompt
+        hidden=True         # Keep invisible until index.html is fully compiled
     )
 
     api._window = window
 
-    # 3. Double-layer transition: Close splash and reveal main window upon completion
-    # def on_window_loaded():
-    #     splash.destroy()
-    #     window.show()
-    #     logger.info("Workspace viewport successfully rendered. Splash screen closed.")
+    # Option C : Silently execute cleanup operations upon complete app termination
+    def on_window_closed() -> None:
+        try:
+            logger.info("Window closed natively. Initiating silent workspace cache cleanup...")
+            api.close_document()
+        except Exception as e:
+            logger.error(f"Error during post-close cache cleanup: {e}")
 
-    # window.events.loaded += on_window_loaded
+    window.events.closed += on_window_closed
+
+    # 3. Double-layer transition: Close splash and reveal main window upon completion
+    def on_window_loaded() -> None:
+        # Calculate elapsed time since program startup
+        elapsed = (datetime.datetime.now() - start_time).total_seconds()
+        # Enforce a remaining delay to guarantee a total of 10.0s (min 0.1s)
+        remaining_delay = max(0.1, 12.0 - elapsed)
+        
+        def reveal_main_window():
+            try:
+                splash.destroy()
+                window.show()
+                window.maximize()
+                logger.info("Workspace viewport successfully rendered. Splash screen closed.")
+            except Exception as e:
+                logger.error(f"Error transferring focus from splash screen: {e}")
+
+        # Timer non bloquant s'exécutant sur le thread d'interface
+        threading.Timer(remaining_delay, reveal_main_window).start()
+
+    window.events.loaded += on_window_loaded
 
     # Callback to register native Python-side event handlers on Webview DOM
     def bind_native_events(window):
@@ -199,26 +241,12 @@ def main() -> None:
         window.dom.document.events.drop += DOMEventHandler(on_drop, prevent_default=True, stop_propagation=True)
 
     
-    # 4. Intercept close (X) button triggers to run confirmation prompts and cache cleanups
-    # def on_window_closing():
-    #     try:
-    #         # Query translated prompt directly from frontend store
-    #         user_confirmed = window.evaluate_js(
-    #             "confirm(Alpine.store('i18n').translate('quit_confirm_msg') || 'Are you sure you want to quit?')"
-    #         )
-    #         if user_confirmed:
-    #             # Clean up temporary workspace cache files from disk
-    #             api.close_document()
-    #         return user_confirmed
-    #     except Exception as e:
-    #         logger.error(f"Fallback close execution triggered: {e}")
-    #         return True
-
-    # window.events.closing += on_window_closing
-
     try:
         logger.info("Launching pywebview main loop...")
-        webview.start(bind_native_events, window, debug=not hasattr(sys, "_MEIPASS"))
+        # Start application on splash, with the main window context passed as master loop
+        webview.start(bind_native_events, window, debug=False
+                    #   debug=not hasattr(sys, "_MEIPASS")
+                      )
     except Exception as e:
         import traceback
         error_info = traceback.format_exc()

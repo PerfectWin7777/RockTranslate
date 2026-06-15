@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<!-- 
+  RockTranslate — Fullscreen Background Splash Screen (Glassmorphism Overlays)
+  Path: src/rocktranslate/assets/ui/splash.html
+-->
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>RockTranslate Loading</title>
+    <style>
+        :root {
+            --bg-primary: #f7fafc;
+            --border-color: #cbd5e1;
+            --text-primary: #1e293b;
+            --text-muted: #64748b;
+            --accent-blue: #4f8ef7;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-primary);
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .splash-card {
+            width: calc(100% - 2px);
+            height: calc(100% - 2px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+            background-color: var(--bg-primary);
+        }
+
+        /* The logo covers 100% of the window space */
+        .splash-logo {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            /* Covers everything without distorting the image */
+            border-radius: 11px;
+            z-index: 1;
+        }
+
+        /* Modern, readable overlay (Glassmorphism) aligned at the absolute bottom of the logo */
+        .splash-overlay {
+            position: absolute;
+            bottom: 24px;
+            left: 8%;
+            width: 84%;
+            z-index: 2;
+            /* Layered directly on top of the logo image */
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 12px;
+            padding: 16px 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        /* Smooth linear progress bar track */
+        .loader-track {
+            width: 100%;
+            height: 4px;
+            background-color: rgba(226, 232, 240, 0.6);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        .loader-fill {
+            height: 100%;
+            width: 0%;
+            background-color: var(--accent-blue);
+            border-radius: 2px;
+            /* Smooth animation handled via JavaScript interpolation */
+        }
+
+        .status-message {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            min-height: 16px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="splash-card">
+
+        <!-- Large logo covering 100% of the available space -->
+        <img src="../rocktranslate_logo.png" class="splash-logo" alt="RockTranslate Full Logo">
+
+        <!-- Loading elements overlaid on top of the image -->
+        <div class="splash-overlay">
+            <div class="loader-track">
+                <div id="progress" class="loader-fill"></div>
+            </div>
+            <div id="status" class="status-message">Initializing engines...</div>
+        </div>
+
+    </div>
+
+    <script>
+        // Smooth animation timed to last exactly 5000 ms (5 seconds)
+        const duration = 5000;
+        const steps = [
+            { time: 0, text: "Initializing translation engine..." },
+            { time: 1000, text: "Loading system configurations..." },
+            { time: 2000, text: "Verifying native layout binaries..." },
+            { time: 3000, text: "Connecting loopback servers..." },
+            { time: 4000, text: "Configuring layout workspaces..." },
+            { time: 4800, text: "Ready to launch!" }
+        ];
+
+        let start = null;
+
+        function animate(timestamp) {
+            if (!start) start = timestamp;
+            const elapsed = timestamp - start;
+            const progress = Math.min(100, (elapsed / duration) * 100);
+
+            // Updates the width of the progress bar
+            document.getElementById('progress').style.width = progress + '%';
+
+            // Updates the text matching the elapsed time
+            let currentText = steps[0].text;
+            for (let step of steps) {
+                if (elapsed >= step.time) {
+                    currentText = step.text;
+                }
+            }
+            document.getElementById('status').textContent = currentText;
+
+            if (elapsed < duration) {
+                requestAnimationFrame(animate);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            requestAnimationFrame(animate);
+        });
+    </script>
+</body>
+
+</html>
