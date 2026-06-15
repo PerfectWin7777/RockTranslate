@@ -30,14 +30,18 @@ function dashboardController() {
          * Syncs with the pywebview host bridge safely when ready.
          */
         init() {
+            const load = () => this.loadDashboardData();
+
+            // Bypass initialization delays if pywebview is already fully injected
             if (window.pywebview && window.pywebview.api) {
-                this.loadDashboardData();
+                load();
             } else {
-                window.addEventListener('pywebviewready', () => this.loadDashboardData());
+                window.addEventListener('pywebviewready', load);
+                window.addEventListener('python-api-ready', load);
             }
 
             // Real-time synchronization of recent documents list and API credential status
-            window.addEventListener('refresh-menu-data', () => this.loadDashboardData());
+            window.addEventListener('refresh-menu-data', load);
         },
 
         /**

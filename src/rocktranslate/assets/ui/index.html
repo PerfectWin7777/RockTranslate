@@ -151,6 +151,8 @@
                                 Alpine.store('i18n').setLocale(configLocale);
                                 window.showStatusMessage(Alpine.store('i18n').translate('status_ready'));
                             }
+                             // Secure startup: Notify any asynchronously mounted components that the API is fully injected
+                            window.dispatchEvent(new CustomEvent('python-api-ready'));
                         } catch (e) {
                             console.error("[Shell] Could not load system locale config:", e);
                         }

@@ -26,7 +26,7 @@ function menubarController() {
             model: 'gemini-3.1-flash-lite'
         },
 
-        // --- CHECKABLE STATES (PyQt Default States) ---
+        // --- CHECKABLE STATES  ---
         targetLang: 'French',
         showProgressPanel: true,
         isFullscreen: false,
@@ -34,14 +34,18 @@ function menubarController() {
 
         init() {
             // Fetch initial recent files and API status
+           const load = () => this.loadMenuData();
+
+            // Bypass initialization delays if pywebview is already fully injected
             if (window.pywebview && window.pywebview.api) {
-                this.loadMenuData();
+                load();
             } else {
-                window.addEventListener('pywebviewready', () => this.loadMenuData());
+                window.addEventListener('pywebviewready', load);
+                window.addEventListener('python-api-ready', load);
             }
 
             // Clean list when history gets updated
-            window.addEventListener('refresh-menu-data', () => this.loadMenuData());
+            window.addEventListener('refresh-menu-data', load);
 
             // ── CLOSE MENUS ON IFRAME CLICKS LISTENER ──
             window.addEventListener('trigger-close-all-menus', () => this.closeAll());
@@ -166,7 +170,7 @@ function menubarController() {
                 }
             }
         },
-        
+
 
         triggerAction(actionName) {
             this.closeAll();

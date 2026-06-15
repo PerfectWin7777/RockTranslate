@@ -19,10 +19,12 @@ function systemSettingsController() {
         },
 
         init() {
+            const load = () => this.loadSettings();
             if (window.pywebview && window.pywebview.api) {
-                this.loadSettings();
+                load();
             } else {
-                window.addEventListener('pywebviewready', () => this.loadSettings());
+                window.addEventListener('pywebviewready', load);
+                window.addEventListener('python-api-ready', load);
             }
         },
 
@@ -89,10 +91,12 @@ function translationSettingsController() {
         },
 
         init() {
+            const load = () => this.loadSettings();
             if (window.pywebview && window.pywebview.api) {
-                this.loadSettings();
+                load();
             } else {
-                window.addEventListener('pywebviewready', () => this.loadSettings());
+                window.addEventListener('pywebviewready', load);
+                window.addEventListener('python-api-ready', load);
             }
         },
 
@@ -143,10 +147,12 @@ function apiConfigController() {
         loading: true,
 
         init() {
+            const load = () => this.loadConfig();
             if (window.pywebview && window.pywebview.api) {
-                this.loadConfig();
+                load();
             } else {
-                window.addEventListener('pywebviewready', () => this.loadConfig());
+                window.addEventListener('pywebviewready', load);
+                window.addEventListener('python-api-ready', load);
             }
         },
 
@@ -248,14 +254,14 @@ function apiConfigController() {
             totalPages: 1,
 
             init() {
+                const load = () => this.loadTotalPages();
                 if (window.pywebview && window.pywebview.api) {
-                    this.loadTotalPages();
+                    load();
                 } else {
-                    window.addEventListener('pywebviewready', () => this.loadTotalPages());
+                    window.addEventListener('pywebviewready', load);
+                    window.addEventListener('python-api-ready', load);
                 }
-
-                // Clean count on fresh document loaded cycles
-                window.addEventListener('refresh-menu-data', () => this.loadTotalPages());
+                window.addEventListener('refresh-menu-data', load);
             },
 
             async loadTotalPages() {
