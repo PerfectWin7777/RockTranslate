@@ -196,6 +196,8 @@ document.addEventListener('alpine:init', () => {
                 status_extraction_error: "Extraction Error: {error}",
                 toast_extraction_error: "Could not parse target document: {error}",
                 status_trans_reset: "Translation state reset cleanly.",
+                status_trans_is_running: "Translation is already running in background.",
+                status_trans_cancelled: "Translation canceled by the user.", 
                 retranslate_confirm_msg: 'All selected pages are already translated. Do you want to reset and translate again?',
 
                 status_trans_init: "Initializing AI Translator...",
@@ -413,7 +415,9 @@ document.addEventListener('alpine:init', () => {
                 toast_trans_success: "Traduction du document réussie !",
                 status_trans_error: "Erreur de traduction : {error}",
                 toast_trans_error: "La traduction a échoué : {error}",
+                status_trans_is_running: "Traduction déjà en cours en arrière-plan.",
                 status_trans_reset: "État de la traduction réinitialisé proprement.",
+                status_trans_cancelled: "Traduction annulée par l'utilisateur.",
                 retranslate_confirm_msg: "Toutes les pages sélectionnées sont déjà traduites. Voulez-vous réinitialiser et traduire à nouveau ?",
 
                 toast_export_no_doc: "Aucun document actif chargé à exporter.",

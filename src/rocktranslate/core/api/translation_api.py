@@ -176,7 +176,8 @@ class TranslationApiMixin:
 
     def start_range_translation(self, range_str: Optional[str]) -> None:
         """
-        Orchestrates page-range validation rules and begins the translation run.
+        Orchestrates page-range validation and begins the translation run.
+        Assumes target checks have already been cleanly handled by the frontend.
 
         Args:
             range_str: Custom page range input parsed from UI dialogues (e.g., '1-3, 5').
@@ -187,13 +188,9 @@ class TranslationApiMixin:
 
         # Secure Lock Check: Silently ignore start triggers if a thread is already running
         if not self._thread_lock.acquire(blocking=False):
-            self._send_toast("Translation is already running in background.", "warning")
+            self._send_toast_i18n("status_trans_is_running", "warning")
             return
         self._thread_lock.release()
-
-        # Halt any zombie threads and reset cancel indicators cleanly
-        self.stop_translation()
-        self._stop_translation = False
 
         total_pages = max(self._tid_to_page.values()) + 1 if self._tid_to_page else 1
         target_pages: Optional[List[int]] = None
@@ -220,25 +217,13 @@ class TranslationApiMixin:
                 if self._tid_to_page.get(k, 0) in target_pages
             }
 
-        # THE GOLDEN RULE: If no untranslated blocks remain in the requested scope, prompt the user
+        # Safe fallback check if called with fully translated documents
         if not untranslated_texts:
-            user_confirmed = self._window.evaluate_js("confirm(Alpine.store('i18n').translate('retranslate_confirm_msg'))")
-            
-            if user_confirmed:
-                # Wipes the active translation cache to run a fresh full translation pass
-                self.reset_all_translations()
-                
-                # Rebuild full untranslated collections
-                if target_pages is not None:
-                    untranslated_texts = {
-                        k: v for k, v in self._original_texts.items()
-                        if self._tid_to_page.get(k, 0) in target_pages
-                    }
-                else:
-                    untranslated_texts = self._original_texts.copy()
-            else:
-                self._send_status_i18n("status_export_cancelled")
-                return
+            self._send_status_i18n("status_trans_completed")
+            self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-finished'))")
+            return
+
+        self._stop_translation = False
 
         # Start the exclusive background processing thread
         self._trans_thread = threading.Thread(
@@ -248,10 +233,14 @@ class TranslationApiMixin:
         )
         self._trans_thread.start()
 
-    def stop_translation(self) -> None:
+
+    def stop_translation(self, quiet: bool = False) -> None:
         """
         Halts the active background translation thread and restores the currently
         translating page back to its waiting state, preventing UI display freezes.
+
+        Args:
+            quiet: If True, halts the thread without overwriting the status bar message.
         """
         self._stop_translation = True
 
@@ -259,14 +248,16 @@ class TranslationApiMixin:
             self._trans_thread.join(timeout=1.0)
 
         # Restore the page that was mid-translation back to its waiting state
-        current_page = getattr(self, "_current_translating_page", -1)
+        current_page = self._current_translating_page
         if current_page != -1:
             self._send_js(
                 f"window.dispatchEvent(new CustomEvent('reset-page', "
                 f"{{ detail: {{ page: {current_page} }} }}))"
             )
 
-        self._send_status_i18n("reset_success_msg")
+        if not quiet:
+            self._send_status_i18n("status_trans_cancelled")
+
 
     def reset_all_translations(self) -> None:
         """
@@ -485,6 +476,21 @@ class TranslationApiMixin:
             f"}}))"
         )
         self._send_js(js_call)
+    
+
+    def is_document_translated(self) -> bool:
+        """
+        Fast, non-blocking check returning True if all original text segments
+        have already been translated in the active session.
+        """
+        if not self._original_texts:
+            return False
+        
+        already_translated_ids = set()
+        for page_data in self._translated_pages.values():
+            already_translated_ids.update(page_data.keys())
+            
+        return len(already_translated_ids) >= len(self._original_texts)
 
     def _parse_page_range(self, range_str: str, max_pages: int) -> List[int]:
         """

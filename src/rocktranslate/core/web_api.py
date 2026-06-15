@@ -52,7 +52,11 @@ class RockTranslateAPI(HistoryApiMixin, ConfigApiMixin, TranslationApiMixin):
     def reset_translation_state(self) -> None:
         """Clears translation memory and restores original document DOM."""
         self.reset_all_translations()
+    
 
+    def is_document_translated(self) -> bool:
+        """Exposed endpoint to check if document is already fully translated."""
+        return super().is_document_translated()
     
     # ── EXPOSED WINDOW MANAGEMENT ENDPOINTS ──
     def toggle_fullscreen(self) -> None:

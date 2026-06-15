@@ -245,11 +245,31 @@
                     if (this.isTranslating) {
                         window.pywebview.api.cancel_translation();
                         this.isTranslating = false;
-                    } else {
-                        this.isTranslating = true;
-                        window.pywebview.api.start_translation();
+                        this.updateMenuTriggerLabel();
+                        return;
                     }
-                    // this.updateMenuTriggerLabel();
+
+                    try {
+                        // Check if already fully translated using our fast, non-blocking Python check
+                        const isTranslated = await window.pywebview.api.is_document_translated();
+                        if (isTranslated) {
+                            const i18n = Alpine.store('i18n');
+                            const confirmMsg = i18n.translate('retranslate_confirm_msg') || "All selected pages are already translated.\n\nDo you want to reset and translate again?";
+                            if (confirm(confirmMsg)) {
+                                // Clear translation caches and reset DOM before continuing
+                                await window.pywebview.api.reset_translation_state();
+                            } else {
+                                // User cancelled: Abort cleanly without starting or resetting any state
+                                return;
+                            }
+                        }
+                    } catch (e) {
+                        console.error("[Shell] Error checking translation state:", e);
+                    }
+
+                    this.isTranslating = true;
+                    //this.updateMenuTriggerLabel();
+                    window.pywebview.api.start_translation();
                 },
 
                 /**
