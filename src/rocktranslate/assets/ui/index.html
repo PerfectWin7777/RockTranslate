@@ -305,8 +305,67 @@
                         this.$dispatch('refresh-menu-data');
                     }
                 }
+
+
+                
             };
         }
+
+
+        // Global keyboard shortcuts interceptor
+            window.addEventListener('keydown', (e) => {
+                const isCmdOrCtrl = e.ctrlKey || e.metaKey; // Supports both Windows (Ctrl) and macOS (Cmd)
+
+                if (isCmdOrCtrl) {
+                    let actionName = null;
+                    const key = e.key.toLowerCase();
+
+                    if (key === 'o') {
+                        e.preventDefault();
+                        actionName = 'open-pdf';
+                    } else if (key === 's') {
+                        e.preventDefault();
+                        actionName = 'export-pdf';
+                    } else if (key === 'd') {
+                        e.preventDefault();
+                        actionName = 'show-properties';
+                    } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        actionName = e.shiftKey ? 'toggle-translation-range' : 'toggle-translation';
+                    } else if (key === '=') {
+                        e.preventDefault();
+                        actionName = 'zoom-in';
+                    } else if (key === '-') {
+                        e.preventDefault();
+                        actionName = 'zoom-out';
+                    } else if (key === '0') {
+                        e.preventDefault();
+                        actionName = 'zoom-reset';
+                    } else if (key === 'q') {
+                        e.preventDefault();
+                        actionName = 'toggle-progress';
+                    } else if (key === '1') {
+                        e.preventDefault();
+                        actionName = 'layout-pdf';
+                    } else if (key === '2') {
+                        e.preventDefault();
+                        actionName = 'layout-trans';
+                    } else if (key === '3') {
+                        e.preventDefault();
+                        actionName = 'layout-both';
+                    }
+
+                    if (actionName) {
+                        window.dispatchEvent(new CustomEvent('execute-menu-action', { detail: { action: actionName } }));
+                    }
+                } else {
+                    // Non-control global keys
+                    if (e.key === 'F11') {
+                        e.preventDefault();
+                        window.dispatchEvent(new CustomEvent('execute-menu-action', { detail: { action: 'toggle-fullscreen' } }));
+                    }
+                }
+            });
     </script>
 </body>
 

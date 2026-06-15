@@ -49,6 +49,33 @@ function menubarController() {
 
             // ── CLOSE MENUS ON IFRAME CLICKS LISTENER ──
             window.addEventListener('trigger-close-all-menus', () => this.closeAll());
+
+            // ── GLOBAL KEYBOARD SHORTCUTS EXECUTOR ──
+            window.addEventListener('execute-menu-action', (e) => {
+                if (e.detail && e.detail.action) {
+                    const act = e.detail.action;
+
+                    // Route directly to correct visual toggle or layout settings
+                    if (act === 'layout-both') {
+                        this.setLayoutMode('both');
+                    } else if (act === 'layout-pdf') {
+                        this.setLayoutMode('pdf_only');
+                    } else if (act === 'layout-trans') {
+                        this.setLayoutMode('trans_only');
+                    } else if (act === 'toggle-progress') {
+                        this.toggleProgressPanel();
+                    } else if (act === 'toggle-fullscreen') {
+                        this.toggleFullscreen();
+                    } else {
+                        // Guard check: Some actions require an active document loaded to execute
+                        const docRequired = ['export-pdf', 'show-properties', 'toggle-translation', 'toggle-translation-range'];
+                        if (docRequired.includes(act) && !this.isDocumentLoaded()) {
+                            return; // Abort quietly if no document is loaded
+                        }
+                        this.triggerAction(act);
+                    }
+                }
+            });
         },
 
 

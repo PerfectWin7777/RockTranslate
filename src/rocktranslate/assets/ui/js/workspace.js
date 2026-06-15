@@ -220,6 +220,20 @@ function workspaceController() {
                 const iframeWin = pdfFrame.contentWindow;
                 const iframeDoc = iframeWin.document;
 
+                // Forward physical keyboard shortcuts up to the main application context
+                iframeDoc.addEventListener('keydown', (e) => {
+                    const clonedEvent = new KeyboardEvent('keydown', {
+                        key: e.key,
+                        code: e.code,
+                        ctrlKey: e.ctrlKey,
+                        metaKey: e.metaKey,
+                        shiftKey: e.shiftKey,
+                        altKey: e.altKey,
+                        bubbles: true
+                    });
+                    window.dispatchEvent(clonedEvent);
+                });
+
                 iframeDoc.addEventListener('click', () => {
                     window.dispatchEvent(new CustomEvent('trigger-close-all-menus'));
                 });
@@ -249,6 +263,21 @@ function workspaceController() {
             htmlFrame.onload = function () {
                 const rightDocWindow = htmlFrame.contentWindow;
                 const rightDoc = rightDocWindow.document;
+
+                // Forward physical keyboard shortcuts up to the main application context
+                rightDoc.addEventListener('keydown', (e) => {
+                    const clonedEvent = new KeyboardEvent('keydown', {
+                        key: e.key,
+                        code: e.code,
+                        ctrlKey: e.ctrlKey,
+                        metaKey: e.metaKey,
+                        shiftKey: e.shiftKey,
+                        altKey: e.altKey,
+                        bubbles: true
+                    });
+                    window.dispatchEvent(clonedEvent);
+                });
+                
                 const scrollContainer = rightDoc.getElementById('page-container') || rightDocWindow;
 
                 rightDoc.addEventListener('click', () => {
