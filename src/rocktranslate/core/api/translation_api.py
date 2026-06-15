@@ -726,5 +726,5 @@ class TranslationApiMixin:
         self._active_html_path = None
         self._original_texts = {}
         self._tid_to_page = {}
-        self._translated_texts = {}
+        self._translated_pages  = {}
         self._send_status_i18n("status_ready")

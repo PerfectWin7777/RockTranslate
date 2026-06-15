@@ -114,10 +114,10 @@ class HistoryApiMixin:
         # Read live session counters from TranslationApiMixin attributes
         # These are set to {} by default in TranslationApiMixin.__init__()
         original_texts = getattr(self, "_original_texts", {})
-        translated_texts = getattr(self, "_translated_texts", {})
+        translated_pages = getattr(self, "_translated_pages", {})
 
         total_segments = len(original_texts)
-        done_segments = len(translated_texts)
+        done_segments = sum(len(page_data) for page_data in translated_pages.values())
 
         # Compute translation status exactly like the Qt version
         trans_status = "Not translated"

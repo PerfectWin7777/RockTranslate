@@ -183,3 +183,99 @@ body {
 [x-cloak] {
     display: none !important;
 }
+
+
+
+/* ── CUSTOM DIALOG OVERLAYS ── */
+.dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+    /* Plus haut que les modales classiques (2000) */
+}
+
+.dialog-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    width: 440px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    animation: dialog-fade-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dialog-fade-in {
+    from {
+        transform: scale(0.95);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.dialog-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dialog-body-text {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-bottom: 24px;
+}
+
+.dialog-footer-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.dialog-btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.1s ease;
+    outline: none;
+    border: none;
+}
+
+.dialog-btn-cancel {
+    background: #edf2f7;
+    border: 1px solid #cbd5e0;
+    color: #475569;
+}
+
+.dialog-btn-cancel:hover {
+    background: #e2e8f0;
+}
+
+.dialog-btn-confirm {
+    background: var(--accent-blue);
+    border: 1px solid var(--accent-blue);
+    color: #ffffff;
+}
+
+.dialog-btn-confirm:hover {
+    background: var(--accent-blue-hover);
+}

@@ -186,7 +186,8 @@ function menubarController() {
         async clearHistory() {
             this.closeAll();
             const i18n = Alpine.store('i18n');
-            if (confirm(i18n.translate('clear_history_confirm_msg'))) {
+            const confirmed = await Alpine.store('dialogs').confirm(i18n.translate('clear_history_confirm_msg'));
+            if (confirmed) {
                 if (window.pywebview.api && window.pywebview.api.clear_recent_history) {
                     await window.pywebview.api.clear_recent_history();
                 }
@@ -197,10 +198,11 @@ function menubarController() {
         /**
          * Requests confirmation and gracefully shuts down the PyWebview environment.
          */
-        quitApplication() {
+        async quitApplication() {
             this.closeAll();
             const i18n = Alpine.store('i18n');
-            if (confirm(i18n.translate('quit_confirm_msg'))) {
+            const confirmed = await Alpine.store('dialogs').confirm(i18n.translate('quit_confirm_msg'));
+            if (confirmed) {
                 if (window.pywebview && window.pywebview.api && window.pywebview.api.quit_application) {
                     window.pywebview.api.quit_application();
                 }

@@ -54,13 +54,13 @@
 }
 
 .toast-icon {
-    font-size: 16px;
+    font-size: 25px;
     font-weight: bold;
     display: inline-block;
 }
 
 .toast-message {
-    font-size: 11px;
+    font-size: 14px;
     font-weight: 500;
     white-space: pre-line;
     color: var(--text-primary);

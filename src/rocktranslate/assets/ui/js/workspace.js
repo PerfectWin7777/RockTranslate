@@ -145,28 +145,19 @@ function workspaceController() {
             this.setupSyncScrolls(pdfFrame, htmlFrame);
         },
 
-        startSplitterDrag(e) {
-            this.isDragging = true;
-
-            // Empêche la sélection de texte native et le drag & drop accidentel
-            if (e) e.preventDefault();
-
-            const grid = document.getElementById('workspace-grid');
-            if (grid) {
-                grid.classList.add('dragging');
-            }
-            document.body.style.cursor = 'col-resize';
-
-            // Désactive les pointer-events pour éviter que les iframes ne capturent le mouvement
-            document.getElementById('pdf-iframe').style.pointerEvents = 'none';
-            document.getElementById('html-iframe').style.pointerEvents = 'none';
-        },
-
+        /**
+          * Initiates the drag-resize interaction on the splitter divider.
+          * Temporarily disables pointer-events in both iFrames to prevent mouse capturing.
+          * 
+          * @param {MouseEvent} e - The native mousedown event.
+          */
         startSplitterDrag(e) {
             this.isDragging = true;
 
             // Prevent native text selections and text dragging artifacts during movement
-            if (e) e.preventDefault();
+            if (e) {
+                e.preventDefault();
+            }
 
             const grid = document.getElementById('workspace-grid');
             if (grid) {
@@ -175,8 +166,10 @@ function workspaceController() {
             document.body.style.cursor = 'col-resize';
 
             // Disable pointer-events inside iframes to prevent them from swallowing mouse movements
-            document.getElementById('pdf-iframe').style.pointerEvents = 'none';
-            document.getElementById('html-iframe').style.pointerEvents = 'none';
+            const pdfFrame = document.getElementById('pdf-iframe');
+            const htmlFrame = document.getElementById('html-iframe');
+            if (pdfFrame) pdfFrame.style.pointerEvents = 'none';
+            if (htmlFrame) htmlFrame.style.pointerEvents = 'none';
         },
 
         handleSplitterMove(e) {
@@ -255,10 +248,16 @@ function workspaceController() {
             }
         },
 
+        /**
+         * Synchronizes scrolling coordinates and interactive events bidirectionally.
+         * 
+         * @param {HTMLIFrameElement} pdfFrame - The left-side PDF.js rendering viewport.
+         * @param {HTMLIFrameElement} htmlFrame - The right-side translated HTML workspace.
+         */
         setupSyncScrolls(pdfFrame, htmlFrame) {
             const self = this;
 
-            // Sync: Left (PDF) -> Right (HTML)
+            // Sync Phase 1: Left Document (Original PDF) -> Right Document (HTML)
             pdfFrame.onload = function () {
                 const iframeWin = pdfFrame.contentWindow;
                 const iframeDoc = iframeWin.document;
@@ -277,23 +276,22 @@ function workspaceController() {
                     window.dispatchEvent(clonedEvent);
                 });
 
-                iframeDoc.addEventListener('click', () => {
-                    window.dispatchEvent(new CustomEvent('trigger-close-all-menus'));
-                });
-                
+                // Single unified click listener to handle menu closures and link intercepts
                 iframeDoc.addEventListener('click', (e) => {
+                    window.dispatchEvent(new CustomEvent('trigger-close-all-menus'));
+
                     const link = e.target.closest('a');
                     if (link && link.href) {
                         const href = link.href;
-                        // If it is an external link (not our local server files)
+                        // Securely open external URLs in the host system's native browser
                         if (href.startsWith('http') && !href.includes(window.location.host)) {
                             e.preventDefault();
-                            // Call Python API to open in native default system browser
-                            window.pywebview.api.open_external_link(href);
+                            if (window.pywebview && window.pywebview.api) {
+                                window.pywebview.api.open_external_link(href);
+                            }
                         }
                     }
                 });
-
 
                 const checkInterval = setInterval(() => {
                     try {
@@ -305,18 +303,20 @@ function workspaceController() {
                             }
 
                             iframeWin.PDFViewerApplication.eventBus.on('pagechanging', (evt) => {
-                                const pageIndex = evt.pageNumber - 1; // 0-based
+                                const pageIndex = evt.pageNumber - 1; // 0-based index
                                 if (pageIndex !== self.lastSyncedPage && !self.isSyncing && self.isPDFLoaded) {
                                     self.lastSyncedPage = pageIndex;
                                     self.syncPDFToHTML(htmlFrame, pageIndex);
                                 }
                             });
                         }
-                    } catch (e) { }
+                    } catch (e) {
+                        // Suppress failures during early lifecycle loads
+                    }
                 }, 100);
             };
 
-            // Sync: Right (HTML) -> Left (PDF)
+            // Sync Phase 2: Right Document (HTML Workspace) -> Left Document (PDF)
             htmlFrame.onload = function () {
                 const rightDocWindow = htmlFrame.contentWindow;
                 const rightDoc = rightDocWindow.document;
@@ -334,22 +334,22 @@ function workspaceController() {
                     });
                     window.dispatchEvent(clonedEvent);
                 });
-                
+
                 const scrollContainer = rightDoc.getElementById('page-container') || rightDocWindow;
 
-                rightDoc.addEventListener('click', () => {
+                // Unified click handler for the translated layout (Fixed scope error)
+                rightDoc.addEventListener('click', (e) => {
                     window.dispatchEvent(new CustomEvent('trigger-close-all-menus'));
-                });
 
-                iframeDoc.addEventListener('click', (e) => {
                     const link = e.target.closest('a');
                     if (link && link.href) {
                         const href = link.href;
-                        // If it is an external link (not our local server files)
+                        // Securely open external URLs in the host system's native browser
                         if (href.startsWith('http') && !href.includes(window.location.host)) {
                             e.preventDefault();
-                            // Call Python API to open in native default system browser
-                            window.pywebview.api.open_external_link(href);
+                            if (window.pywebview && window.pywebview.api) {
+                                window.pywebview.api.open_external_link(href);
+                            }
                         }
                     }
                 });
@@ -359,7 +359,9 @@ function workspaceController() {
                     if (body) {
                         body.style.zoom = self.zoomFactor;
                     }
-                } catch (e) { }
+                } catch (e) {
+                    // Suppress failures if body zoom metrics are currently locked
+                }
 
                 try {
                     rightDoc.querySelectorAll('[id^="glass-overlay-t-"]').forEach(glass => {
@@ -368,7 +370,9 @@ function workspaceController() {
                             textElement.textContent = Alpine.store('i18n').translate('waiting_translation');
                         }
                     });
-                } catch (e) { }
+                } catch (e) {
+                    // Fail silently during initial asset builds
+                }
 
                 scrollContainer.addEventListener('scroll', () => {
                     if (self.isSyncing || !self.isPDFLoaded) return;
@@ -398,7 +402,9 @@ function workspaceController() {
                                 leftWin.PDFViewerApplication.pdfViewer.pagesCount > 0) {
                                 leftWin.PDFViewerApplication.page = Number(currentIdx) + 1;
                             }
-                        } catch (e) { }
+                        } catch (e) {
+                            // Suppress failures if eventBus handles are busy
+                        }
 
                         setTimeout(() => { self.isSyncing = false; }, 300);
                     }

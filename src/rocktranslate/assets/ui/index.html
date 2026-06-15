@@ -115,7 +115,39 @@
                     this.items = this.items.filter(item => item.id !== id);
                 }
             });
+
+            
+            Alpine.store('dialogs', {
+                isOpen: false,
+                title: 'RockTranslate',
+                message: '',
+                resolvePromise: null,
+
+                //invoke an asynchronous confirmation request
+                confirm(message, title = 'RockTranslate') {
+                    this.message = message;
+                    this.title = title;
+                    this.isOpen = true;
+                    return new Promise((resolve) => {
+                        this.resolvePromise = resolve;
+                    });
+                },
+
+                handleConfirm() {
+                    this.isOpen = false;
+                    if (this.resolvePromise) this.resolvePromise(true);
+                },
+
+                handleCancel() {
+                    this.isOpen = false;
+                    if (this.resolvePromise) this.resolvePromise(false);
+                }
+            });
+
         });
+
+
+
 
         window.showStatusMessage = function (text) {
             window.dispatchEvent(new CustomEvent('update-status-text', { detail: { text: text } }));
@@ -253,7 +285,8 @@
                         if (isTranslated) {
                             const i18n = Alpine.store('i18n');
                             const confirmMsg = i18n.translate('retranslate_confirm_msg') || "All selected pages are already translated.\n\nDo you want to reset and translate again?";
-                            if (confirm(confirmMsg)) {
+                            const confirmed = await Alpine.store('dialogs').confirm(confirmMsg);
+                            if (confirmed) {
                                 // Clear translation caches and reset DOM before continuing
                                 await window.pywebview.api.reset_translation_state();
                             } else {
@@ -280,11 +313,12 @@
 
                 async resetSettingsToDefault() {
                     const i18n = Alpine.store('i18n');
-                    if (confirm(i18n.translate('reset_confirm_msg'))) {
+                    const confirmed = await Alpine.store('dialogs').confirm(i18n.translate('reset_confirm_msg'));
+                    if (confirmed) {
                         try {
                             const result = await window.pywebview.api.reset_settings_to_default();
                             if (result && result.status === 'success') {
-                                alert(i18n.translate('reset_success_msg'));
+                                window.showToast(i18n.translate('reset_success_msg'), "success", 6000 );
                                 window.location.reload();
                             }
                         } catch (e) {
@@ -293,9 +327,10 @@
                     }
                 },
 
-                closeDocument() {
+              async  closeDocument() {
                     const i18n = Alpine.store('i18n');
-                    if (confirm(i18n.translate('close_doc_confirm_msg'))) {
+                    const confirmed = await Alpine.store('dialogs').confirm(i18n.translate('close_doc_confirm_msg'));
+                    if (confirmed) {
                         // Force-halt any active threads on closing documents
                         window.pywebview.api.cancel_translation();
                         // Triggers cleanup and state resets on the python backend
@@ -369,6 +404,25 @@
                 }
             });
     </script>
+
+
+    <!-- Custom async confirmation modal -->
+    <div x-show="$store.dialogs.isOpen" class="dialog-overlay" x-cloak style="display: none;">
+        <div class="dialog-card" @click.away="$store.dialogs.handleCancel()">
+            <div class="dialog-title">
+                <span style="color: var(--accent-blue); font-size: 16px;">💎</span>
+                <span x-text="$store.dialogs.title"></span>
+            </div>
+            <div class="dialog-body-text" x-text="$store.dialogs.message"></div>
+            <div class="dialog-footer-actions">
+                <button class="dialog-btn dialog-btn-cancel" @click="$store.dialogs.handleCancel()"
+                    x-text="$store.i18n.translate('cancel_btn')"></button>
+                <button class="dialog-btn dialog-btn-confirm" @click="$store.dialogs.handleConfirm()">OK</button>
+            </div>
+        </div>
+    </div>
+
+
 </body>
 
 </html>

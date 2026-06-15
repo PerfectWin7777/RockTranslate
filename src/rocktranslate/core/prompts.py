@@ -18,7 +18,7 @@ from typing import List, Dict, Optional
 
 # Safe fallback imports supporting both standard package modules and direct scripts
 try:
-    from src.rocktranslate.core.constants import DEFAULT_LANG_NAME
+    from rocktranslate.core.constants import DEFAULT_LANG_NAME
 except ImportError:
     from src.rocktranslate.core.constants import DEFAULT_LANG_NAME
 

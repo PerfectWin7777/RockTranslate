@@ -198,9 +198,10 @@ function apiConfigController() {
         /**
         * Clears the API Key for the active provider with confirmation safety logic.
         */
-        deleteKey() {
+        async deleteKey() {
             const i18n = Alpine.store('i18n');
-            if (confirm(i18n.translate('delete_key_confirm_msg'))) {
+            const confirmed = await Alpine.store('dialogs').confirm(i18n.translate('delete_key_confirm_msg'));
+            if (confirmed) {
                 if (this.isolatedConfigs[this.currentProvider]) {
                     this.isolatedConfigs[this.currentProvider].api_key = '';
                     this.showSuccessLabel = true;
