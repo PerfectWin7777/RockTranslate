@@ -89,7 +89,7 @@ class TranslationApiMixin:
                 self._send_status_i18n("status_extraction_pages", {"current": current, "total": total})
 
             # Check for custom system overrides, falling back to default directories
-            assets_dir = config_db.get("SystemConfig", "pdf2htmlex_path_override", "")
+            assets_dir = str(config_db.get("SystemConfig", "pdf2htmlex_path_override", "") or "").strip()
             if not assets_dir or not os.path.exists(assets_dir):
                 assets_dir = DEFAULT_ASSETS_DIR
 

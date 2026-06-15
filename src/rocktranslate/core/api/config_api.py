@@ -2,32 +2,76 @@
 RockTranslate — Configurations and Credentials Web API Mixin
 Path: src/rocktranslate/core/api/config_api.py
 
-Manages system locale preferences and fetches active provider credential statuses.
-Handles reading and writing system settings and translation engine settings.
+Manages system locale preferences, active provider credential statuses, and target
+translation languages. Handles reading and writing system settings, API keys,
+and translation engine parameters with strict error boundaries.
 
 Author: RockTranslate Contributors
 License: MIT License
-Version: 1.0.3
+Version: 1.1.0
 """
 
-import json # <--- ADD THIS IMPORT
-from typing import Dict, Any
+import json
+from typing import Dict, Any, Optional
 from ..config_manager import config_db
-from ..constants import DEFAULT_PROVIDERS, THRESHOLD_PX, SLIDING_CONTEXT_MAX_SIZE, MAX_SEGMENTS_PER_BATCH, MAX_RETRIES
+from ..constants import (
+    DEFAULT_PROVIDERS, 
+    THRESHOLD_PX, 
+    SLIDING_CONTEXT_MAX_SIZE, 
+    MAX_SEGMENTS_PER_BATCH, 
+    MAX_RETRIES
+)
 
 
 class ConfigApiMixin:
     """
-    Mixin class handling system preferences and LLM credentials status.
+    Mixin class handling system preferences, active model parameters, 
+    and LLM credentials status. Communicates directly with frontend JavaScript layers.
     """
+
     def get_system_locale(self) -> str:
-        return config_db.get("SystemConfig", "ui_language", "en")
+        """
+        Retrieves the persisted UI language preference of the application.
+
+        Returns:
+            str: The saved language code (e.g., 'en', 'fr'). Defaults to 'en'.
+        """
+        return str(config_db.get("SystemConfig", "ui_language", "en")).strip()
 
     def set_system_locale(self, locale_code: str) -> None:
-        config_db.set("SystemConfig", "ui_language", locale_code)
+        """
+        Saves the preferred UI language code to persistent storage.
+
+        Args:
+            locale_code: The target language code (e.g., 'fr', 'es').
+        """
+        config_db.set("SystemConfig", "ui_language", str(locale_code).strip())
         print(f"[API] Saved system UI locale preference: {locale_code}")
 
+    # ── TARGET TRANSLATION LANGUAGE SYNC (Cures the silent target language gap) ──
+    def set_target_language(self, language_name: str) -> None:
+        """
+        Saves the target translation language to database configuration,
+        and instantly resets active translation states to prevent cross-language memory leaks.
+
+        Args:
+            language_name: The full string name of the target language (e.g., 'Spanish', 'German').
+        """
+        clean_lang = str(language_name).strip()
+        config_db.set("SystemConfig", "target_lang", clean_lang)
+        print(f"[API] Saved target translation language preference: {clean_lang}")
+        
+        # Safely reset active translations cache as the target language changed
+        if hasattr(self, "reset_all_translations"):
+            self.reset_all_translations()
+
     def get_api_status(self) -> Dict[str, Any]:
+        """
+        Fetches the connection status and name of the active LLM provider model.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing active status, provider name, and model.
+        """
         try:
             provider = config_db.get("APIConfig", "provider", "Google Gemini")
             keys_dict = config_db.get("APIConfig", "api_keys_by_provider", {})
@@ -38,6 +82,8 @@ class ConfigApiMixin:
             active_key = keys_dict.get(provider, "")
             fallback_model = DEFAULT_PROVIDERS[provider]["models"][0]
             model = config_db.get("APIConfig", f"last_model_{provider}", fallback_model)
+            
+            # Ollama operates offline without API keys; others require active credentials
             is_active = bool(active_key) or provider == "Ollama (Local)"
             
             return {
@@ -56,6 +102,12 @@ class ConfigApiMixin:
 
     # ── SYSTEM & CACHE CONFIGURATIONS ──
     def get_system_settings(self) -> Dict[str, Any]:
+        """
+        Retrieves active local caches and path override parameters.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing overrides and exit cache lifecycles.
+        """
         return {
             "clear_cache_on_exit": config_db.get("SystemConfig", "clear_cache_on_exit", True),
             "pdf2htmlex_path_override": config_db.get("SystemConfig", "pdf2htmlex_path_override", ""),
@@ -63,6 +115,15 @@ class ConfigApiMixin:
         }
 
     def save_system_settings(self, settings: Dict[str, Any]) -> Dict[str, str]:
+        """
+        Saves updated system settings and binary overrides to persistent database.
+
+        Args:
+            settings: Map holding user configured system fields.
+
+        Returns:
+            Dict[str, str]: Status payload ('success' or 'error' with message).
+        """
         try:
             config_db.set("SystemConfig", "clear_cache_on_exit", bool(settings.get("clear_cache_on_exit", True)))
             config_db.set("SystemConfig", "pdf2htmlex_path_override", str(settings.get("pdf2htmlex_path_override", "")).strip())
@@ -73,6 +134,12 @@ class ConfigApiMixin:
 
     # ── TRANSLATION ENGINE CONFIGURATIONS ──
     def get_translation_settings(self) -> Dict[str, Any]:
+        """
+        Retrieves active LLM parameters, temperature variables, and physical tolerances.
+
+        Returns:
+            Dict[str, Any]: Map of current active configuration parameters.
+        """
         return {
             "temperature": config_db.get("TranslationConfig", "temperature", 1.0),
             "sliding_context_size": config_db.get("TranslationConfig", "sliding_context_size", SLIDING_CONTEXT_MAX_SIZE),
@@ -82,6 +149,15 @@ class ConfigApiMixin:
         }
 
     def save_translation_settings(self, settings: Dict[str, Any]) -> Dict[str, str]:
+        """
+        Saves updated translation parameters and column division thresholds to database.
+
+        Args:
+            settings: Dictionary of updated parameter values.
+
+        Returns:
+            Dict[str, str]: Status dictionary response.
+        """
         try:
             config_db.set("TranslationConfig", "temperature", float(settings.get("temperature", 1.0)))
             config_db.set("TranslationConfig", "sliding_context_size", int(settings.get("sliding_context_size", 5)))
@@ -94,11 +170,20 @@ class ConfigApiMixin:
 
     # ── DYNAMIC AI PROVIDERS & KEY MANAGERS ──
     def get_providers_config(self) -> Dict[str, Any]:
+        """
+        Exposes static provider configurations and suggested models.
+
+        Returns:
+            Dict[str, Any]: Provider profiles catalog dictionary.
+        """
         return DEFAULT_PROVIDERS
 
     def get_api_config(self) -> Dict[str, Any]:
         """
-        Fetches all active provider credentials and isolated configurations with safe error containment.
+        Fetches credentials and settings mapped individually for each AI provider.
+
+        Returns:
+            Dict[str, Any]: Nested dictionary containing configs and model keys.
         """
         try:
             provider = config_db.get("APIConfig", "provider", "Google Gemini")
@@ -134,6 +219,15 @@ class ConfigApiMixin:
             return {"current_provider": "Google Gemini", "isolated_configs": {}}
 
     def save_api_config(self, config: Dict[str, Any]) -> Dict[str, str]:
+        """
+        Saves customized model credentials, custom URLs, and provider keys to database.
+
+        Args:
+            config: Target dictionary layout payload containing active settings.
+
+        Returns:
+            Dict[str, str]: Status dictionary.
+        """
         try:
             current_provider = config.get("current_provider", "Google Gemini")
             isolated_configs = config.get("isolated_configs", {})
@@ -158,18 +252,14 @@ class ConfigApiMixin:
             return {"status": "success"}
         except Exception as error:
             return {"status": "error", "message": str(error)}
-    
-
-    def get_target_language(self) -> str:
-        """Returns the currently saved target translation language."""
-        return config_db.get("SystemConfig", "target_lang", "French")
-
-    def set_target_language(self, lang: str) -> None:
-        """Persists the user-selected target translation language."""
-        config_db.set("SystemConfig", "target_lang", lang)
-
 
     def reset_settings_to_default(self) -> Dict[str, str]:
+        """
+        Wipes active database settings files.
+
+        Returns:
+            Dict[str, str]: Status dictionary.
+        """
         try:
             config_db.clear()
             return {"status": "success"}
