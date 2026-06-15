@@ -179,14 +179,14 @@
 
                 <div class="dropdown-divider"></div>
 
-                <div class="dropdown-item" @click="toggleProgressPanel()">
+                <div class="dropdown-item" @click="toggleProgressPanel(); closeAll()">
                     <span class="dropdown-label">
                         <span class="dropdown-checkmark" x-text="showProgressPanel ? '✓' : ''"></span>
                         <span x-text="$store.i18n.translate('item_show_progress')"></span>
                     </span>
                     <span class="dropdown-shortcut">Ctrl+J</span>
                 </div>
-                <div class="dropdown-item" @click="toggleFullscreen()">
+                <div class="dropdown-item" @click="toggleFullscreen(); closeAll()">
                     <span class="dropdown-label">
                         <span class="dropdown-checkmark" x-text="isFullscreen ? '✓' : ''"></span>
                         <span x-text="$store.i18n.translate('item_fullscreen')"></span>
@@ -196,21 +196,21 @@
 
                 <div class="dropdown-divider"></div>
 
-                <div class="dropdown-item" @click="setLayoutMode('both')">
+                <div class="dropdown-item" @click="setLayoutMode('both'); closeAll()">
                     <span class="dropdown-label">
                         <span class="dropdown-checkmark" x-text="layoutMode === 'both' ? '✓' : ''"></span>
                         <span x-text="$store.i18n.translate('item_layout_both')"></span>
                     </span>
                     <span class="dropdown-shortcut">Ctrl+3</span>
                 </div>
-                <div class="dropdown-item" @click="setLayoutMode('pdf_only')">
+                <div class="dropdown-item" @click="setLayoutMode('pdf_only'); closeAll()">
                     <span class="dropdown-label">
                         <span class="dropdown-checkmark" x-text="layoutMode === 'pdf_only' ? '✓' : ''"></span>
                         <span x-text="$store.i18n.translate('item_layout_pdf')"></span>
                     </span>
                     <span class="dropdown-shortcut">Ctrl+1</span>
                 </div>
-                <div class="dropdown-item" @click="setLayoutMode('trans_only')">
+                <div class="dropdown-item" @click="setLayoutMode('trans_only'); closeAll()">
                     <span class="dropdown-label">
                         <span class="dropdown-checkmark" x-text="layoutMode === 'trans_only' ? '✓' : ''"></span>
                         <span x-text="$store.i18n.translate('item_layout_trans')"></span>

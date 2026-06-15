@@ -158,6 +158,16 @@ class ConfigApiMixin:
             return {"status": "success"}
         except Exception as error:
             return {"status": "error", "message": str(error)}
+    
+
+    def get_target_language(self) -> str:
+        """Returns the currently saved target translation language."""
+        return config_db.get("SystemConfig", "target_lang", "French")
+
+    def set_target_language(self, lang: str) -> None:
+        """Persists the user-selected target translation language."""
+        config_db.set("SystemConfig", "target_lang", lang)
+
 
     def reset_settings_to_default(self) -> Dict[str, str]:
         try:

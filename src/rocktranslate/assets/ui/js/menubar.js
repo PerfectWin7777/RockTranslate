@@ -59,6 +59,12 @@ function menubarController() {
                 if (status) {
                     this.apiState = status;
                 }
+
+                // Load persisted target language from Python config
+                const savedLang = await window.pywebview.api.get_target_language();
+                if (savedLang) {
+                    this.targetLang = savedLang;
+                }
             } catch (e) {
                 console.error("[Menubar] Error reading menu values:", e);
             }
@@ -101,7 +107,9 @@ function menubarController() {
         setTargetLanguage(lang) {
             this.targetLang = lang;
             this.closeAll();
-            this.$dispatch('trigger-target-lang-change', { language: lang });
+            if (window.pywebview && window.pywebview.api) {
+                window.pywebview.api.set_target_language(lang);
+            }
         },
 
         setAppLanguage(code) {
@@ -166,12 +174,16 @@ function menubarController() {
                 }
             } else if (actionName === 'zoom-in') {
                 this.$dispatch('trigger-zoom-in');
+                this.closeAll();
             } else if (actionName === 'zoom-out') {
                 this.$dispatch('trigger-zoom-out');
+                this.closeAll();
             } else if (actionName === 'zoom-reset') {
                 this.$dispatch('trigger-zoom-reset');
+                this.closeAll();
             } else {
                 this.$dispatch(`trigger-${actionName}`);
+                this.closeAll();
             }
         }
     };

@@ -42,6 +42,7 @@ class TranslationApiMixin:
         self._translated_texts: Dict[str, str] = {}
 
         self._stop_translation: bool = False
+        self._current_translating_page: int = -1
         self._trans_thread: Optional[threading.Thread] = None
 
     # ==============================================================================
@@ -183,18 +184,57 @@ class TranslationApiMixin:
         )
         self._trans_thread.start()
 
+    #
     def stop_translation(self) -> None:
+        """
+        Halts the active background translation thread and restores
+        the currently translating page back to its waiting overlay state,
+        exactly mirroring the Qt version's _on_translation_finished cancel branch.
+        """
         self._stop_translation = True
+
         if self._trans_thread and self._trans_thread.is_alive():
             self._trans_thread.join(timeout=1.0)
+
+        # Restore the page that was mid-translation back to its waiting state
+        # This mirrors the Qt: if self._current_translating_page != -1: reset_page_to_waiting()
+        current_page = getattr(self, "_current_translating_page", -1)
+        if current_page != -1:
+            self._send_js(
+                f"window.dispatchEvent(new CustomEvent('reset-page', "
+                f"{{ detail: {{ page: {current_page} }} }}))"
+            )
+
         self._send_status("Translation interrupted by the user.")
 
+
     def reset_all_translations(self) -> None:
-        """Clears local translation memory and resets DOM states to pristine English."""
+        """
+        Clears local translation memory, resets DOM states to pristine English,
+        resets the stop flag, and clears the progress panel.
+        Mirrors the Qt version's _reset_translation_state() exactly:
+        - self._translated_pages = {}
+        - self._current_translating_page = -1
+        - self.workspace_view.reset_translation_state()
+        - self.progress_panel.clear()
+        """
+        # 1. Clear Python-side translation memory
         self._translated_texts = {}
-        # Executes the clean in-memory HTML restoration script
+
+        # 2. Reset stop flag so next translation starts cleanly
+        self._stop_translation = False
+
+        # 3. Reset current page tracker
+        self._current_translating_page = -1
+
+        # 4. Restore original English DOM in the workspace iframe
         self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-reset'))")
+
+        # 5. Clear the progress panel bars and labels (mirrors progress_panel.clear())
+        self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-finished'))")
+
         self._send_status("Translation state reset cleanly.")
+
 
     def _run_translation(self, untranslated_texts: Dict[str, str], target_pages: Optional[List[int]]) -> None:
         try:
@@ -286,6 +326,7 @@ class TranslationApiMixin:
                 page_idx = self._tid_to_page.get(first_id, 0)
                 if page_idx != current_translating_page:
                     current_translating_page = page_idx
+                    self._current_translating_page = page_idx
                     self._send_js(f"window.dispatchEvent(new CustomEvent('prepare-page', {{ detail: {{ page: {page_idx} }} }}))")
                     self._send_js(f"window.dispatchEvent(new CustomEvent('update-progress-page', {{ detail: {{ page: {page_idx + 1} }} }}))")
 
