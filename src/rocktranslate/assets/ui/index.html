@@ -162,11 +162,10 @@
                         this.showProgressPanel = e.detail.visible;
                     });
 
-                    // Listens to finished triggers to reset action button text states
-                    // window.addEventListener('trigger-translation-finished', () => {
-                    //     this.isTranslating = false;
-                     //    this.updateMenuTriggerLabel();
-                    // });
+                  // Synchronize active translation state upon background completion
+                    window.addEventListener('trigger-translation-finished', () => {
+                        this.isTranslating = false;
+                    });
 
                     this.mountComponent('menubar-mount', 'components/menubar.html');
                     this.mountComponent('dashboard-mount', 'components/dashboard.html');
@@ -245,7 +244,7 @@
                     if (this.isTranslating) {
                         window.pywebview.api.cancel_translation();
                         this.isTranslating = false;
-                        this.updateMenuTriggerLabel();
+                      //   this.updateMenuTriggerLabel();
                         return;
                     }
 
