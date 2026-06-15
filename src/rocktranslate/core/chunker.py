@@ -18,13 +18,10 @@ import re
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 from loguru import logger
-try:
-    from PyQt6.QtCore import QSettings
-except ImportError:
-    QSettings = None
 
 # Safe imports supporting both standard package modules and direct scripts
 from .constants import MODEL_TOKEN_LIMITS, DEFAULT_TOKEN_LIMIT, MAX_SEGMENTS_PER_BATCH
+from .config_manager import config_db
 
 @dataclass
 class Batch:
@@ -136,15 +133,8 @@ def build_batches(
     if not segments:
         return []
 
-     # Safe fallback configuration if QSettings is unavailable [1]
-    if QSettings is not None:
-        try:
-            translation_settings = QSettings("RockTranslate", "TranslationConfig")
-            max_batch_size = translation_settings.value("max_segments_per_batch", 60, type=int)
-        except Exception:
-            max_batch_size = MAX_SEGMENTS_PER_BATCH
-    else:
-        max_batch_size = MAX_SEGMENTS_PER_BATCH  # Default safe chunk size for CLI execution [1]
+    # Fetch chunk limitations directly from the JSON database
+    max_batch_size = int(config_db.get("TranslationConfig", "max_segments_per_batch", MAX_SEGMENTS_PER_BATCH))
 
     budget = max_tokens or get_max_source_tokens(model)
     batches: List[Batch] = []

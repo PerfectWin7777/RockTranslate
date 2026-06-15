@@ -19,10 +19,6 @@ import time
 from typing import Callable, Optional, List, Dict, Any, Tuple
 from loguru import logger
 import json_repair
-try:
-    from PyQt6.QtCore import QSettings
-except ImportError:
-    QSettings = None
 
 # Suppress verbose debug console logs from LiteLLM dependencies
 try:
@@ -34,6 +30,7 @@ except ImportError:
 # Safe imports supporting both standard package modules and direct scripts
 from .constants import DEFAULT_PROVIDERS, MAX_RETRIES, RETRY_DELAYS
 from .prompts import get_system_prompt, get_user_message
+from .config_manager import config_db
 
 class LLMClient:
     """
@@ -71,12 +68,6 @@ class LLMClient:
         self.all_keys: Dict[str, str] = all_keys or {}
         self.on_status: Optional[Callable[[str], None]] = on_status
 
-        # Safely instantiate settings profile if available [1]
-        if QSettings is not None:
-            self.translation_settings = QSettings("RockTranslate", "TranslationConfig")
-        else:
-            self.translation_settings = None
-
         if litellm is None:
             raise ImportError(
                 "The 'litellm' library is required. Please install it via 'pip install litellm'."
@@ -84,18 +75,7 @@ class LLMClient:
 
         logger.info(f"LLMClient initialized successfully: model='{self.model}' | target_lang='{self.target_lang}'")
     
-    def _get_setting(self, key: str, fallback_default: Any, expected_type: type) -> Any:
-        """Safely retrieves a translation setting from QSettings, falling back to defaults [1]."""
-        if self.translation_settings is not None:
-            try:
-                val = self.translation_settings.value(key, fallback_default)
-                if expected_type == bool:
-                    return str(val).lower() in ("true", "1", "yes")
-                return expected_type(val)
-            except Exception:
-                return fallback_default
-        return fallback_default
-
+    
 
     def _log_status(self, message: str) -> None:
         """ Notifies the UI status bar (via the callback) and logs debug info. """
@@ -125,8 +105,8 @@ class LLMClient:
         """
         current_model: str = self.model
         current_key: Optional[str] = self.api_key
-        # Load dynamic connection retry budget from QSettings/, falling back to core constants
-        max_retries = self._get_setting("max_retries", MAX_RETRIES, int)
+        # Load dynamic connection retry budget directly from configuration, fallback to constants
+        max_retries = int(config_db.get("TranslationConfig", "max_retries", MAX_RETRIES))
 
         for attempt in range(max_retries):
             try:
@@ -208,7 +188,8 @@ class LLMClient:
         try:
             system_prompt: str = get_system_prompt(self.target_lang)
             user_message: str = get_user_message(batch_segments, context=context)
-            temperature = self._get_setting("temperature", 1.0, float)
+            # Read AI creativity temperature parameters directly from local storage
+            temperature = float(config_db.get("TranslationConfig", "temperature", 1.0))
 
             kwargs: Dict[str, Any] = {
                 "model": model,

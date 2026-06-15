@@ -32,8 +32,8 @@ import stat
 import urllib.request
 from typing import Optional
 from loguru import logger
-from PyQt6.QtCore import QSettings
 # Safe imports supporting both standard module launches and localized directory scripts
+from .config_manager import config_db
 from .constants import (
     DEFAULT_ASSETS_DIR,
     PDFJS_DOWNLOAD_URL,
@@ -109,10 +109,8 @@ def check_and_download_pdf2htmlex(assets_dir: str = DEFAULT_ASSETS_DIR) -> Optio
         Optional[str]: The absolute path to the executable binary if found or configured,
                        otherwise None.
     """
-
-    # Check if a custom system override path has been specified by the user
-    settings = QSettings("RockTranslate", "SystemConfig")
-    override_path = settings.value("pdf2htmlex_path_override", "", type=str)
+    # Check if a custom system override path is specified in the JSON config  by the user
+    override_path = str(config_db.get("SystemConfig", "pdf2htmlex_path_override", "")).strip()
     if override_path and os.path.exists(override_path):
         logger.info(f"Using user-defined pdf2htmlEX binary override: {override_path}")
         return override_path
@@ -187,9 +185,8 @@ def check_and_download_pdfjs(assets_dir: str = DEFAULT_ASSETS_DIR) -> Optional[s
     Returns:
         Optional[str]: Path to the local static 'viewer.html' if loaded, otherwise None.
     """
-    # Check if a custom folder override path has been specified by the user
-    settings = QSettings("RockTranslate", "SystemConfig")
-    override_path = settings.value("pdfjs_path_override", "", type=str)
+    # Check if a custom system folder override is specified in the JSON config  by the user
+    override_path = str(config_db.get("SystemConfig", "pdfjs_path_override", "")).strip()
     if override_path and os.path.exists(override_path):
         viewer_path = os.path.join(override_path, "web", "viewer.html")
         if os.path.exists(viewer_path):
