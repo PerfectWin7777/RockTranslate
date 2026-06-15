@@ -59,21 +59,6 @@ class TranslationApiMixin:
     # 1. BACKGROUND LAYOUT EXTRACTION WORKER
     # ==============================================================================
 
-    def extract_pdf(self, file_path: str) -> None:
-        """
-        Launches a background daemon thread to convert, parse, and instrument
-        the layout structure of a target PDF document.
-
-        Args:
-            file_path: Absolute filesystem path to the PDF document.
-        """
-        thread = threading.Thread(
-            target=self._run_extraction, 
-            args=(file_path,), 
-            daemon=True
-        )
-        thread.start()
-
     def _run_extraction(self, pdf_path: str) -> None:
         """
         Executes layout-preserving geometric extraction using local pdf2htmlEX engines,
@@ -81,6 +66,15 @@ class TranslationApiMixin:
         the frontend viewport through state triggers.
         """
         try:
+            # ── DEFENSIVE CHECK (Anti-Crash Guard for Drag and Drop Sandbox limits) ──
+            if not pdf_path or not isinstance(pdf_path, str):
+                logger.error("Extraction aborted: Received an invalid or empty file path (NoneType).")
+                self._send_status_i18n("status_extraction_failed")
+                self._send_toast_i18n("toast_extraction_failed", "error")
+                # Cleanly return the UI state back to the welcome dashboard
+                self._send_js("window.dispatchEvent(new CustomEvent('trigger-close-document'))")
+                return
+
             self._send_status_i18n("status_extraction_start")
             logger.info(f"Initiating background layout extraction for: {pdf_path}")
 
