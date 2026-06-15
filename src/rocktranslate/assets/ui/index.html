@@ -294,6 +294,8 @@
                     if (confirm(i18n.translate('close_doc_confirm_msg'))) {
                         // Force-halt any active threads on closing documents
                         window.pywebview.api.cancel_translation();
+                        // Triggers cleanup and state resets on the python backend
+                        window.pywebview.api.close_document();
                         this.activeFilePath = null;
                         this.activeHtmlPath = null;
                         this.currentScreen = 'dashboard';

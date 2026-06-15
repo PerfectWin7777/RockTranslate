@@ -78,7 +78,7 @@ class TranslationApiMixin:
             daemon=True
         )
         thread.start()
-        
+
 
     def _run_extraction(self, pdf_path: str) -> None:
         """
@@ -658,3 +658,48 @@ class TranslationApiMixin:
         except Exception as e:
             logger.error(f"Error during PDF export pipeline: {e}")
             self._send_toast_i18n("toast_export_error", "error", variables={"error": str(e)})
+
+
+    
+    def _cleanup_workspace_files(self) -> None:
+        """
+        Physically deletes temporary html workspace and raw layout files
+        if the clear_cache_on_exit user setting is set to True.
+        """
+        if config_db.get("SystemConfig", "clear_cache_on_exit", True):
+            # 1. Delete workspace HTML
+            if self._active_html_path and os.path.exists(self._active_html_path):
+                try:
+                    os.remove(self._active_html_path)
+                    logger.info(f"Cleaned up temporary workspace HTML: {self._active_html_path}")
+                except OSError as e:
+                    logger.warning(f"Could not delete temporary workspace file: {e}")
+            
+            # 2. Delete raw HTML compiled by pdf2htmlEX
+            if self._active_pdf_path:
+                pdf_dir = os.path.dirname(os.path.abspath(self._active_pdf_path))
+                pdf_filename = os.path.basename(self._active_pdf_path)
+                raw_html_path = os.path.join(pdf_dir, f"{os.path.splitext(pdf_filename)[0]}_raw.html")
+                if os.path.exists(raw_html_path):
+                    try:
+                        os.remove(raw_html_path)
+                        logger.info(f"Cleaned up raw HTML layout file: {raw_html_path}")
+                    except OSError as e:
+                        logger.warning(f"Could not delete raw HTML file: {e}")
+
+    
+    def close_document(self) -> None:
+        """
+        Safely stops any active threads, purges temporary cache files
+        if requested, and resets the document state registers.
+        """
+        self.stop_translation()
+        self._cleanup_workspace_files()
+        
+        # Reset local document states
+        self._active_pdf_path = None
+        self._active_html_path = None
+        self._original_texts = {}
+        self._tid_to_page = {}
+        self._translated_texts = {}
+        self._send_status_i18n("status_ready")

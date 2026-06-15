@@ -70,6 +70,9 @@ class RockTranslateAPI(HistoryApiMixin, ConfigApiMixin, TranslationApiMixin):
         if self._window:
             self._window.destroy()
 
-
+    
+    def close_document(self) -> None:
+        """Exposed endpoint to close the active document and run cache cleanup."""
+        super().close_document()
     
    
