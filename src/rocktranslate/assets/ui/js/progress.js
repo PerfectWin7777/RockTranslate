@@ -2,19 +2,17 @@
  * RockTranslate — Progress Panel Alpine.js Controller
  * Path: src/rocktranslate/assets/ui/js/progress.js
  * 
- * Manages reactive translation progress and calculates speeds and ETAs.
+ * Manages reactive translation progress and calculates relative speeds and range ETAs.
  * 
  * Author: RockTranslate Contributors
  * License: MIT License
- * Version: 1.0.0
+ * Version: 1.0.1
  */
 
 function progressController() {
     return {
-        // Toggle from the top dropdown View menu
         visible: true,
 
-        // Total page and segment metrics
         totalPages: 0,
         donePages: 0,
         totalSegments: 0,
@@ -22,26 +20,25 @@ function progressController() {
         batchesDone: 0,
         batchesTotal: 0,
 
-        // Calculation variables
+        // Range index map array
+        targetPages: null,
+
         startTime: null,
         speed: 0,
         eta: '',
 
         init() {
-            // Listen to show/hide toggles from the top View menu
             window.addEventListener('trigger-toggle-progress', (e) => {
                 this.visible = e.detail.visible;
             });
 
-            // Set boundaries when a PDF is fully loaded into workspace viewports
             window.addEventListener('document-ready', (e) => {
                 this.initializeBounds(e.detail.totalPages, e.detail.totalSegments);
             });
 
-            // --- PYTHON WORKER SIGNALS LISTENERS (SLOTS EQUIVALENTS) ---
             window.addEventListener('update-progress-page', (e) => {
                 if (e.detail && e.detail.page) {
-                    this.donePages = e.detail.page;
+                    this.setPage(e.detail.page);
                 }
             });
 
@@ -58,7 +55,7 @@ function progressController() {
             });
 
             window.addEventListener('trigger-translation-start', (e) => {
-                this.startTimer(e.detail.totalSegments);
+                this.startTimer(e.detail.totalSegments, e.detail.totalPages, e.detail.targetPages);
             });
 
             window.addEventListener('trigger-translation-finished', () => {
@@ -76,18 +73,53 @@ function progressController() {
             this.startTime = null;
             this.speed = 0;
             this.eta = '';
+            this.targetPages = null;
         },
 
-        startTimer(totalSegments) {
+        startTimer(totalSegments, totalPages, targetPages) {
             this.totalSegments = totalSegments;
             this.doneSegments = 0;
             this.startTime = Date.now();
             this.eta = Alpine.store('i18n').translate('calc_status');
+
+            // ── RANGE BOUNDS RESOLUTION ──
+            this.targetPages = targetPages; // Array of zero-based physical indices, e.g. [0, 4]
+            if (targetPages && Array.isArray(targetPages)) {
+                this.totalPages = targetPages.length;
+            } else {
+                this.totalPages = totalPages;
+            }
+            this.donePages = 0;
         },
 
         stopTimer() {
             this.startTime = null;
             this.eta = Alpine.store('i18n').translate('finished_status');
+        },
+
+        /**
+         * Sets relative page progress dynamically.
+         * Maps physical 1-based page numbers back to range sequential steps.
+         */
+        setPage(physicalPageNum) {
+            if (this.targetPages && Array.isArray(this.targetPages)) {
+                // Convert to 0-based index
+                const actualPageIdx = physicalPageNum - 1;
+                const seqIdx = this.targetPages.indexOf(actualPageIdx);
+                if (seqIdx !== -1) {
+                    this.donePages = seqIdx + 1;
+                } else {
+                    this.donePages = Math.min(physicalPageNum, this.totalPages);
+                }
+            } else {
+                this.donePages = physicalPageNum;
+            }
+        },
+
+        setBatches(done, total) {
+            this.batchesDone = done;
+            this.batchesTotal = total;
+            this.updateSpeedAndEta();
         },
 
         incrementSegment() {

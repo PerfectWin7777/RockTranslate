@@ -37,7 +37,9 @@
 
 <body x-data="appShell()"
     @document-ready.window="transitionToWorkspace($event.detail.pdfPath, $event.detail.htmlPath, $event.detail.totalPages, $event.detail.totalSegments)"
-    @trigger-file-picker.window="triggerFilePicker()" @trigger-show-about.window="$store.modals.open('about')"
+    @trigger-file-picker.window="triggerFilePicker()" @trigger-toggle-translation.window="toggleTranslation()"
+    @trigger-translation-range-execute.window="executeRangeTranslation($event.detail.range)"
+    @trigger-show-about.window="$store.modals.open('about')"
     @trigger-show-trans-settings.window="$store.modals.open('trans_settings')"
     @trigger-show-system-settings.window="$store.modals.open('system_settings')"
     @trigger-show-api-config.window="$store.modals.open('api_config')"
@@ -49,7 +51,6 @@
     <div id="menubar-mount"></div>
 
     <!-- 2. Core Viewport Switcher Router -->
-    <!-- Dynamically scales the height of workspace viewports to fit the 90px progress panel when active -->
     <div id="main-viewports"
         :style="`height: calc(100vh - ${showProgressPanel && currentScreen === 'workspace' ? '150px' : '60px'}); width: 100vw;`"
         style="transition: height 0.2s ease-out;">
@@ -129,11 +130,10 @@
                 currentScreen: 'dashboard',
                 activeFilePath: null,
                 activeHtmlPath: null,
-
-                // Sychronizes state to shrink viewport heights reactively
                 showProgressPanel: true,
+                isTranslating: false, // Tracks active translation threads state
 
-                async init() {
+                init() {
                     window.addEventListener('pywebviewready', async () => {
                         try {
                             const configLocale = await window.pywebview.api.get_system_locale();
@@ -146,24 +146,27 @@
                         }
                     });
 
-                    // Sync progress visibility toggles
                     window.addEventListener('trigger-toggle-progress', (e) => {
                         this.showProgressPanel = e.detail.visible;
                     });
 
-                    // Mount components asynchronously
-                    await this.mountComponent('menubar-mount', 'components/menubar.html');
-                    await this.mountComponent('dashboard-mount', 'components/dashboard.html');
-                    await this.mountComponent('progress-mount', 'components/progress.html');
-                    await this.mountComponent('statusbar-mount', 'components/statusbar.html');
+                    // Listens to finished triggers to reset action button text states
+                    window.addEventListener('trigger-translation-finished', () => {
+                        this.isTranslating = false;
+                        this.updateMenuTriggerLabel();
+                    });
 
-                    // Mount settings, about and properties modals
-                    await this.mountComponent('about-modal-mount', 'components/about_modal.html');
-                    await this.mountComponent('system-settings-modal-mount', 'components/system_settings_modal.html');
-                    await this.mountComponent('trans-settings-modal-mount', 'components/translation_settings_modal.html');
-                    await this.mountComponent('api-config-modal-mount', 'components/api_config_modal.html');
-                    await this.mountComponent('range-modal-mount', 'components/range_modal.html');
-                    await this.mountComponent('properties-modal-mount', 'components/properties_modal.html');
+                    this.mountComponent('menubar-mount', 'components/menubar.html');
+                    this.mountComponent('dashboard-mount', 'components/dashboard.html');
+                    this.mountComponent('progress-mount', 'components/progress.html');
+                    this.mountComponent('statusbar-mount', 'components/statusbar.html');
+
+                    this.mountComponent('about-modal-mount', 'components/about_modal.html');
+                    this.mountComponent('system-settings-modal-mount', 'components/system_settings_modal.html');
+                    this.mountComponent('trans-settings-modal-mount', 'components/translation_settings_modal.html');
+                    this.mountComponent('api-config-modal-mount', 'components/api_config_modal.html');
+                    this.mountComponent('range-modal-mount', 'components/range_modal.html');
+                    this.mountComponent('properties-modal-mount', 'components/properties_modal.html');
                 },
 
                 async mountComponent(elementId, componentPath) {
@@ -223,6 +226,44 @@
                     }
                 },
 
+                /**
+                 * Starts or cancels translation based on the active thread state.
+                 */
+                async toggleTranslation() {
+                    if (this.isTranslating) {
+                        window.pywebview.api.cancel_translation();
+                        this.isTranslating = false;
+                    } else {
+                        this.isTranslating = true;
+                        window.pywebview.api.start_translation();
+                    }
+                    this.updateMenuTriggerLabel();
+                },
+
+                /**
+                 * Starts range-targeted page translations.
+                 */
+                async executeRangeTranslation(rangeStr) {
+                    this.isTranslating = true;
+                    this.updateMenuTriggerLabel();
+                    window.pywebview.api.translate_pages(rangeStr);
+                },
+
+                updateMenuTriggerLabel() {
+                    const i18n = Alpine.store('i18n');
+                    const menuLabel = this.isTranslating
+                        ? (i18n.translate('item_stop_trans') || 'Stop Translation')
+                        : (i18n.translate('item_start_trans') || 'Start Translation');
+
+                    // Direct DOM injection to refresh the menu label immediately
+                    document.querySelectorAll('.dropdown-item').forEach(item => {
+                        const labelSpan = item.querySelector('.dropdown-label span:last-child');
+                        if (labelSpan && (labelSpan.textContent === i18n.translate('item_start_trans') || labelSpan.textContent === 'Stop Translation' || labelSpan.textContent === 'Start Translation')) {
+                            labelSpan.textContent = menuLabel;
+                        }
+                    });
+                },
+
                 async resetSettingsToDefault() {
                     const i18n = Alpine.store('i18n');
                     if (confirm(i18n.translate('reset_confirm_msg'))) {
@@ -239,9 +280,12 @@
                 },
 
                 closeDocument() {
+                    // Force-halt any active threads on closing documents
+                    window.pywebview.api.cancel_translation();
                     this.activeFilePath = null;
                     this.activeHtmlPath = null;
                     this.currentScreen = 'dashboard';
+                    this.isTranslating = false;
                     this.$dispatch('refresh-menu-data');
                 }
             };

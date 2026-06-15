@@ -17,8 +17,8 @@ function workspaceController() {
         isSyncing: false,
         lastSyncedPage: 0,
 
-        // Default initial zoom factor (70%)
-        zoomFactor: 0.7,
+        // Default initial zoom factor (80%)
+        zoomFactor: 0.8,
 
         init() {
             // Register zoom listeners from the bottom status bar slider
@@ -35,6 +35,74 @@ function workspaceController() {
                     this.setPaneLayout(e.detail.mode);
                 }
             });
+
+            // ── TRANSLATION WORKER COMMUNICATION INTERCEPTORS ──
+            window.addEventListener('stream-translation', (e) => {
+                if (e.detail && e.detail.id && e.detail.text) {
+                    const htmlFrame = document.getElementById('html-iframe');
+                    if (htmlFrame && htmlFrame.contentWindow && htmlFrame.contentWindow.applyTranslation) {
+                        htmlFrame.contentWindow.applyTranslation(e.detail.id, e.detail.text);
+                    }
+                }
+            });
+
+            window.addEventListener('prepare-page', (e) => {
+                if (e.detail && e.detail.page !== undefined) {
+                    const htmlFrame = document.getElementById('html-iframe');
+                    if (htmlFrame && htmlFrame.contentWindow && htmlFrame.contentWindow.preparePageForTranslation) {
+                        htmlFrame.contentWindow.preparePageForTranslation(e.detail.page);
+                    }
+                }
+            });
+
+            window.addEventListener('reset-page', (e) => {
+                if (e.detail && e.detail.page !== undefined) {
+                    const htmlFrame = document.getElementById('html-iframe');
+                    if (htmlFrame && htmlFrame.contentWindow && htmlFrame.contentWindow.resetPageToWaiting) {
+                        htmlFrame.contentWindow.resetPageToWaiting(e.detail.page);
+                    }
+                }
+            });
+
+            window.addEventListener('hide-glass-overlays', (e) => {
+                if (e.detail && e.detail.pages) {
+                    const htmlFrame = document.getElementById('html-iframe');
+                    if (htmlFrame && htmlFrame.contentWindow) {
+                        e.detail.pages.forEach(idx => {
+                            const glass = htmlFrame.contentWindow.document.getElementById('glass-overlay-t-' + idx);
+                            if (glass) {
+                                glass.style.display = 'none';
+                            }
+                        });
+                    }
+                }
+            });
+
+            // ── CLEAR REMAINING SKELETON SHIMMERS ON COMPLETION ──
+            window.addEventListener('trigger-translation-finished', () => {
+                const htmlFrame = document.getElementById('html-iframe');
+                if (htmlFrame && htmlFrame.contentWindow) {
+                    try {
+                        htmlFrame.contentWindow.document.querySelectorAll('.shimmer-line').forEach(el => {
+                            el.classList.remove('shimmer-line');
+                        });
+                    } catch (e) { }
+                }
+            });
+
+            // ── TRANSLATION RESET LISTENER ──
+            window.addEventListener('trigger-translation-reset', () => {
+                const htmlFrame = document.getElementById('html-iframe');
+                if (htmlFrame && htmlFrame.contentWindow && htmlFrame.contentWindow.applyTranslation) {
+                    try {
+                        // Triggers the standard, pristine DOM restoration logic
+                        this.reset_translation_state();
+                    } catch (e) {
+                        console.error("[Workspace] Reset translation failed:", e);
+                    }
+                }
+            });
+
 
             // Bind splitter drags globally to the document
             document.addEventListener('mousemove', (e) => this.handleSplitterMove(e));
@@ -77,9 +145,6 @@ function workspaceController() {
             this.setupSyncScrolls(pdfFrame, htmlFrame);
         },
 
-        /**
-         * ── 1. DRAG-RESIZE SPLITTER LOGIC ──
-         */
         startSplitterDrag() {
             this.isDragging = true;
 
@@ -115,9 +180,6 @@ function workspaceController() {
             }
         },
 
-        /**
-         * ── 2. LAYOUT MODES CONSTRAINTS ──
-         */
         setPaneLayout(layout) {
             const leftPane = document.getElementById('left-pane');
             const rightPane = document.getElementById('right-pane');
@@ -143,9 +205,6 @@ function workspaceController() {
             }
         },
 
-        /**
-         * ── 3. REAL-TIME NATIVE ZOOM SCALING ──
-         */
         applyZoom(factor) {
             const grid = document.getElementById('workspace-grid');
             if (grid) {
@@ -153,9 +212,6 @@ function workspaceController() {
             }
         },
 
-        /**
-         * ── 4. BIDIRECTIONAL SCROLLING SYNCHRONIZATION & IFRAME CLICKS ──
-         */
         setupSyncScrolls(pdfFrame, htmlFrame) {
             const self = this;
 
@@ -164,7 +220,6 @@ function workspaceController() {
                 const iframeWin = pdfFrame.contentWindow;
                 const iframeDoc = iframeWin.document;
 
-                // ── CLOSE MENUS ON LEFT IFRAME CLICK ──
                 iframeDoc.addEventListener('click', () => {
                     window.dispatchEvent(new CustomEvent('trigger-close-all-menus'));
                 });
@@ -196,12 +251,10 @@ function workspaceController() {
                 const rightDoc = rightDocWindow.document;
                 const scrollContainer = rightDoc.getElementById('page-container') || rightDocWindow;
 
-                // ── CLOSE MENUS ON RIGHT IFRAME CLICK ──
                 rightDoc.addEventListener('click', () => {
                     window.dispatchEvent(new CustomEvent('trigger-close-all-menus'));
                 });
 
-                // ── INITIAL ZOOM LOCK FOR HTML BODY ──
                 try {
                     const body = rightDoc.body;
                     if (body) {
@@ -209,12 +262,10 @@ function workspaceController() {
                     }
                 } catch (e) { }
 
-                // ── DYNAMIC LOCALES TRANSLATION FOR GLASS OVERLAYS ──
                 try {
                     rightDoc.querySelectorAll('[id^="glass-overlay-t-"]').forEach(glass => {
                         const textElement = glass.querySelector('p');
                         if (textElement) {
-                            // Translates the hardcoded wait overlay dynamically into French or English
                             textElement.textContent = Alpine.store('i18n').translate('waiting_translation');
                         }
                     });
@@ -255,7 +306,6 @@ function workspaceController() {
                 });
             };
         },
-        
 
         syncPDFToHTML(htmlFrame, pageIndex) {
             if (this.isSyncing) return;
@@ -281,6 +331,46 @@ function workspaceController() {
             }
 
             setTimeout(() => { this.isSyncing = false; }, 300);
-        }
+        },
+
+
+        /**
+         * Clears translation memories and restores the original styled HTML
+         * and scale matrices in the browser without reloading the page.
+         */
+        reset_translation_state() {
+            const htmlFrame = document.getElementById('html-iframe');
+            if (htmlFrame && htmlFrame.contentWindow) {
+                const doc = htmlFrame.contentWindow.document;
+
+                doc.querySelectorAll('span[data-trans-id]').forEach(span => {
+                    const originalHtml = span.getAttribute('data-orig-html');
+
+                    if (originalHtml !== null && originalHtml !== undefined) {
+                        // 1. Restore the original styled HTML with correct font families
+                        span.innerHTML = originalHtml;
+                        span.classList.remove('shimmer-line');
+
+                        // 2. Reset the scale matrices of the parent container div.t
+                        const divT = span.closest('div.t');
+                        if (divT) {
+                            const sxOrig = parseFloat(span.getAttribute('data-sx') || '1');
+                            const syOrig = parseFloat(span.getAttribute('data-sy') || '1');
+                            divT.style.transform = `matrix(${sxOrig},0,0,${syOrig},0,0)`;
+
+                            // Remove temporary width metrics to force clean recalculations for the next language
+                            divT.removeAttribute('data-orig-sw');
+                            divT.removeAttribute('data-sx-orig');
+                            divT.removeAttribute('data-sy-orig');
+                        }
+                    }
+                });
+            }
+        },
     };
-}
+
+    
+}   
+
+
+
