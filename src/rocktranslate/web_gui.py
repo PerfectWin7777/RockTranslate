@@ -204,7 +204,7 @@ def main() -> None:
         # Calculate elapsed time since program startup
         elapsed = (datetime.datetime.now() - start_time).total_seconds()
         # Enforce a remaining delay to guarantee a total of 10.0s (min 0.1s)
-        remaining_delay = max(0.1, 12.0 - elapsed)
+        remaining_delay = max(0.1, 15.0 - elapsed)
         
         def reveal_main_window():
             try:

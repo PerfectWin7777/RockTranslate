@@ -260,24 +260,12 @@ class TranslationApiMixin:
 
 
     def reset_all_translations(self) -> None:
-        """
-        Wipes active translation caches, restores the pristine English DOM,
-        and resets state trackers in both Python and Alpine.js.
-        """
-        # 1. Clear Python-side translation memory
-        self._translated_pages = {}
-
-        # 2. Reset stop and page indicators
+        """Wipes all active translation caches and resets state trackers."""
         self._stop_translation = False
         self._current_translating_page = -1
-
-        # 3. Trigger DOM restoration inside the workspace frames
-        self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-reset'))")
-
-        # 4. Clear active progress panel indicators
+        self.reset_translation_range(None)
         self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-finished'))")
 
-        self._send_status_i18n("status_trans_reset")
 
     def _run_translation(self, untranslated_texts: Dict[str, str], target_pages: Optional[List[int]]) -> None:
         """
@@ -491,6 +479,53 @@ class TranslationApiMixin:
             already_translated_ids.update(page_data.keys())
             
         return len(already_translated_ids) >= len(self._original_texts)
+    
+
+    def is_range_translated(self, range_str: Optional[str]) -> bool:
+        """
+        Checks if any of the target pages in the range (or the entire document
+        if range_str is None) have already been translated in the active session.
+        """
+        if not self._translated_pages:
+            return False
+
+        total_pages = max(self._tid_to_page.values()) + 1 if self._tid_to_page else 1
+        
+        if range_str:
+            target_pages = self._parse_page_range(range_str, total_pages)
+        else:
+            target_pages = list(range(total_pages))
+
+        for p_idx in target_pages:
+            if p_idx in self._translated_pages and self._translated_pages[p_idx]:
+                return True
+
+        return False
+
+    def reset_translation_range(self, range_str: Optional[str]) -> None:
+        """
+        Clears translation caches for the target range (or the entire document
+        if range_str is None) and triggers selective DOM restoration in JS.
+        """
+        total_pages = max(self._tid_to_page.values()) + 1 if self._tid_to_page else 1
+        
+        if range_str:
+            target_pages = self._parse_page_range(range_str, total_pages)
+        else:
+            target_pages = list(range(total_pages))
+
+        for p_idx in target_pages:
+            if p_idx in self._translated_pages:
+                del self._translated_pages[p_idx]
+
+        # Trigger DOM restoration on the frontend specifically for these pages
+        self._send_js(
+            f"window.dispatchEvent(new CustomEvent('trigger-translation-reset', "
+            f"{{ detail: {{ pages: {target_pages} }} }}))"
+        )
+        self._send_status_i18n("status_trans_reset")
+
+
 
     def _parse_page_range(self, range_str: str, max_pages: int) -> List[int]:
         """

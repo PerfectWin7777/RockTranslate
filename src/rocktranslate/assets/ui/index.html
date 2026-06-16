@@ -269,9 +269,10 @@
                     }
                 },
 
-                /**
-                 * Starts or cancels translation based on the active thread state.
-                 */
+
+               /**
+              * Starts or cancels translation based on the active thread state.
+              */
                 async toggleTranslation() {
                     if (this.isTranslating) {
                         window.pywebview.api.cancel_translation();
@@ -280,17 +281,18 @@
                     }
 
                     try {
-                        // Check if already fully translated using our fast, non-blocking Python check
-                        const isTranslated = await window.pywebview.api.is_document_translated();
+                        // Check if any pages of the entire document are already translated
+                        const isTranslated = await window.pywebview.api.is_range_translated(null);
                         if (isTranslated) {
                             const i18n = Alpine.store('i18n');
                             const confirmMsg = i18n.translate('retranslate_confirm_msg') || "All selected pages are already translated.\n\nDo you want to reset and translate again?";
+
                             const confirmed = await Alpine.store('dialogs').confirm(confirmMsg);
                             if (confirmed) {
-                                // Clear translation caches and reset DOM before continuing
-                                await window.pywebview.api.reset_translation_state();
+                                // Clear translation caches and reset DOM for all pages before continuing
+                                await window.pywebview.api.reset_translation_state(null);
                             } else {
-                                // User cancelled: Abort cleanly without starting or resetting any state
+                                // User cancelled: Abort cleanly
                                 return;
                             }
                         }
@@ -302,10 +304,31 @@
                     window.pywebview.api.start_translation();
                 },
 
+
                 /**
-                 * Starts range-targeted page translations.
-                 */
+             * Starts range-targeted page translations with explicit state tracking and selective resets.
+             */
                 async executeRangeTranslation(rangeStr) {
+                    try {
+                        // Check if any pages inside the target range are already translated
+                        const isTranslated = await window.pywebview.api.is_range_translated(rangeStr);
+                        if (isTranslated) {
+                            const i18n = Alpine.store('i18n');
+                            const confirmMsg = i18n.translate('retranslate_confirm_msg') || "All selected pages are already translated.\n\nDo you want to reset and translate again?";
+
+                            const confirmed = await Alpine.store('dialogs').confirm(confirmMsg);
+                            if (confirmed) {
+                                // Clear translation caches and reset DOM ONLY for pages inside this range
+                                await window.pywebview.api.reset_translation_state(rangeStr);
+                            } else {
+                                // User cancelled: Abort cleanly
+                                return;
+                            }
+                        }
+                    } catch (e) {
+                        console.error("[Shell] Error checking page range translation state:", e);
+                    }
+
                     this.isTranslating = true;
                     window.pywebview.api.translate_pages(rangeStr);
                 },

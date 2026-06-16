@@ -43,10 +43,13 @@ class RockTranslateAPI(HistoryApiMixin, ConfigApiMixin, TranslationApiMixin):
         """Stops the active translation background thread."""
         self.stop_translation()
 
-    def reset_translation_state(self) -> None:
-        """Clears translation memory and restores original document DOM."""
-        self.reset_all_translations()
+    def reset_translation_state(self, range_str: Optional[str] = None) -> None:
+        """Clears translation memory and restores original document DOM for specified range."""
+        self.reset_translation_range(range_str)
     
+    def is_range_translated(self, range_str: Optional[str]) -> bool:
+        """Exposed endpoint to check if any of the target range pages are already translated."""
+        return super().is_range_translated(range_str)
 
     def is_document_translated(self) -> bool:
         """Exposed endpoint to check if document is already fully translated."""

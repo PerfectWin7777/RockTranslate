@@ -91,14 +91,15 @@ function workspaceController() {
             });
 
             // ── TRANSLATION RESET LISTENER ──
-            window.addEventListener('trigger-translation-reset', () => {
+            window.addEventListener('trigger-translation-reset', (e) => {
                 const htmlFrame = document.getElementById('html-iframe');
                 if (htmlFrame && htmlFrame.contentWindow && htmlFrame.contentWindow.applyTranslation) {
                     try {
-                        // Triggers the standard, pristine DOM restoration logic
-                        this.reset_translation_state();
-                    } catch (e) {
-                        console.error("[Workspace] Reset translation failed:", e);
+                        // Extract target pages from the event detail if provided
+                        const targetPages = (e.detail && e.detail.pages) ? e.detail.pages : null;
+                        this.reset_translation_state(targetPages);
+                    } catch (err) {
+                        console.error("[Workspace] Reset translation failed:", err);
                     }
                 }
             });
@@ -442,13 +443,31 @@ function workspaceController() {
         /**
          * Clears translation memories and restores the original styled HTML
          * and scale matrices in the browser without reloading the page.
+         * Supports selective range resets.
+         * 
+         * @param {Array<number>|null} targetPages - Array of 0-based page indices to reset, or null for all.
          */
-        reset_translation_state() {
+        reset_translation_state(targetPages = null) {
             const htmlFrame = document.getElementById('html-iframe');
             if (htmlFrame && htmlFrame.contentWindow) {
                 const doc = htmlFrame.contentWindow.document;
 
                 doc.querySelectorAll('span[data-trans-id]').forEach(span => {
+                    const pageEl = span.closest('.pf');
+                    if (pageEl) {
+                        // Resolve page index (0-based) from hex ID
+                        const idStr = pageEl.getAttribute('id') || '';
+                        const match = idStr.match(/pf([0-9a-fA-F]+)/);
+                        if (match) {
+                            const pageIdx = parseInt(match[1], 16) - 1;
+
+                            // If targeted pages are provided, skip reset if this page index is not in the targets
+                            if (targetPages !== null && !targetPages.includes(pageIdx)) {
+                                return;
+                            }
+                        }
+                    }
+
                     const originalHtml = span.getAttribute('data-orig-html');
 
                     if (originalHtml !== null && originalHtml !== undefined) {
