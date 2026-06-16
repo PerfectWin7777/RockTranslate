@@ -134,6 +134,7 @@ document.addEventListener('alpine:init', () => {
                 chk_custom_base: "Use custom base URL",
                 system_pdf2html_lbl_url: "Custom Base URL",
                 system_model_lbl: "Model",
+                get_api_key: "Get my API Key",
 
                 range_title: "Translate Specific Pages",
                 range_subtitle_total: "Translate Specific Pages (Total Pages: {total})",
@@ -226,6 +227,11 @@ document.addEventListener('alpine:init', () => {
                 toast_export_failed: "PDF generation failed.",
                 status_export_failed: "Export failed.",
                 toast_export_error: "Export failed: {error}",
+                
+                openrouter_free_warning: "Warning: OpenRouter free models are subject to rate limits (20 requests/min and 50 requests/day for accounts without active paid credits). Ideal for testing, but not sufficient for large documents.",
+
+
+
 
 
 
@@ -349,6 +355,7 @@ document.addEventListener('alpine:init', () => {
                 chk_custom_base: "Utiliser une URL de base personnalisée",
                 system_pdf2html_lbl_url: "URL de base personnalisée",
                 system_model_lbl: "Modèle",
+                get_api_key: "Obtenir ma clé API",
 
                 range_title: "Traduire des Pages Spécifiques",
                 range_subtitle_total: "Traduire des Pages Spécifiques (Total Pages : {total})",
@@ -439,6 +446,9 @@ document.addEventListener('alpine:init', () => {
                 toast_export_failed: "Échec de la génération du PDF.",
                 status_export_failed: "Échec de l'exportation.",
                 toast_export_error: "L'exportation a échoué : {error}",
+
+                openrouter_free_warning: "Attention : Les modèles gratuits d'OpenRouter sont soumis à de strictes limites (20 requêtes/min et 50 requêtes/jour pour les comptes sans crédits payants). Utile pour des tests, mais insuffisant pour de gros documents.",
+
              
 
             },
@@ -560,6 +570,8 @@ document.addEventListener('alpine:init', () => {
                 chk_custom_base: "Usar URL base personalizada",
                 system_pdf2html_lbl_url: "URL base personalizada",
                 system_model_lbl: "Modelo",
+                get_api_key: "Obtener mi clave API",
+
 
                 range_title: "Traducir páginas específicas",
                 range_subtitle_total: "Traducir páginas específicas (Total de páginas: {total})",
@@ -647,7 +659,9 @@ document.addEventListener('alpine:init', () => {
                 toast_export_success: "¡Documento exportado con éxito!",
                 toast_export_failed: "Error al generar el PDF.",
                 status_export_failed: "Exportación fallida.",
-                toast_export_error: "Exportación fallida: {error}"
+                toast_export_error: "Exportación fallida: {error}",
+
+                openrouter_free_warning: "Atención: Los modelos gratuitos de OpenRouter están sujetos a límites (20 solicitudes/min y 50 solicitudes/día para cuentas sin créditos de pago). Útil para pruebas, pero insuficiente para documentos grandes.",
             },
 
             de: {
@@ -759,7 +773,7 @@ document.addEventListener('alpine:init', () => {
                 save_success_msg: "Einstellungen erfolgreich gespeichert.",
 
                 toast_api_connection_error: "API-Verbindungsfehler: Alle Verbindungsversuche sind fehlgeschlagen.\n\nBitte überprüfen Sie:\n1. Ihre Internetverbindung und aktive VPN-Konfigurationen.\n2. Ob Ihr Ziel-Host aktiv ist (insbesondere bei lokalem Ollama).\n3. Ihre aktiven API-Schlüssel-Limits.",
-                
+
 
                 api_info_disclosure: "Dieser Schlüssel wird lokal gespeichert und nur für direkte und sichere API-Anfragen verwendet.",
                 api_config_provider_lbl: "API-Anbieter",
@@ -767,6 +781,7 @@ document.addEventListener('alpine:init', () => {
                 chk_custom_base: "Benutzerdefinierte Basis-URL verwenden",
                 system_pdf2html_lbl_url: "Benutzerdefinierte Basis-URL",
                 system_model_lbl: "Modell",
+                get_api_key: "Meinen API-Schlüssel anfordern",
 
                 range_title: "Spezifische Seiten übersetzen",
                 range_subtitle_total: "Spezifische Seiten übersetzen (Gesamtseiten: {total})",
@@ -854,7 +869,9 @@ document.addEventListener('alpine:init', () => {
                 toast_export_success: "Dokument erfolgreich exportiert!",
                 toast_export_failed: "PDF-Erstellung fehlgeschlagen.",
                 status_export_failed: "Export fehlgeschlagen.",
-                toast_export_error: "Export fehlgeschlagen: {error}"
+                toast_export_error: "Export fehlgeschlagen: {error}",
+
+                openrouter_free_warning: "Achtung: Die kostenlosen Modelle von OpenRouter unterliegen strengen Limits (20 Anfragen/Min und 50 Anfragen/Tag für Konten ohne bezahlte Credits). Nützlich für Tests, aber unzureichend für große Dokumente.",
             }
         },
 

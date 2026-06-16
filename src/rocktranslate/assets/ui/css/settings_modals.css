@@ -168,3 +168,30 @@
     -webkit-user-select: text;
     /* Allow mouse text selections */
 }
+
+
+.warning-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background-color: #fffbeb;
+    /* Jaune ambré très doux */
+    border: 1px solid #fef3c7;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-top: 14px;
+}
+
+.warning-icon {
+    font-size: 15px;
+    color: #d97706;
+    /* Orange chaud */
+    line-height: 1;
+}
+
+.warning-text {
+    font-size: 11px;
+    color: #b45309;
+    line-height: 1.5;
+    font-weight: 500;
+}

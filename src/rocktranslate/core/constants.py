@@ -90,6 +90,7 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
     "Google Gemini": {
         "prefix": "gemini/",
         "key_env": "GEMINI_API_KEY",
+        "key_url": "https://aistudio.google.com/",
         "models": [
             "gemini-3.5-flash",
             "gemini-3.1-flash-lite",
@@ -109,6 +110,7 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
     "OpenAI": {
         "prefix": "openai/",
         "key_env": "OPENAI_API_KEY",
+        "key_url": "https://platform.openai.com/api-keys",
         "models": [
             "gpt-5",
             "gpt-5-mini",
@@ -133,6 +135,7 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
     "Anthropic": {
         "prefix": "anthropic/",
         "key_env": "ANTHROPIC_API_KEY",
+        "key_url": "https://console.anthropic.com/settings/keys",
         "models": [
             "claude-4.8-opus",           
             "claude-4.6-sonnet",         
@@ -151,6 +154,7 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
     "DeepSeek": {
         "prefix": "deepseek/",
         "key_env": "DEEPSEEK_API_KEY",
+        "key_url": "https://platform.deepseek.com/api_keys",
         "models": [
             "deepseek-v4-flash",
             "deepseek-v4-pro",
@@ -164,8 +168,9 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
     "Mistral AI": {
         "prefix": "mistral/",
         "key_env": "MISTRAL_API_KEY",
+        "key_url": "https://console.mistral.ai/api-keys/",
         "models": [
-            "mistral-medium-3.5",        # Modèle dense unifié de 128B (général, vision, code)
+            "mistral-medium-3.5",
             "mistral-small-latest",
             "mistral-large-latest",
             "mistral-medium-latest",
@@ -183,6 +188,7 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
     "Groq": {
         "prefix": "groq/",
         "key_env": "GROQ_API_KEY",
+        "key_url": "https://console.groq.com/keys",
         "models": [
             "llama-4-scout-groq",        
             "llama-3.3-70b-versatile",   
@@ -200,6 +206,7 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
     "Together AI": {
         "prefix": "together_ai/",
         "key_env": "TOGETHERAI_API_KEY",
+        "key_url": "https://api.together.xyz/settings/api-keys",
         "models": [
             "meta-llama/Llama-4-Maverick",         
             "meta-llama/Llama-4-Scout",            
@@ -216,7 +223,7 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
             "deepseek-ai/DeepSeek-R1",
             "deepseek-ai/DeepSeek-V3",
             "mistralai/Mixtral-8x7B-Instruct-v0.1",
-             "mistralai/Mixtral-8x22B-Instruct-v0.1",
+            "mistralai/Mixtral-8x22B-Instruct-v0.1",
             "moonshotai/Kimi-K2",
             "zai-org/GLM-4.7"
         ]
@@ -225,6 +232,7 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
     "Moonshot (Kimi)": {
         "prefix": "moonshot/",
         "key_env": "MOONSHOT_API_KEY",
+        "key_url": "https://platform.moonshot.cn/console/api-keys",
         "models": [
             "kimi-k2.6",                 
             "kimi-k2.5",              
@@ -239,13 +247,11 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
     "Alibaba DashScope (Qwen)": {
         "prefix": "dashscope/",
         "key_env": "DASHSCOPE_API_KEY",
+        "key_url": "https://bailian.console.aliyun.com/?tab=model#/api-key",
         "models": [
             "qwen3.7-max-preview",       
             "qwen3.5-plus",                  
             "qwen-max",                  
-            "qwen-plus",
-            "qwen-turbo"
-            "qwen-max",
             "qwen-plus",
             "qwen-turbo",
             "qwen-long",
@@ -262,11 +268,10 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
     "Zhipu AI (GLM)": {
         "prefix": "zai/",
         "key_env": "ZAI_API_KEY",
+        "key_url": "https://open.bigmodel.cn/usercenter/apikeys",
         "models": [
             "glm-5.1",                   
             "glm-5",                   
-            "glm-4.7",
-            "glm-4.5"
             "glm-4.7",
             "glm-4.6",
             "glm-4.5",
@@ -280,6 +285,7 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
     "xAI (Grok)": {
         "prefix": "xai/",
         "key_env": "XAI_API_KEY",
+        "key_url": "https://console.x.ai/",
         "models": [
             "grok-4",
             "grok-3",
@@ -292,72 +298,76 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
     "OpenRouter": {
         "prefix": "openrouter/",
         "key_env": "OPENROUTER_API_KEY",
+        "key_url": "https://openrouter.ai/keys",
         "models": [
+            "openrouter/free", 
+            "google/gemini-2.5-flash:free", 
+            "meta-llama/llama-3-8b-instruct:free", 
+            "nex-agi/nex-n2-pro:free",
+            "nvidia/nemotron-3.5-content-safety:free",
+            "nvidia/nemotron-3-ultra-550b-a55b:free",
+            "poolside/laguna-m1:free",
+            "nvidia/nemotron-3-super:free",
+            "openai/gpt-oss-120b:free",
+            "google/gemma-4-31b:free",
+            "nvidia/nemotron-3-nano-30b-a3b:free",
+            "nvidia/nemotron-3-nano-omni:free",
+            "nvidia/nemotron-nano-12b-vl:free",
+            "inclusionai/ring-2.6-1t:free",
+            "baidu/cobuddy:free",
             "openai/gpt-5",
             "openai/gpt-5-mini",
             "openai/gpt-4.1",
             "openai/gpt-4o",
 
+            "nvidia/nemotron-3-ultra-550b-a55b",
+            "minimax/minimax-m3",
+            "stepfun/step-3.7-flash",
+            "inclusionai/ring-2.6-1t",
+            "ibm-granite/granite-4.1-8b",
+            "poolside/laguna-xs.2:free",
+            
+            "anthropic/claude-opus-4.8-fast",
+            "anthropic/claude-opus-4.7-fast",
             "anthropic/claude-4-opus",
             "anthropic/claude-4-sonnet",
             "anthropic/claude-4.6-sonnet",
             "anthropic/claude-4.8-opus",
             "anthropic/claude-4.5-haiku",
             "anthropic/claude-3.7-sonnet",
-
+            
             "google/gemini-2.5-pro",
             "google/gemini-2.5-flash",
             "google/gemini-3.5-flash",
             "google/gemini-3.1-flash-lite",
 
+            "openai/gpt-chat-latest",
+            "~openai/gpt-mini-latest",
 
             "deepseek/deepseek-r1",
             "deepseek/deepseek-chat",
             "deepseek/deepseek-v3",
             "deepseek/deepseek-v4-flash",
             "deepseek/deepseek-v4-pro",
-
+            
+            "x-ai/grok-4.3",
             "x-ai/grok-4",
             "x-ai/grok-3",
-
+             
+            "qwen/qwen3.5-plus-20260420",
+            "qwen/qwen3.6-35b-a3b",
+            "qwen/qwen3.7-max",
             "qwen/qwen3-235b-a22b",
             "qwen/qwen2.5-72b-instruct",
             "qwen/qwen-3.5-397b-instruct",
 
             "meta-llama/llama-3.3-70b-instruct",
             "meta-llama/llama-3.1-405b-instruct",
-
+             
             "mistralai/mistral-large",
-            "mistralai/mistral-medium-3.5"
+            "mistralai/mistral-medium-3.5", 
             "moonshotai/kimi-k2",
             "z-ai/glm-4.7"
-        ]
-    },
-
-    "Ollama (Local)": {
-        "prefix": "ollama/",
-        "key_env": "",
-        "models": [
-            "llama3",
-            "llama3.1",
-            "llama3.2",
-            "llama3.3",
-            "deepseek-v4-flash",
-            "qwen2.5",
-            "qwen3",
-            "qwen3.6-27b",
-            "deepseek-r1",
-            "deepseek-v3",
-            "mistral",
-            "mixtral",
-            "codestral",
-            "gemma2",
-            "phi4",
-            "phi3",
-            "command-r",
-            "command-r-plus",
-            "yi",
-            "granite3.3"
         ]
     }
 }

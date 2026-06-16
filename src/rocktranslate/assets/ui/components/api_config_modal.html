@@ -1,132 +1,148 @@
-<!-- 
-  RockTranslate — API Configuration Dialog Modal (Thread-Safe Timing Version)
+<!--
+  RockTranslate — API Configuration Dialog Modal
   Path: src/rocktranslate/assets/ui/components/api_config_modal.html
 -->
 
 <div id="api-config-modal-overlay" class="modal-overlay" x-data="apiConfigController()"
     x-show="$store.modals.active === 'api_config'" x-transition x-cloak>
-    <div class="modal-card" style="width: 680px;" @click.away="$store.modals.close()">
+    <div class="modal-card" style="width: 620px;" @click.away="$store.modals.close()">
 
-        <!-- Header -->
+        <!-- ── Header ── -->
         <div class="modal-header">
             <div class="modal-title-block">
                 <h2 x-text="$store.i18n.translate('item_api_config')"></h2>
             </div>
         </div>
 
-        <!-- Form Body -->
-        <div class="modal-body" x-cloak>
+        <!-- ── Body ── -->
+        <div class="modal-body">
 
-            <!-- 1. Sleek Loading Spinner (Renders while Python is serving config data) -->
+            <!-- Loading spinner (shown while Python serves config data) -->
             <div x-show="loading"
-                style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 0; gap: 15px; width: 100%;">
+                style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 0; width: 100%;">
                 <div class="circular-loader"
                     style="border-top-color: var(--accent-blue); width: 32px; height: 32px; margin: 0;"></div>
             </div>
 
-            <!-- 2. Main Form (Only parsed and compiled after data is 100% loaded and safe) -->
+            <!-- Main form (rendered only once data is fully loaded) -->
             <template x-if="!loading && Object.keys(isolatedConfigs).length > 0">
-                <div class="settings-form">
+                <div class="settings-form" style="display: flex; flex-direction: column; gap: 20px;">
 
-                    <!-- API Provider Dropdown Selector -->
-                    <div class="form-row">
+                    <!-- Provider dropdown -->
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
                         <label class="form-label" x-text="$store.i18n.translate('api_config_provider_lbl')"></label>
-                        <div class="form-value">
-                            <select x-model="currentProvider"
-                                style="width: 100%; border: 1px solid var(--border-color); border-radius: 4px; padding: 6px 10px; font-size: 12px; outline: none; background: white; height: 32px;"
-                                @change="showSuccessLabel = false">
-                                <template x-for="provider in Object.keys(providersConfig)" :key="provider">
-                                    <option :value="provider" :selected="currentProvider === provider" x-text="provider">
-                                    </option>
-                                </template>
-                            </select>
+                        <select x-model="currentProvider"
+                            style="width: 100%; height: 36px; padding: 0 10px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; outline: none; background: white; color: var(--text-primary);"
+                            @change="showSuccessLabel = false">
+                            <template x-for="provider in Object.keys(providersConfig)" :key="provider">
+                                <option :value="provider" :selected="currentProvider === provider" x-text="provider">
+                                </option>
+                            </template>
+                        </select>
+                    </div>
+
+                    <!-- API key (hidden for Ollama local) -->
+                    <div x-show="currentProvider !== 'Ollama (Local)'"
+                        style="display: flex; flex-direction: column; gap: 6px;">
+
+                        <!-- Label row: key label on the left, help link on the right -->
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <label class="form-label" x-text="$store.i18n.translate('lbl_key')"></label>
+                            <a href="#"
+                                x-show="providersConfig[currentProvider] && providersConfig[currentProvider].key_url"
+                                x-text="$store.i18n.translate('get_api_key')"
+                                @click.prevent="providersConfig[currentProvider] && window.pywebview.api.open_external_link(providersConfig[currentProvider].key_url)"
+                                style="font-size: 11px; color: var(--accent-blue); text-decoration: none; font-weight: 600;"
+                                @mouseenter="$el.style.textDecoration='underline'"
+                                @mouseleave="$el.style.textDecoration='none'">
+                            </a>
+                        </div>
+
+                        <!-- Key input + Delete button on the same row -->
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="password" x-model="isolatedConfigs[currentProvider].api_key"
+                                placeholder="Paste your API key here…"
+                                style="flex: 1; height: 36px; padding: 0 12px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; outline: none; background: white; color: var(--text-primary);">
+                            <button type="button" class="btn-browse"
+                                style="height: 36px; padding: 0 14px; font-size: 12px; font-weight: 500; border: 1px solid #feb2b2; border-radius: 4px; background: #fff5f5; color: var(--accent-red); cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 6px;"
+                                @click="deleteKey()">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" aria-hidden="true">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6l-1 14H6L5 6"></path>
+                                    <path d="M10 11v6"></path>
+                                    <path d="M14 11v6"></path>
+                                    <path d="M9 6V4h6v2"></path>
+                                </svg>
+                                Delete
+                            </button>
+                        </div>
+
+                        <!-- Delete success feedback (inline, right below the field) -->
+                        <div x-show="showSuccessLabel" style="display: flex; align-items: center; gap: 5px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                                stroke-linejoin="round" style="color: var(--accent-green);" aria-hidden="true">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            <span style="font-size: 11px; font-weight: 600; color: var(--accent-green);">
+                                API key deleted successfully.
+                            </span>
                         </div>
                     </div>
 
-                    <!-- API Key Entry (Hidden completely for Ollama local loops) -->
-                    <div class="form-row" x-show="currentProvider !== 'Ollama (Local)'">
-                        <label class="form-label" x-text="$store.i18n.translate('lbl_key')"></label>
-                        <div class="form-value">
-                            <div class="browse-input-group"
-                                style="display: flex; width: 100%; gap: 8px; align-items: center;">
-                            <input type="password" x-model="isolatedConfigs[currentProvider].api_key" placeholder="Enter your API key" style="
-                                        flex: 1;
-                                        height: 28px;
-                                        padding: 0 10px;
-                                        border: 1px solid #d1d5db;
-                                        border-radius: 6px;
-                                        background: #ffffff;
-                                        font-size: 13px;
-                                        transition: all 0.2s ease;
-                                        box-sizing: border-box;
-                                    " onfocus="this.style.borderColor='#4299e1';this.style.boxShadow='0 0 0 2px rgba(66,153,225,0.15)'"
-                                onblur="this.style.borderColor='#d1d5db';this.style.boxShadow='none'">
-                                <button class="btn-browse"
-                                    style="color: var(--accent-red); border-color: #feb2b2; background-color: #fff5f5; display: flex; align-items: center; justify-content: center; height: 28px;"
-                                    @click="deleteKey()">🗑️ Delete</button>
-                            </div>
-                        </div>
+                    <!-- Custom base URL toggle (hidden for Ollama) -->
+                    <div x-show="currentProvider !== 'Ollama (Local)'"
+                        style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="chk-api-custom-base"
+                            x-model="isolatedConfigs[currentProvider].use_custom_base">
+                        <label for="chk-api-custom-base"
+                            style="font-size: 11px; cursor: pointer; user-select: none; color: var(--text-primary);"
+                            x-text="$store.i18n.translate('chk_custom_base')"></label>
                     </div>
 
-                    <!-- Delete Key Success Feedback Label -->
-                    <div class="form-row" x-show="showSuccessLabel && currentProvider !== 'Ollama (Local)'">
-                        <label class="form-label"></label>
-                        <div class="form-value">
-                            <span style="color: var(--accent-green); font-size: 11px; font-weight: bold;">✓ API Key
-                                deleted successfully.</span>
-                        </div>
-                    </div>
-
-                    <!-- Custom Base URL Checkbox -->
-                    <div class="form-row" x-show="currentProvider !== 'Ollama (Local)'">
-                        <label class="form-label"></label>
-                        <div class="form-value">
-                            <input type="checkbox" id="chk-api-custom-base"
-                                x-model="isolatedConfigs[currentProvider].use_custom_base">
-                            <label for="chk-api-custom-base"
-                                style="font-size: 11px; margin-left: 8px; cursor: pointer; user-select: none;"
-                                x-text="$store.i18n.translate('chk_custom_base')"></label>
-                        </div>
-                    </div>
-
-                    <!-- Custom Base URL Field (Forces display for Ollama) -->
-                    <div class="form-row"
-                        x-show="currentProvider === 'Ollama (Local)' || isolatedConfigs[currentProvider].use_custom_base">
+                    <!-- Base URL field (always visible for Ollama, conditional otherwise) -->
+                    <div x-show="currentProvider === 'Ollama (Local)' || isolatedConfigs[currentProvider].use_custom_base"
+                        style="display: flex; flex-direction: column; gap: 6px;">
                         <label class="form-label" x-text="$store.i18n.translate('system_pdf2html_lbl_url')"></label>
-                        <div class="form-value">
-                            <input type="text" x-model="isolatedConfigs[currentProvider].custom_base_url"
-                                placeholder="http://localhost:11434">
-                        </div>
+                        <input type="text" x-model="isolatedConfigs[currentProvider].custom_base_url"
+                            placeholder="http://localhost:11434"
+                            style="width: 100%; height: 36px; padding: 0 12px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; outline: none; background: white; color: var(--text-primary); box-sizing: border-box;">
                     </div>
 
-                    <!-- Target Model Selection -->
-                    <div class="form-row">
+                    <!-- Model selector -->
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
                         <label class="form-label" x-text="$store.i18n.translate('system_model_lbl')"></label>
-                        <div class="form-value">
-                            <select x-model="isolatedConfigs[currentProvider].last_model"
-                                style="width: 100%; border: 1px solid var(--border-color); border-radius: 4px; padding: 6px 10px; font-size: 12px; outline: none; background: white; height: 32px;">
-                                <template x-for="model in getSuggestedModels()" :key="model">
-                                    <option :value="model"
-                                        :selected="isolatedConfigs[currentProvider] && isolatedConfigs[currentProvider].last_model === model"
-                                        x-text="model">
-                                    </option>
-                                </template>
-                            </select>
-                        </div>
+                        <!-- :key="index" prevents duplicate-key issues when model lists overlap -->
+                        <select x-model="isolatedConfigs[currentProvider].last_model"
+                            style="width: 100%; height: 36px; padding: 0 10px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; outline: none; background: white; color: var(--text-primary);">
+                            <template x-for="(model, index) in getSuggestedModels()" :key="index">
+                                <option :value="model"
+                                    :selected="isolatedConfigs[currentProvider] && isolatedConfigs[currentProvider].last_model === model"
+                                    x-text="model"></option>
+                            </template>
+                        </select>
+                    </div>
+
+                    <!-- OpenRouter free-tier warning banner -->
+                    <div x-show="currentProvider === 'OpenRouter' && isolatedConfigs['OpenRouter'] && isolatedConfigs['OpenRouter'].last_model && isolatedConfigs['OpenRouter'].last_model.indexOf('free') !== -1"
+                        class="warning-banner" x-cloak>
+                        <span class="warning-icon">⚠️</span>
+                        <span class="warning-text" x-text="$store.i18n.translate('openrouter_free_warning')"></span>
                     </div>
 
                 </div>
             </template>
         </div>
 
-        <!-- Disclosure Info -->
+        <!-- Disclosure notice -->
         <div class="modal-body" style="padding-top: 0;">
-            <div class="info-disclosure"
-                style="font-size: 11px; color: var(--text-muted); margin-top: 0; padding-top: 10px;"
-                x-text="$store.i18n.translate('api_info_disclosure')"></div>
+            <p style="font-size: 11px; color: var(--text-muted); margin: 0; padding-top: 10px; line-height: 1.6;"
+                x-text="$store.i18n.translate('api_info_disclosure')"></p>
         </div>
 
-        <!-- Action Buttons -->
+        <!-- ── Footer actions ── -->
         <div class="modal-actions" style="gap: 10px;">
             <button class="modal-btn-close" @click="$store.modals.close()"
                 x-text="$store.i18n.translate('cancel_btn')"></button>
