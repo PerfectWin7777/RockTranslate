@@ -355,15 +355,12 @@ class TranslationApiMixin:
             skipped_ids = set(untranslated_texts.keys()) - translatable_ids
             logger.debug(f"Direct bypass triggered: {len(skipped_ids)} segments skipped.")
             
-            # Map bypassed elements directly into page cache dictionary
+           # Keep bypassed elements in a temporary dictionary first
+            uncommitted_bypassed: Dict[str, str] = {}
             for skipped_id in skipped_ids:
                 orig_text = untranslated_texts[skipped_id]
                 self._send_translation_stream(skipped_id, orig_text)
-                
-                p_idx = self._tid_to_page.get(skipped_id, 0)
-                if p_idx not in self._translated_pages:
-                    self._translated_pages[p_idx] = {}
-                self._translated_pages[p_idx][skipped_id] = orig_text
+                uncommitted_bypassed[skipped_id] = orig_text
             # ──────────────────────────────────────────
 
             sliding_context: List[str] = []
@@ -415,6 +412,14 @@ class TranslationApiMixin:
                         if p_idx not in self._translated_pages:
                             self._translated_pages[p_idx] = {}
                         self._translated_pages[p_idx][seg_id] = translated_text
+                        
+                        # Commit bypassed elements of this page to the cache as well!
+                        # This guarantees that bypassed elements are only committed 
+                        # for pages where at least one LLM translation successfully landed!
+                        for skipped_id, skipped_text in list(uncommitted_bypassed.items()):
+                            if self._tid_to_page.get(skipped_id) == p_idx:
+                                self._translated_pages[p_idx][skipped_id] = skipped_text
+                                del uncommitted_bypassed[skipped_id] # Clear from temp
                         
                         sliding_context.append(translated_text)
 
@@ -621,7 +626,7 @@ class TranslationApiMixin:
             return max(self._tid_to_page.values()) + 1
         return 1
 
-        
+
     # ==============================================================================
     # 3. EXPOSED PDF EXPORT ENDPOINT
     # ==============================================================================
