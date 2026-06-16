@@ -124,6 +124,8 @@ document.addEventListener('alpine:init', () => {
                 reset_success_msg: "All workflow configurations have been reset successfully.",
                 save_success_msg: "Settings saved successfully.",
 
+                toast_api_connection_error: "API Connection Error: All connection attempts failed.\n\nPlease verify:\n1. Your internet connection and active VPN configurations.\n2. That your target host is running (especially for local Ollama).\n3. Your active API key limits.",
+
 
                 api_info_disclosure: "This key is stored locally and only used to make secure, direct API requests from this application.",
 
@@ -144,6 +146,7 @@ document.addEventListener('alpine:init', () => {
                 range_input_placeholder: "e.g., 2-4, 7, 9",
                 enter_valid_page_range: "Please enter a valid page range.",
                 translate_btn: "Translate",
+
 
 
                 prop_tab_general: "General",
@@ -336,6 +339,8 @@ document.addEventListener('alpine:init', () => {
                 reset_confirm_msg: "Êtes-vous sûr de vouloir réinitialiser toutes les configurations par défaut ?",
                 reset_success_msg: "Toutes les configurations de traitement ont été réinitialisées avec succès.",
                 save_success_msg: "Paramètres enregistrés avec succès.",
+                
+                toast_api_connection_error: "Erreur de connexion API : Toutes les tentatives de connexion ont échoué.\n\nVeuillez vérifier :\n1. Votre connexion Internet et vos configurations VPN actives.\n2. Que votre hôte cible est en cours d'exécution (notamment pour Ollama en local).\n3. Les limites d'utilisation de votre clé API active.",
 
                 api_info_disclosure: "Cette clé est stockée localement et uniquement utilisée pour effectuer des requêtes API sécurisées et directes depuis cette application.",
                 
@@ -546,6 +551,9 @@ document.addEventListener('alpine:init', () => {
                 reset_success_msg: "Todas las configuraciones se han restablecido con éxito.",
                 save_success_msg: "Configuración guardada con éxito.",
 
+                toast_api_connection_error: "Error de conexión de la API: Todos los intentos de conexión fallaron.\n\nPor favor verifique:\n1. Su conexión a Internet y configuraciones de VPN activas.\n2. Que su servidor de destino esté en ejecución (especialmente para Ollama local).\n3. Los límites de uso de su clave de API activa.",
+
+
                 api_info_disclosure: "Esta clave se almacena localmente y solo se utiliza para realizar solicitudes seguras y directas a la API desde esta aplicación.",
                 api_config_provider_lbl: "Proveedor de API",
                 lbl_key: "Clave API",
@@ -749,6 +757,9 @@ document.addEventListener('alpine:init', () => {
                 reset_confirm_msg: "Sind Sie sicher, dass Sie alle Einstellungen auf die Standardwerte zurücksetzen möchten?",
                 reset_success_msg: "Alle Workflow-Konfigurationen wurden erfolgreich zurückgesetzt.",
                 save_success_msg: "Einstellungen erfolgreich gespeichert.",
+
+                toast_api_connection_error: "API-Verbindungsfehler: Alle Verbindungsversuche sind fehlgeschlagen.\n\nBitte überprüfen Sie:\n1. Ihre Internetverbindung und aktive VPN-Konfigurationen.\n2. Ob Ihr Ziel-Host aktiv ist (insbesondere bei lokalem Ollama).\n3. Ihre aktiven API-Schlüssel-Limits.",
+                
 
                 api_info_disclosure: "Dieser Schlüssel wird lokal gespeichert und nur für direkte und sichere API-Anfragen verwendet.",
                 api_config_provider_lbl: "API-Anbieter",

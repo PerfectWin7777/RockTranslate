@@ -611,7 +611,17 @@ class TranslationApiMixin:
             self._send_js("window.dispatchEvent(new CustomEvent('refresh-menu-data'))")
         except Exception as e:
             print(f"[API] Error updating history registry: {e}")
+    
+    def get_total_pages(self) -> int:
+        """
+        Returns the total number of pages in the currently active document.
+        Exposed to the frontend range settings controller.
+        """
+        if hasattr(self, "_tid_to_page") and self._tid_to_page:
+            return max(self._tid_to_page.values()) + 1
+        return 1
 
+        
     # ==============================================================================
     # 3. EXPOSED PDF EXPORT ENDPOINT
     # ==============================================================================
