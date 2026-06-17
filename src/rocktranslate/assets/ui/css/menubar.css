@@ -143,6 +143,27 @@
     flex-direction: column;
 }
 
+
+.dropdown-submenu .dropdown-menu-sub-recent-files {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 100%;
+    min-width: 400px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    border-radius: 6px;
+    padding: 4px 0;
+    margin-left: 2px;
+    z-index: 1200;
+}
+
+/* Display nested list on parent hovered states */
+.dropdown-submenu:hover .dropdown-menu-sub-recent-files {
+    display: flex;
+    flex-direction: column;
+}
 /* ── TOP-RIGHT CORNER LABEL: Model Indicator ── */
 .menu-model-indicator {
     font-size: 11px;

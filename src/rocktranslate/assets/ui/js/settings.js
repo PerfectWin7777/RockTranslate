@@ -7,7 +7,7 @@
  * 
  * Author: RockTranslate Contributors
  * License: MIT License
- * Version: 1.0.2
+ * Version: 1.0.3
  */
 
 function systemSettingsController() {
@@ -235,68 +235,68 @@ function apiConfigController() {
                     window.showToast(errMsg, 'error');
                 }
             } catch (error) {
-                    console.error("[API Config] Save execution failure:", error);
-                    window.showToast(i18n.translate('save_error_msg'), 'error');
+                console.error("[API Config] Save execution failure:", error);
+                window.showToast(i18n.translate('save_error_msg'), 'error');
             }
         }
     };
-   
+
 }
 
-    /**
- * Controller managing target page range translations.
- */
-    function rangeSettingsController() {
-        return {
-            // User typed page range string (e.g., "2-4, 7")
-            pageRange: '',
+/**
+* Controller managing target page range translations.
+*/
+function rangeSettingsController() {
+    return {
+        // User typed page range string (e.g., "2-4, 7")
+        pageRange: '',
 
-            // Physical page boundaries count of the active PDF
-            totalPages: 1,
+        // Physical page boundaries count of the active PDF
+        totalPages: 1,
 
-            init() {
-                const load = () => this.loadTotalPages();
-                if (window.pywebview && window.pywebview.api) {
-                    load();
-                } else {
-                    window.addEventListener('pywebviewready', load);
-                    window.addEventListener('python-api-ready', load);
-                }
-                window.addEventListener('refresh-menu-data', load);
-            },
-
-            async loadTotalPages() {
-                try {
-                    if (window.pywebview.api && window.pywebview.api.get_total_pages) {
-                        const count = await window.pywebview.api.get_total_pages();
-                        if (count) {
-                            this.totalPages = count;
-                        }
-                    }
-                } catch (error) {
-                    console.error("[Range Settings] Error loading pages count:", error);
-                }
-            },
-
-            /**
-             * Closes the modal and dispatches range values to the translation pipeline.
-             */
-            submit() {
-                const i18n = Alpine.store('i18n');
-                const rangeStr = this.pageRange.trim();
-                if (!rangeStr) {
-                    window.showToast(i18n.translate('invalid_range_msg'), 'warning');
-                    return;
-                }
-
-                // Dispatch event to appShell to initiate worker thread ranges slicing
-                this.$dispatch('trigger-translation-range-execute', { range: rangeStr });
-
-                Alpine.store('modals').close();
-                this.pageRange = ''; // Clean input
+        init() {
+            const load = () => this.loadTotalPages();
+            if (window.pywebview && window.pywebview.api) {
+                load();
+            } else {
+                window.addEventListener('pywebviewready', load);
+                window.addEventListener('python-api-ready', load);
             }
-        };
-    }
+            window.addEventListener('refresh-menu-data', load);
+        },
+
+        async loadTotalPages() {
+            try {
+                if (window.pywebview.api && window.pywebview.api.get_total_pages) {
+                    const count = await window.pywebview.api.get_total_pages();
+                    if (count) {
+                        this.totalPages = count;
+                    }
+                }
+            } catch (error) {
+                console.error("[Range Settings] Error loading pages count:", error);
+            }
+        },
+
+        /**
+         * Closes the modal and dispatches range values to the translation pipeline.
+         */
+        submit() {
+            const i18n = Alpine.store('i18n');
+            const rangeStr = this.pageRange.trim();
+            if (!rangeStr) {
+                window.showToast(i18n.translate('invalid_range_msg'), 'warning');
+                return;
+            }
+
+            // Dispatch event to appShell to initiate worker thread ranges slicing
+            this.$dispatch('trigger-translation-range-execute', { range: rangeStr });
+
+            Alpine.store('modals').close();
+            this.pageRange = ''; // Clean input
+        }
+    };
+}
 
 
 
@@ -335,6 +335,44 @@ function propertiesController() {
             } catch (error) {
                 console.error("[Properties] Error fetching metadata sheets:", error);
                 this.loading = false;
+            }
+        }
+    };
+}
+
+/**
+ * Controller for the About modal's easter egg signature panel.
+ *
+ * Root cause of the original bug: this function used to live inside an
+ * inline <script> tag inside about_modal.html. That fragment is injected
+ * dynamically (fetch + innerHTML), and browsers never execute <script>
+ * tags inserted that way — so aboutController() never registered in the
+ * global scope, and Alpine threw "triggerEasterEgg is not defined" the
+ * moment the name was clicked.
+ *
+ * Moved here, next to the other controllers in this file that are already
+ * confirmed to load correctly (e.g. apiConfigController), so it registers
+ * at startup before Alpine scans the DOM for x-data="aboutController()".
+ */
+function aboutController() {
+    return {
+        clickCount: 0,
+        lastClickTime: 0,
+        easterEggActive: false,
+
+        // Triggers the secret verification panel after 5 rapid consecutive clicks
+        triggerEasterEgg() {
+            const now = Date.now();
+            if (now - this.lastClickTime < 800) {
+                this.clickCount++;
+            } else {
+                this.clickCount = 1;
+            }
+            this.lastClickTime = now;
+
+            if (this.clickCount >= 5) {
+                this.easterEggActive = true;
+                this.clickCount = 0; // reset counter
             }
         }
     };

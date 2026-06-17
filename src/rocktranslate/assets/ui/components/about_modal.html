@@ -1,11 +1,22 @@
-<!-- 
+<!--
   RockTranslate — Contextual About Dialog Modal
   Path: src/rocktranslate/assets/ui/components/about_modal.html
+
+  NOTE: aboutController() is no longer defined inline in this file.
+  It now lives in about_modal.controller.js, loaded once at app startup
+  via a real <script src="..."> tag in the main page.
+
+  This fragment may be injected dynamically (fetch + innerHTML) without
+  breaking the controller, since the controller function is already
+  registered globally before Alpine ever scans this markup.
 -->
 
-<div id="about-modal-overlay" class="modal-overlay" x-data x-show="$store.modals.active === 'about'" x-transition
-    x-cloak>
-    <div class="modal-card" @click.away="$store.modals.close()">
+<div id="about-modal-overlay" class="modal-overlay" x-data="aboutController()" x-show="$store.modals.active === 'about'"
+    x-transition x-cloak>
+
+    <!-- The main modal card container -->
+    <div class="modal-card" @click.away="$store.modals.close(); easterEggActive = false"
+        style="position: relative; overflow: hidden;">
 
         <!-- Header: Logo and Title text -->
         <div class="modal-header">
@@ -35,21 +46,71 @@
                 <li x-text="$store.i18n.translate('about_feature_7')"></li>
             </ul>
 
-            <div class="modal-footer-info">
-                <p>
+            <!-- Footer: Verified Architect Signature & GitHub Support -->
+            <div class="modal-footer-info"
+                style="text-align: center; border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 15px;">
+                <p style="font-size: 11px; margin-bottom: 10px; line-height: 1.6;">
                     <b x-text="$store.i18n.translate('about_license') + ':'"></b> MIT License<br />
-                    <b x-text="$store.i18n.translate('about_authors') + ':'"></b> RockTranslate Contributors
+                    <b x-text="$store.i18n.translate('about_authors') + ':'"></b>
+                    <!-- Clicktrap registering the secret easter egg clicks -->
+                    <span @click="triggerEasterEgg()"
+                        style="color: var(--accent-blue); font-weight: bold; cursor: pointer; user-select: none;"
+                        title="Click 5 times for Developer Signature Verification">
+                        PerfectWin (WINTER TONY)
+                    </span>
+                    & RockTranslate Contributors
                 </p>
+
+                <!-- GitHub support and star button -->
+                <button type="button" class="modal-btn-close"
+                    @click="window.pywebview.api.open_external_link('https://github.com/PerfectWin7777/RockTranslate')"
+                    style="margin-bottom: 8px; background-color: #f6f8fa; border-color: #d0d7de; color: #24292f; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 11px; transition: all 0.15s ease;"
+                    onmouseover="this.style.backgroundColor='#2ea44f'; this.style.borderColor='#2ea44f'; this.style.color='#ffffff';"
+                    onmouseout="this.style.backgroundColor='#f6f8fa'; this.style.borderColor='#d0d7de'; this.style.color='#24292f';">
+                    ⭐ Star on GitHub
+                </button>
+
                 <p style="color: var(--text-muted); font-size: 10px; margin-top: 5px;">
-                    © 2026 RockTranslate Contributors
+                    © 2026 PerfectWin & RockTranslate Contributors
                 </p>
             </div>
         </div>
 
         <!-- Actions -->
         <div class="modal-actions">
-            <button class="modal-btn-close" @click="$store.modals.close()"
+            <button class="modal-btn-close" @click="$store.modals.close(); easterEggActive = false"
                 x-text="$store.i18n.translate('close_btn')"></button>
+        </div>
+
+        <!-- Hidden easter egg overlay (shown only after 5 rapid clicks on the name) -->
+        <div x-show="easterEggActive" x-transition x-cloak
+            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.98); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; z-index: 10;"
+            @click.away="easterEggActive = false">
+
+            <div style="font-size: 36px; margin-bottom: 12px;">🛡️</div>
+
+            <div
+                style="font-size: 13px; font-weight: bold; color: var(--accent-green); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">
+                🔒 Author Signature Verified
+            </div>
+
+            <div style="font-size: 12px; color: var(--text-primary); line-height: 1.6; margin-bottom: 20px;">
+                This binary executable was successfully developed and compiled by:<br>
+                <strong style="color: var(--accent-blue); font-size: 15px;">WINTER TONY (PerfectWin)</strong><br>
+                <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Creator & Software
+                    Architect</span>
+            </div>
+
+            <div
+                style="border-top: 1px dashed var(--border-color); width: 80%; padding-top: 12px; margin-bottom: 20px; font-family: monospace; font-size: 10px; color: var(--text-muted);">
+                VERIFICATION KEY: RT-OWNER-PerfectWin-7777
+            </div>
+
+            <button type="button" class="modal-btn-close"
+                style="background-color: var(--accent-blue); color: white; border-color: var(--accent-blue);"
+                @click="easterEggActive = false">
+                Close Verification Panel
+            </button>
         </div>
 
     </div>

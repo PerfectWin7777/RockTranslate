@@ -244,8 +244,9 @@ def main() -> None:
     try:
         logger.info("Launching pywebview main loop...")
         # Start application on splash, with the main window context passed as master loop
-        webview.start(bind_native_events, window, debug=False
-                    #   debug=not hasattr(sys, "_MEIPASS")
+        webview.start(bind_native_events, window, 
+                    #   debug=False
+                      debug=not hasattr(sys, "_MEIPASS")
                       )
     except Exception as e:
         import traceback
