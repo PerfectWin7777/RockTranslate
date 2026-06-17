@@ -1,10 +1,9 @@
-; RockTranslate — Inno Setup Installer Script
+$; RockTranslate — Standalone Installer Script (Web Engine Edition)
 ; Path: dev_tools/installer.iss
 ;
 ; This configuration script compiles the standalone dist/ folder into a
 ; professional multi-language Windows Installation Assistant (.exe).
-; Highly optimized to exclude development binaries, raw translation sources, 
-; and unused heavy Qt6 DLLs to minimize final installer size.
+; Highly optimized to pack our lightweight pywebview distribution recursively.
 
 #define MyAppName "RockTranslate"
 #define MyAppVersion "1.0.0"
@@ -13,8 +12,7 @@
 #define MyAppExeName "RockTranslate.exe"
 
 [Setup]
-; NOTE: The value of AppId uniquely identifies this application.
-; Do not use the same AppId value in installers for other applications.
+; NOTE: The AppId uniquely identifies this application.
 AppId={{D37D0B75-8D63-41EF-9C33-4F868E2D776C}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
@@ -29,7 +27,8 @@ AllowNoIcons=yes
 ; The output directory for the compiled setup installer executable
 OutputDir={#SourcePath}\..\dist_installer
 OutputBaseFilename=RockTranslate_Setup_v{#MyAppVersion}
-SetupIconFile={#SourcePath}\..\src\assets\rocktranslate_icon.ico
+; Path updated to target the new assets folder structure
+SetupIconFile={#SourcePath}\..\src\rocktranslate\assets\rocktranslate_icon.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -46,9 +45,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 ; Copy all compiled binaries and resources from PyInstaller output recursively.
 ; We use relative paths for cross-system compiling compatibility.
-; We explicitly exclude development resources (*.ts, lrelease.exe) and heavy 
-; unused Qt6 C++ binaries to drastically reduce the installer and installed sizes.
-Source: "..\dist\RockTranslate\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.ts,*lrelease.exe,*Qt63D*,*Qt6Bluetooth*,*Qt6DBus*,*Qt6Designer*,*Qt6Help*,*Qt6Multimedia*,*Qt6Nfc*,*Qt6Positioning*,*Qt6RemoteObjects*,*Qt6Sensors*,*Qt6SerialPort*,*Qt6SpatialAudio*,*Qt6StateMachine*"
+; Excludes temporary runtime logs and compiler database residues.
+Source: "..\dist\RockTranslate\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.log,app.log,*.tmp,*.bak"
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

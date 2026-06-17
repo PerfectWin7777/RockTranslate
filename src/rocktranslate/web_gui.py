@@ -50,7 +50,7 @@ from rocktranslate.core.web_api import RockTranslateAPI
 
 def find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("", 0))
+        s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
 
 
@@ -109,7 +109,7 @@ def start_local_server(port: int, directory: str):
 
     handler = SafeHTTPRequestHandler
     socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(("", port), handler) as httpd:
+    with socketserver.TCPServer(("127.0.0.1", port), handler) as httpd: 
         logger.info(f"Local assets server running at: http://localhost:{port}")
         httpd.serve_forever()
 
@@ -166,19 +166,20 @@ def main() -> None:
     # 1. Create a lightweight, frameless splash screen window
     splash = webview.create_window(
         title="RockTranslate Loading",
-        url=f"http://localhost:{port}/ui/splash.html",
+        url=f"http://127.0.0.1:{port}/ui/splash.html",
         width=splash_width,
         height=splash_height,
         x=splash_x,
         y=splash_y,
         frameless=True,
-        easy_drag=True
+        easy_drag=True,
+        background_color='#f7fafc'
     )
 
     # 2. Create the main workspace window (hidden on load)
     window = webview.create_window(
         title="RockTranslate",
-        url=f"http://localhost:{port}/ui/index.html",
+        url=f"http://127.0.0.1:{port}/ui/index.html",
         width=1440,
         height=900,
         min_size=(1024, 768),
