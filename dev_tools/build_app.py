@@ -1,12 +1,11 @@
 """
-RockTranslate — Standalone Application Compilation Script
+RockTranslate — Standalone Application Compilation Script (Web Engine Edition)
 Path: dev_tools/build_app.py
 
 This helper script automates the execution of PyInstaller across all platform
 targets, bundling all core assets, offline translators, and the headless Chromium
 engine into a distribution-ready directory.
-Optimized to exclude redundant Qt submodules, PySide6 development dependencies,
-and unused resources to minimize final binary size.
+Optimized to exclude redundant modules
 
 Usage:
     python dev_tools/build_app.py
@@ -19,7 +18,7 @@ import subprocess
 
 
 def clean_outdated_build_directories(project_root: str) -> None:
-    """ Cleans up outdated build and dist directories before compiling. """
+    """Cleans up outdated build and dist directories before compiling."""
     print("🧹 Cleaning previous compilation cache...")
     for folder in ["build", "dist"]:
         path = os.path.join(project_root, folder)
@@ -45,18 +44,18 @@ def main() -> None:
     clean_outdated_build_directories(project_root)
 
     # 2. Configure PyInstaller Arguments
-    entry_point = os.path.join(project_root, "main.py")
+    entry_point = os.path.join(project_root, "src", "rocktranslate", "web_gui.py")
     if not os.path.exists(entry_point):
-        print(f"❌ Error: Entry point main.py not found at: {entry_point}")
+        print(f"❌ Error: Entry point web_gui.py not found at: {entry_point}")
         sys.exit(1)
 
     # Dynamic path data separator (; on Windows, : on Unix)
     path_sep = ";" if os.name == "nt" else ":"
     
-    # Include all asset files (splash, logos, translations, pdfjs, lrelease)
-    # Target path inside _MEIPASS extraction folder matches standard structures
-    assets_src = os.path.join(project_root, "src", "assets")
-    assets_dest = os.path.join("src", "assets")
+    # Include all web asset files (html templates, stylesheets, scripts, splash, etc.)
+    # Target path inside _MEIPASS extraction folder matches standard constants layout rules
+    assets_src = os.path.abspath(os.path.join(project_root, "src", "rocktranslate", "assets"))
+    assets_dest = os.path.join("rocktranslate", "assets")
     
     if not os.path.exists(assets_src):
         print(f"❌ Error: Required assets folder not found at: {assets_src}")
@@ -72,30 +71,32 @@ def main() -> None:
         f"--add-data={assets_src}{path_sep}{assets_dest}",
         "--collect-data=litellm",
         "--hidden-import=tiktoken_ext.openai_public",
-        "--hidden-import=tiktoken_ext",   
+        "--hidden-import=tiktoken_ext",
+        # Webview runtime hidden imports (Critical for Windows .NET & WebKit)
+        "--hidden-import=clr",
+        "--hidden-import=webview.platforms.winforms",
+        "--hidden-import=webview.platforms.cocoa",
     ]
 
     # --- ADVANCED SIZE OPTIMIZATION: EXCLUDE UNUSED MODULES ---
-    # We explicitly exclude PySide6 dev-tools, shiboken internals,
-    # and all heavy, unused PyQt6 libraries to reduce final binary weight.
+    # We explicitly exclude PyQt6, PySide6, and PyMuPDF (fitz) to reduce final binary weight.
     excluded_modules = [
-        "PySide6", "shiboken6", "pyside6_essentials",
-        "PyQt6.Qt3D", "PyQt6.Qt3DAnimation", "PyQt6.Qt3DCore", "PyQt6.Qt3DExtras", "PyQt6.Qt3DInput",
-        "PyQt6.Qt3DLogic", "PyQt6.Qt3DRender", "PyQt6.QtBluetooth", "PyQt6.QtDBus", "PyQt6.QtDesigner",
-        "PyQt6.QtHelp", "PyQt6.QtMultimedia", "PyQt6.QtMultimediaWidgets", "PyQt6.QtNfc", "PyQt6.QtPositioning",
-        "PyQt6.QtRemoteObjects", "PyQt6.QtSensors", "PyQt6.QtSerialPort", "PyQt6.QtSpatialAudio", "PyQt6.QtStateMachine",
-        "PyQt6.QtCharts", "PyQt6.QtQuick3D", "PyQt6.QtQuick3DPhysics", "PyQt6.QtQuick3DRuntimeRender",
+        "PySide6", "shiboken6", "pyside6_essentials", "PySide2",
+        "PyQt6", "PyQt5",
+        # Exclude PyMuPDF (fitz) to save ~30MB of weight
+        "fitz", "pymupdf"
     ]
     for module in excluded_modules:
         pyinstaller_args.append(f"--exclude-module={module}")
 
-    # Optional: If you have placed an icon.png inside src/assets/, apply it dynamically
+    # Discover and apply the application icon dynamically (Windows exe, taskbar, titlebar)
     icon_path = os.path.join(assets_src, "rocktranslate_icon.png")
     if os.path.exists(icon_path):
+        # On Windows, PyInstaller preferred format is .ico (png is converted or used natively depending on targets)
         pyinstaller_args.append(f"--icon={icon_path}")
         print(f"🎨 Custom icon discovered and applied: {icon_path}")
 
-    print(f"🚀 Running PyInstaller command with compiled parameters...")
+    print("🚀 Running PyInstaller command with compiled parameters...")
     
     # Run PyInstaller as a subprocess
     try:

@@ -1,20 +1,20 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_data_files
 
-datas = [('d:\\Projets\\RockTranslate\\src\\assets', 'src\\assets')]
+datas = [('d:\\Projets\\RockTranslate\\src\\rocktranslate\\assets', 'rocktranslate\\assets')]
 datas += collect_data_files('litellm')
 
 
 a = Analysis(
-    ['d:\\Projets\\RockTranslate\\main.py'],
+    ['d:\\Projets\\RockTranslate\\src\\rocktranslate\\web_gui.py'],
     pathex=['d:\\Projets\\RockTranslate\\src'],
     binaries=[],
     datas=datas,
-    hiddenimports=['tiktoken_ext.openai_public', 'tiktoken_ext'],
+    hiddenimports=['tiktoken_ext.openai_public', 'tiktoken_ext', 'clr', 'webview.platforms.winforms', 'webview.platforms.cocoa'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['PySide6', 'shiboken6', 'pyside6_essentials', 'PyQt6.Qt3D', 'PyQt6.Qt3DAnimation', 'PyQt6.Qt3DCore', 'PyQt6.Qt3DExtras', 'PyQt6.Qt3DInput', 'PyQt6.Qt3DLogic', 'PyQt6.Qt3DRender', 'PyQt6.QtBluetooth', 'PyQt6.QtDBus', 'PyQt6.QtDesigner', 'PyQt6.QtHelp', 'PyQt6.QtMultimedia', 'PyQt6.QtMultimediaWidgets', 'PyQt6.QtNfc', 'PyQt6.QtPositioning', 'PyQt6.QtRemoteObjects', 'PyQt6.QtSensors', 'PyQt6.QtSerialPort', 'PyQt6.QtSpatialAudio', 'PyQt6.QtStateMachine', 'PyQt6.QtCharts', 'PyQt6.QtQuick3D', 'PyQt6.QtQuick3DPhysics', 'PyQt6.QtQuick3DRuntimeRender'],
+    excludes=['PySide6', 'shiboken6', 'pyside6_essentials', 'PySide2', 'PyQt6', 'PyQt5', 'fitz', 'pymupdf'],
     noarchive=False,
     optimize=0,
 )
@@ -36,7 +36,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['d:\\Projets\\RockTranslate\\src\\assets\\rocktranslate_icon.png'],
+    icon=['d:\\Projets\\RockTranslate\\src\\rocktranslate\\assets\\rocktranslate_icon.png'],
 )
 coll = COLLECT(
     exe,
