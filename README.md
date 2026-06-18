@@ -10,10 +10,21 @@
 </p>
 
 <p align="center">
+  <!-- High-visibility dynamic download badge -->
+  <a href="https://github.com/PerfectWin7777/RockTranslate/releases/download/v1.0.0/RockTranslate_Setup_v1.0.0.exe">
+    <img src="https://img.shields.io/badge/Download-Windows%20GUI%20Installer-blue?style=for-the-badge&logo=windows&logoColor=white" alt="Download Windows GUI Installer" />
+  </a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License" />
   <img src="https://img.shields.io/badge/Python-3.9+-green.svg" alt="Python 3.9+" />
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg" alt="Supported Platforms" />
 </p>
+
+---
+
+### 📥 [Click here to download the standalone Windows Desktop GUI Installer (.exe)](https://github.com/PerfectWin7777/RockTranslate/releases/tag/v1.0.0-beta/RockTranslate_Setup_v1.0.0.exe)
 
 ---
 
@@ -135,6 +146,8 @@ A responsive desktop application featuring:
 *   Synchronized dual-pane viewports (Original PDF vs. Live Translated HTML) [2].
 *   Real-time zoom sliders and page navigation.
 *   Visual shimmer skeleton loaders and real-time status bars [1, 2].
+
+### 📥 [Click here to download the standalone Windows Desktop GUI Installer (.exe)](https://github.com/PerfectWin7777/RockTranslate/releases/tag/v1.0.0-beta/RockTranslate_Setup_v1.0.0.exe)
 
 ### B. Command-Line Interface (CLI)
 A lightweight execution engine that can be run globally from the terminal once installed [3].
