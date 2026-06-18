@@ -19,10 +19,23 @@ import socket
 import threading
 import http.server
 import socketserver
-import webview
-from webview.dom import DOMEventHandler
+import http.server
+import socketserver
 from urllib.parse import urlparse, parse_qs, unquote
 from loguru import logger
+
+# Safe dynamic import check to prevent crash if pywebview was not installed via extras
+try:
+    import webview
+    from webview.dom import DOMEventHandler
+except ImportError:
+    print(
+        "\n❌ Error: The 'pywebview' library is required to launch the Graphical User Interface (GUI).\n"
+        "Please install the package with GUI support enabled using your terminal:\n"
+        "   pip install \"rocktranslate[gui]\"\n"
+    )
+    sys.exit(1)
+
 
 # ── TIKTOKEN PYINSTALLER RUNTIME HOOK ──
 if hasattr(sys, "_MEIPASS"):
