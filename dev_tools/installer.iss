@@ -1,4 +1,4 @@
-$; RockTranslate — Standalone Installer Script (Web Engine Edition)
+; RockTranslate — Standalone Installer Script (Web Engine Edition)
 ; Path: dev_tools/installer.iss
 ;
 ; This configuration script compiles the standalone dist/ folder into a
@@ -46,7 +46,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; Copy all compiled binaries and resources from PyInstaller output recursively.
 ; We use relative paths for cross-system compiling compatibility.
 ; Excludes temporary runtime logs and compiler database residues.
-Source: "..\dist\RockTranslate\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.log,app.log,*.tmp,*.bak"
+Source: "..\dist_desktop\RockTranslate\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.log,app.log,*.tmp,*.bak"
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

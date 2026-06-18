@@ -18,9 +18,9 @@ import subprocess
 
 
 def clean_outdated_build_directories(project_root: str) -> None:
-    """Cleans up outdated build and dist directories before compiling."""
+    """ Cleans up outdated build and dist_desktop directories before compiling. """
     print("🧹 Cleaning previous compilation cache...")
-    for folder in ["build", "dist"]:
+    for folder in ["build", "dist_desktop"]:  
         path = os.path.join(project_root, folder)
         if os.path.exists(path):
             try:
@@ -28,7 +28,6 @@ def clean_outdated_build_directories(project_root: str) -> None:
                 print(f"   -> Removed old directory: {folder}/")
             except OSError as e:
                 print(f"   -> Warning: Failed to clean {folder} directory: {e}")
-
 
 def main() -> None:
     """
@@ -76,6 +75,7 @@ def main() -> None:
         "--hidden-import=clr",
         "--hidden-import=webview.platforms.winforms",
         "--hidden-import=webview.platforms.cocoa",
+        f"--distpath={os.path.join(project_root, 'dist_desktop')}",
     ]
 
     # --- ADVANCED SIZE OPTIMIZATION: EXCLUDE UNUSED MODULES ---
@@ -103,7 +103,7 @@ def main() -> None:
         cmd = ["pyinstaller"] + pyinstaller_args
         subprocess.run(cmd, check=True, cwd=project_root)
         print("\n🎉 Compilation Succeeded!")
-        print(f"📂 Standalone executable is available inside: {os.path.join(project_root, 'dist', 'RockTranslate')}")
+        print(f"📂 Standalone executable is available inside: {os.path.join(project_root, 'dist_desktop', 'RockTranslate')}")
     except FileNotFoundError:
         print(
             "❌ Error: 'pyinstaller' command was not found in this environment.\n"

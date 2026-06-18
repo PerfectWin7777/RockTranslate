@@ -8,6 +8,7 @@ venv/
 env/
 build/
 dist/
+dist_desktop/
 dist_installer/
 logs/
 
