@@ -125,7 +125,7 @@ class ConfigApiMixin:
             Dict[str, Any]: Dictionary containing overrides and exit cache lifecycles.
         """
         return {
-            "clear_cache_on_exit": config_db.get("SystemConfig", "clear_cache_on_exit", True),
+            "clear_cache_on_exit": config_db.get("SystemConfig", "clear_cache_on_exit", False),
             "pdf2htmlex_path_override": config_db.get("SystemConfig", "pdf2htmlex_path_override", ""),
             "pdfjs_path_override": config_db.get("SystemConfig", "pdfjs_path_override", "")
         }
@@ -141,7 +141,7 @@ class ConfigApiMixin:
             Dict[str, str]: Status payload ('success' or 'error' with message).
         """
         try:
-            config_db.set("SystemConfig", "clear_cache_on_exit", bool(settings.get("clear_cache_on_exit", True)))
+            config_db.set("SystemConfig", "clear_cache_on_exit", bool(settings.get("clear_cache_on_exit", False)))
             config_db.set("SystemConfig", "pdf2htmlex_path_override", str(settings.get("pdf2htmlex_path_override", "")).strip())
             config_db.set("SystemConfig", "pdfjs_path_override", str(settings.get("pdfjs_path_override", "")).strip())
             return {"status": "success"}

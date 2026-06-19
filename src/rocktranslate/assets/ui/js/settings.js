@@ -13,7 +13,7 @@
 function systemSettingsController() {
     return {
         fields: {
-            clear_cache_on_exit: true,
+            clear_cache_on_exit: false,
             pdf2htmlex_path_override: '',
             pdfjs_path_override: ''
         },

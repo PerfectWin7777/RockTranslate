@@ -750,7 +750,7 @@ class TranslationApiMixin:
         Physically deletes temporary html workspace and raw layout files
         if the clear_cache_on_exit user setting is set to True.
         """
-        if config_db.get("SystemConfig", "clear_cache_on_exit", True):
+        if config_db.get("SystemConfig", "clear_cache_on_exit", False):
             # 1. Delete workspace HTML
             if self._active_html_path and os.path.exists(self._active_html_path):
                 try:
