@@ -46,6 +46,7 @@ class LLMClient:
         max_tokens: Optional[int] = None,
         custom_base_url: Optional[str] = None,
         all_keys: Optional[Dict[str, str]] = None,
+        custom_glossary: Optional[str] = None,
         on_status: Optional[Callable[[str], None]] = None,
     ) -> None:
         """
@@ -66,6 +67,7 @@ class LLMClient:
         self.max_tokens: Optional[int] = max_tokens
         self.custom_base_url: Optional[str] = custom_base_url
         self.all_keys: Dict[str, str] = all_keys or {}
+        self.custom_glossary: Optional[str] = custom_glossary 
         self.on_status: Optional[Callable[[str], None]] = on_status
 
         if litellm is None:
@@ -186,7 +188,7 @@ class LLMClient:
     ) -> Optional[List[Dict[str, str]]]:
         """ Executes standard completion payloads using the LiteLLM client router. """
         try:
-            system_prompt: str = get_system_prompt(self.target_lang)
+            system_prompt: str = get_system_prompt(self.target_lang, self.custom_glossary)
             user_message: str = get_user_message(batch_segments, context=context)
             # Read AI creativity temperature parameters directly from local storage
             temperature = float(config_db.get("TranslationConfig", "temperature", 1.0))

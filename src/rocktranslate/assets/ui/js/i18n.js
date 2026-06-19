@@ -236,11 +236,10 @@ document.addEventListener('alpine:init', () => {
                 complexity_low: "Low ",
                 complexity_medium: "Medium ",
                 complexity_high: "High ",
-
-
-
-
-
+                
+                trans_glossary_lbl: "Custom Translation Glossary & Rules:",
+                trans_glossary_tip: "Enter your custom translation rules, terminology mappings, or locked scientific acronyms (one rule per line).",
+                
             },
             fr: {
                 // Top-level menu headers
@@ -461,6 +460,9 @@ document.addEventListener('alpine:init', () => {
                 complexity_medium: "Moyenne",
                 complexity_high: "Élevée",
 
+                trans_glossary_lbl: "Glossaire et règles de traduction personnalisés :",
+                trans_glossary_tip: "Saisissez vos règles de traduction, correspondances terminologiques ou acronymes scientifiques verrouillés (une règle par ligne).",
+
             },
 
             es: {
@@ -679,6 +681,9 @@ document.addEventListener('alpine:init', () => {
                 complexity_low: "Baja",
                 complexity_medium: "Media",
                 complexity_high: "Alta",
+
+                trans_glossary_lbl: "Glosario y reglas de traducción personalizados:",
+                trans_glossary_tip: "Ingrese sus reglas de traducción, asignaciones de terminología o acrónimos científicos bloqueados (una regla por línea).",
            
             },
 
@@ -897,6 +902,9 @@ document.addEventListener('alpine:init', () => {
                 complexity_low: "Niedrig",
                 complexity_medium: "Mittel",
                 complexity_high: "Hoch",
+
+                trans_glossary_lbl: "Benutzerdefiniertes Übersetzungsglossar & Regeln:",
+                trans_glossary_tip: "Geben Sie Ihre benutzerdefinierten Übersetzungsregeln, Terminologiezuordnungen oder gesperrten wissenschaftlichen Akronyme ein (eine Regel pro Zeile).",
             
             }
         },

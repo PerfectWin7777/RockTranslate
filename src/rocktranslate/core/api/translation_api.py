@@ -313,6 +313,7 @@ class TranslationApiMixin:
                 target_lang=config_db.get("SystemConfig", "target_lang", "French"),
                 custom_base_url=active_base_url,
                 all_keys=keys_dict,
+                custom_glossary=config_db.get("TranslationConfig", "custom_glossary", ""),
                 on_status=lambda msg: self._send_status(msg)
             )
 

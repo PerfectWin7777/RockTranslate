@@ -23,17 +23,26 @@ except ImportError:
     from src.rocktranslate.core.constants import DEFAULT_LANG_NAME
 
 
-def get_system_prompt(target_lang: str = DEFAULT_LANG_NAME) -> str:
+def get_system_prompt(target_lang: str = DEFAULT_LANG_NAME, custom_glossary: Optional[str] = None) -> str:
     """
     Generates the master system prompt defining translation rules, layout constraints,
     style tags, and JSON structure requirements.
 
     Args:
         target_lang: Full string name of the target language (e.g., 'French', 'German').
+        custom_glossary:
 
     Returns:
         str: Standard system prompt compiled for the AI model.
     """
+    glossary_section = ""
+    if custom_glossary and custom_glossary.strip():
+        glossary_section = f"""
+
+    ## CUSTOM GLOSSARY & TERMINOLOGY TRANSLATION RULES (STRICTLY MANDATORY):
+    {custom_glossary.strip()}
+    """
+        
     return f"""You are an expert scientific document translator specializing in sciences.
 
 Your task is to translate scientific paragraphs into {target_lang}.
@@ -59,6 +68,7 @@ Your task is to translate scientific paragraphs into {target_lang}.
 - Use formal academic register
 - Do NOT translate or rewrite scientific acronyms (ex: NOB, WCAOB, EER, AHP,
   CVL, TTG, BIF, DEM, SRTM, GIS, IAT...). Keep them exactly as-is.
+- {glossary_section}
 
 ## Style tags — CRITICAL
 The input text may contain style tags. Preserve them exactly around the translated words:

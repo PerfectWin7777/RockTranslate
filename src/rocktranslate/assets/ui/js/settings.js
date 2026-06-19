@@ -87,7 +87,8 @@ function translationSettingsController() {
             sliding_context_size: 5,
             max_segments_per_batch: 60,
             threshold_px: 12.0,
-            max_retries: 4
+            max_retries: 4,
+            custom_glossary: ''
         },
 
         init() {

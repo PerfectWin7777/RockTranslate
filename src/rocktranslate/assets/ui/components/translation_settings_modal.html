@@ -1,11 +1,11 @@
-<!-- 
+<!--
   RockTranslate — Translation Engine Configuration Modal
   Path: src/rocktranslate/assets/ui/components/translation_settings_modal.html
 -->
 
 <div id="trans-settings-modal-overlay" class="modal-overlay" x-data="translationSettingsController()"
     x-show="$store.modals.active === 'trans_settings'" x-transition x-cloak>
-    <div class="modal-card" @click.away="$store.modals.close()">
+    <div class="modal-card" style="width: 580px;" @click.away="$store.modals.close()">
 
         <!-- Header -->
         <div class="modal-header">
@@ -16,57 +16,67 @@
 
         <!-- Form Body -->
         <div class="modal-body">
-            <div class="settings-form">
+            <div class="settings-form" style="display: flex; flex-direction: column; gap: 16px;">
 
                 <!-- Model Temperature (0.0 to 2.0) -->
-                <div class="form-row">
+                <div style="display: flex; flex-direction: column; gap: 6px;">
                     <label class="form-label" x-text="$store.i18n.translate('trans_temp_lbl')"></label>
-                    <div class="form-value">
-                        <input type="number" step="0.1" min="0.0" max="2.0" x-model.number="fields.temperature"
-                            :title="$store.i18n.translate('trans_temp_tip')">
-                    </div>
+                    <input type="number" step="0.1" min="0.0" max="2.0" x-model.number="fields.temperature"
+                        :title="$store.i18n.translate('trans_temp_tip')"
+                        style="height: 36px; padding: 0 10px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; outline: none; background: white; color: var(--text-primary); box-sizing: border-box;">
                 </div>
 
                 <!-- Sliding Context Depth -->
-                <div class="form-row">
+                <div style="display: flex; flex-direction: column; gap: 6px;">
                     <label class="form-label" x-text="$store.i18n.translate('trans_context_lbl')"></label>
-                    <div class="form-value">
-                        <input type="number" min="1" max="30" x-model.number="fields.sliding_context_size"
-                            :title="$store.i18n.translate('trans_context_tip')">
-                    </div>
+                    <input type="number" min="1" max="30" x-model.number="fields.sliding_context_size"
+                        :title="$store.i18n.translate('trans_context_tip')"
+                        style="height: 36px; padding: 0 10px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; outline: none; background: white; color: var(--text-primary); box-sizing: border-box;">
                 </div>
 
                 <!-- Max Segments Per Batch -->
-                <div class="form-row">
+                <div style="display: flex; flex-direction: column; gap: 6px;">
                     <label class="form-label" x-text="$store.i18n.translate('trans_batch_lbl')"></label>
-                    <div class="form-value">
-                        <input type="number" min="5" max="200" x-model.number="fields.max_segments_per_batch"
-                            :title="$store.i18n.translate('trans_batch_tip')">
-                    </div>
+                    <input type="number" min="5" max="200" x-model.number="fields.max_segments_per_batch"
+                        :title="$store.i18n.translate('trans_batch_tip')"
+                        style="height: 36px; padding: 0 10px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; outline: none; background: white; color: var(--text-primary); box-sizing: border-box;">
                 </div>
 
                 <!-- Column Split Threshold (px) -->
-                <div class="form-row">
+                <div style="display: flex; flex-direction: column; gap: 6px;">
                     <label class="form-label" x-text="$store.i18n.translate('trans_threshold_lbl')"></label>
-                    <div class="form-value">
-                        <input type="number" step="0.5" min="2.0" max="50.0" x-model.number="fields.threshold_px"
-                            :title="$store.i18n.translate('trans_threshold_tip')">
-                    </div>
+                    <input type="number" step="0.5" min="2.0" max="50.0" x-model.number="fields.threshold_px"
+                        :title="$store.i18n.translate('trans_threshold_tip')"
+                        style="height: 36px; padding: 0 10px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; outline: none; background: white; color: var(--text-primary); box-sizing: border-box;">
                 </div>
 
                 <!-- Max Connection Retries -->
-                <div class="form-row">
+                <div style="display: flex; flex-direction: column; gap: 6px;">
                     <label class="form-label" x-text="$store.i18n.translate('trans_retries_lbl')"></label>
-                    <div class="form-value">
-                        <input type="number" min="1" max="10" x-model.number="fields.max_retries"
-                            :title="$store.i18n.translate('trans_retries_tip')">
-                    </div>
+                    <input type="number" min="1" max="10" x-model.number="fields.max_retries"
+                        :title="$store.i18n.translate('trans_retries_tip')"
+                        style="height: 36px; padding: 0 10px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; outline: none; background: white; color: var(--text-primary); box-sizing: border-box;">
+                </div>
+
+                <!-- Visual separator: glossary is a different kind of input (free text vs numeric) -->
+                <div style="height: 1px; background: var(--border-color); margin: 2px 0;"></div>
+
+                <!-- Custom Translation Glossary Section -->
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <label class="form-label" style="font-weight: bold;"
+                        x-text="$store.i18n.translate('trans_glossary_lbl')"></label>
+                    <textarea x-model="fields.custom_glossary"
+                        placeholder="e.g., CNN -> CNN (Always keep acronym as-is)&#10;e.g., Transformer -> Transformateur (Specific translation rule)"
+                        style="width: 100%; height: 90px; border: 1px solid var(--border-color); border-radius: 4px; padding: 8px 12px; font-size: 11px; font-family: monospace; outline: none; background: white; resize: vertical; box-sizing: border-box;"></textarea>
+                    <p style="font-size: 10px; color: var(--text-muted); margin: 0;"
+                        x-text="$store.i18n.translate('trans_glossary_tip')"></p>
                 </div>
 
             </div>
 
             <!-- Disclosure Info -->
-            <div class="info-disclosure" x-text="$store.i18n.translate('trans_info_disclosure')"></div>
+            <div class="info-disclosure" style="margin-top: 14px;"
+                x-text="$store.i18n.translate('trans_info_disclosure')"></div>
         </div>
 
         <!-- Action Buttons -->
