@@ -11,7 +11,7 @@
 
 <p align="center">
   <!-- High-visibility dynamic download badge -->
-  <a href="https://github.com/PerfectWin7777/RockTranslate/releases/download/v1.0.0/RockTranslate_Setup_v1.0.0.exe">
+  <a href="https://github.com/PerfectWin7777/RockTranslate/releases/download/v1.0.0-beta/RockTranslate_Setup_v1.0.0.exe">
     <img src="https://img.shields.io/badge/Download-Windows%20GUI%20Installer-blue?style=for-the-badge&logo=windows&logoColor=white" alt="Download Windows GUI Installer" />
   </a>
 </p>
