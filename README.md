@@ -2,7 +2,7 @@
 # <img src="docs/assets/rocktranslate_icon.png" width="48" align="center" alt="RockTranslate Icon" /> RockTranslate
 
 <p align="center">
-  <img src="docs/assets/RockTranslate_logo.png" width="480" alt="RockTranslate Logo" />
+  <img src="docs/assets/Rocktranslate_logo.png" width="480" alt="RockTranslate Logo" />
 </p>
 
 <p align="center">
