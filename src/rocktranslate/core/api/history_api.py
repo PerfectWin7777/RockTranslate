@@ -15,7 +15,7 @@ from typing import List, Dict, Any
 import datetime
 from ..pdf_metadata import get_pdf_metadata
 from ..config_manager import config_db
-
+from ..chunker import _estimate_tokens
 
 class HistoryApiMixin:
     """
@@ -128,11 +128,30 @@ class HistoryApiMixin:
         elif done_segments > 0:
             trans_status = "Partial translation in progress"
 
+         # ── FEATURE 1 : CALCUL DU COMPLEXITY SCORE (Indice Géométrique) ──
+        total_pages = max(self._tid_to_page.values()) + 1 if self._tid_to_page else 1
+        ratio = total_segments / max(1, total_pages)
+        
+        if ratio < 15:
+            complexity_key = "complexity_low"
+        elif ratio <= 45:
+            complexity_key = "complexity_medium"
+        else:
+            complexity_key = "complexity_high"
+
+        # ── FEATURE 2 : CALCULS D'ESTIMATION DES TOKENS (Entrée / Sortie) ──
+        input_tokens = sum(_estimate_tokens(text) for text in original_texts.values())
+        
+        output_tokens = 0
+        for page_data in translated_pages.values():
+            output_tokens += sum(_estimate_tokens(text) for text in page_data.values())
+
         # Read active model and language from persistent config
         provider = config_db.get("APIConfig", "provider", "Google Gemini")
         fallback_model = "None"
         active_model = config_db.get("APIConfig", f"last_model_{provider}", fallback_model)
         current_lang = config_db.get("SystemConfig", "target_lang", "French")
+
 
         trans_stats = {
             "trans_status": trans_status,
@@ -140,7 +159,10 @@ class HistoryApiMixin:
             "trans_model": active_model,
             "trans_segments": f"{done_segments} / {total_segments}",
             "trans_scale_avg": "94.4% (Optimized)" if done_segments > 0 else "100.0%",
-            "trans_date": trans_date
+            "trans_date": trans_date,
+            "layout_complexity": complexity_key,
+            "input_tokens": f"{input_tokens:,}",
+            "output_tokens": f"{output_tokens:,}"
         }
 
         try:

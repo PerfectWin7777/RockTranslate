@@ -230,7 +230,12 @@ document.addEventListener('alpine:init', () => {
                 
                 openrouter_free_warning: "Warning: OpenRouter free models are subject to rate limits (20 requests/min and 50 requests/day for accounts without active paid credits). Ideal for testing, but not sufficient for large documents.",
 
-
+                prop_layout_complexity: "Layout Complexity:",
+                prop_input_tokens: "Estimated Input Tokens:",
+                prop_output_tokens: "Estimated Output Tokens:",
+                complexity_low: "Low (Simple single-column)",
+                complexity_medium: "Medium (Standard columns)",
+                complexity_high: "High (Tables & denses columns)",
 
 
 
@@ -449,7 +454,12 @@ document.addEventListener('alpine:init', () => {
 
                 openrouter_free_warning: "Attention : Les modèles gratuits d'OpenRouter sont soumis à de strictes limites (20 requêtes/min et 50 requêtes/jour pour les comptes sans crédits payants). Utile pour des tests, mais insuffisant pour de gros documents.",
 
-             
+                prop_layout_complexity: "Complexité de la mise en page :",
+                prop_input_tokens: "Jetons d'entrée estimés :",
+                prop_output_tokens: "Jetons de sortie estimés :",
+                complexity_low: "Faible (Texte simple sur une seule colonne)",
+                complexity_medium: "Moyenne (Colonnes scientifiques standards)",
+                complexity_high: "Élevée (Tableaux et colonnes denses)",
 
             },
 
@@ -662,6 +672,14 @@ document.addEventListener('alpine:init', () => {
                 toast_export_error: "Exportación fallida: {error}",
 
                 openrouter_free_warning: "Atención: Los modelos gratuitos de OpenRouter están sujetos a límites (20 solicitudes/min y 50 solicitudes/día para cuentas sin créditos de pago). Útil para pruebas, pero insuficiente para documentos grandes.",
+                
+                prop_layout_complexity: "Complejidad del diseño:",
+                prop_input_tokens: "Tokens de entrada estimados:",
+                prop_output_tokens: "Tokens de salida estimados:",
+                complexity_low: "Baja (Texto simple de una columna)",
+                complexity_medium: "Media (Columnas científicas estándar)",
+                complexity_high: "Alta (Tablas y columnas densas)",
+           
             },
 
             de: {
@@ -872,6 +890,14 @@ document.addEventListener('alpine:init', () => {
                 toast_export_error: "Export fehlgeschlagen: {error}",
 
                 openrouter_free_warning: "Achtung: Die kostenlosen Modelle von OpenRouter unterliegen strengen Limits (20 Anfragen/Min und 50 Anfragen/Tag für Konten ohne bezahlte Credits). Nützlich für Tests, aber unzureichend für große Dokumente.",
+                 
+                prop_layout_complexity: "Layout-Komplexität:",
+                prop_input_tokens: "Geschätzte Eingabe-Tokens:",
+                prop_output_tokens: "Geschätzte Ausgabe-Tokens:",
+                complexity_low: "Niedrig (Einfacher einspaltiger Text)",
+                complexity_medium: "Mittel (Standard-Mehrspaltenlayouts)",
+                complexity_high: "Hoch (Dichte Tabellen und Spalten)",
+            
             }
         },
 

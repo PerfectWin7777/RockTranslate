@@ -134,6 +134,24 @@
                             <span class="meta-label" x-text="$store.i18n.translate('prop_date')"></span>
                             <span class="meta-value" x-text="metadata.trans_date"></span>
                         </div>
+
+                        <!-- Indice de Complexité Géométrique -->
+                        <div class="form-row" x-show="metadata.layout_complexity">
+                            <span class="prop-label" x-text="$store.i18n.translate('prop_layout_complexity')"></span>
+                            <span class="prop-value" style="font-weight: bold; color: var(--accent-blue);"
+                                x-text="$store.i18n.translate(metadata.layout_complexity)"></span>
+                        </div>
+                        
+                        <!-- Tokens Tracker : Entrée et Sortie -->
+                        <div class="form-row" x-show="metadata.input_tokens">
+                            <span class="prop-label" x-text="$store.i18n.translate('prop_input_tokens')"></span>
+                            <span class="prop-value" x-text="metadata.input_tokens"></span>
+                        </div>
+                        <div class="form-row" x-show="metadata.output_tokens">
+                            <span class="prop-label" x-text="$store.i18n.translate('prop_output_tokens')"></span>
+                            <span class="prop-value" x-text="metadata.output_tokens"></span>
+                        </div>
+                        
                     </div>
 
                 </div>

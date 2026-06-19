@@ -811,6 +811,82 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 window.resetPageToWaiting(msg.pageIdx);
             }
         });
+
+
+
+        // ── FEATURE : BILINGUAL HOVER PEEK WITH CTRL KEY (High Performance Event Delegation) ──
+        var hoveredSpan = null;
+
+        // Create and append the dynamic tooltip box on document load
+        var tooltip = document.createElement('div');
+        tooltip.id = 'rt-bilingual-tooltip';
+        tooltip.style.cssText = "position: absolute; display: none; background: rgba(15, 23, 42, 0.96); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); color: #ffffff; padding: 10px 14px; border-radius: 6px; font-size: 11px; max-width: 320px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); z-index: 5000; border: 1px solid rgba(255,255,255,0.15); line-height: 1.5; pointer-events: none; transition: opacity 0.1s ease; opacity: 0; font-family: 'Segoe UI', -apple-system, sans-serif; white-space: pre-line;";
+        document.body.appendChild(tooltip);
+
+        document.addEventListener('mouseover', function(e) {
+            var span = e.target.closest('span[data-trans-id]');
+            if (span && e.ctrlKey) {
+                hoveredSpan = span;
+                showTooltip(span);
+            }
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (hoveredSpan && e.ctrlKey) {
+                positionTooltip(e);
+            } else if (hoveredSpan && !e.ctrlKey) {
+                hideTooltip();
+            }
+        });
+
+        document.addEventListener('mouseout', function(e) {
+            var span = e.target.closest('span[data-trans-id]');
+            if (span && span === hoveredSpan) {
+                hideTooltip();
+            }
+        });
+
+        // Handle situations where the user presses or releases Control while hovering
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Control' && hoveredSpan) {
+                showTooltip(hoveredSpan);
+            }
+        });
+
+        document.addEventListener('keyup', function(e) {
+            if (e.key === 'Control') {
+                hideTooltip();
+            }
+        });
+
+        function showTooltip(span) {
+            var origHtml = span.getAttribute('data-orig-html');
+            if (!origHtml) return;
+
+            // Create a temporary container to extract raw, unstyled text from original HTML
+            var tempDiv = document.createElement('div');
+            tempDiv.innerHTML = origHtml;
+            var cleanText = tempDiv.textContent || tempDiv.innerText || "";
+            cleanText = cleanText.trim();
+
+            if (!cleanText) return;
+
+            tooltip.textContent = "🔍 Original : " + cleanText;
+            tooltip.style.display = 'block';
+            setTimeout(function() { tooltip.style.opacity = '1'; }, 10);
+        }
+
+        function positionTooltip(e) {
+            // Smoothly position the tooltip near the active mouse pointer
+            tooltip.style.left = (e.pageX + 15) + 'px';
+            tooltip.style.top = (e.pageY - tooltip.offsetHeight - 15) + 'px';
+        }
+
+        function hideTooltip() {
+            tooltip.style.opacity = '0';
+            tooltip.style.display = 'none';
+            hoveredSpan = null;
+        }
     """
     soup.body.append(script_tag)
 
