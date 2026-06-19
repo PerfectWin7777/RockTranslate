@@ -383,7 +383,11 @@ class TranslationApiMixin:
                     self._send_js(f"window.dispatchEvent(new CustomEvent('update-progress-page', {{ detail: {{ page: {page_idx + 1} }} }}))")
 
                 context_str = "\n".join(sliding_context) if sliding_context else None
-                results = client.translate_batch(batch.segments, context=context_str)
+                results = client.translate_batch(
+                    batch.segments, 
+                    context=context_str,
+                    check_cancelled=lambda: self._stop_translation
+                )
 
                 if self._stop_translation:
                     break
@@ -455,9 +459,11 @@ class TranslationApiMixin:
                 )
             self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-finished'))")
             
+            
         finally:
             # Enforce lock release regardless of crash outcomes
             self._thread_lock.release()
+            self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-finished'))")
 
     def _send_translation_stream(self, trans_id: str, text: str):
         """
@@ -470,21 +476,6 @@ class TranslationApiMixin:
             f"}}))"
         )
         self._send_js(js_call)
-    
-
-    def is_document_translated(self) -> bool:
-        """
-        Fast, non-blocking check returning True if all original text segments
-        have already been translated in the active session.
-        """
-        if not self._original_texts:
-            return False
-        
-        already_translated_ids = set()
-        for page_data in self._translated_pages.values():
-            already_translated_ids.update(page_data.keys())
-            
-        return len(already_translated_ids) >= len(self._original_texts)
     
 
     def is_range_translated(self, range_str: Optional[str]) -> bool:

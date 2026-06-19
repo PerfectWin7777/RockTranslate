@@ -50,10 +50,6 @@ class RockTranslateAPI(HistoryApiMixin, ConfigApiMixin, TranslationApiMixin):
     def is_range_translated(self, range_str: Optional[str]) -> bool:
         """Exposed endpoint to check if any of the target range pages are already translated."""
         return super().is_range_translated(range_str)
-
-    def is_document_translated(self) -> bool:
-        """Exposed endpoint to check if document is already fully translated."""
-        return super().is_document_translated()
     
     def open_external_link(self, url: str) -> None:
         """

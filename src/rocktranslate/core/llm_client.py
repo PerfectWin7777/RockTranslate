@@ -93,6 +93,7 @@ class LLMClient:
         self,
         batch_segments: List[Dict[str, str]],
         context: Optional[str] = None,
+        check_cancelled: Optional[Callable[[], bool]] = None,
     ) -> Optional[List[Dict[str, str]]]:
         """
         Translates a batch of text segments, managing network failures,
@@ -111,6 +112,10 @@ class LLMClient:
         max_retries = int(config_db.get("TranslationConfig", "max_retries", MAX_RETRIES))
 
         for attempt in range(max_retries):
+             # Abort immediately if cancellation is requested.
+            if check_cancelled and check_cancelled():
+                self._log_status("Translation batch aborted: cancellation requested.")
+                return None
             try:
                 # Trigger provider-safe dynamic fallback on repeated failures (attempts 3 and 4)
                 if attempt >= 2:
@@ -146,6 +151,9 @@ class LLMClient:
 
                 if is_rate_limit:
                     for remaining in range(int(wait_time), 0, -1):
+                        # Abort immediately if cancelled while waiting
+                        if check_cancelled and check_cancelled():
+                            return None
                         self._log_status(
                             f"⏳ API quota or rate limits exceeded. Automatically retrying in {remaining}s..."
                         )
@@ -154,7 +162,10 @@ class LLMClient:
                     self._log_status(
                         f"❌ Network connection error ({type(e).__name__}). Pausing for {int(wait_time)}s..."
                     )
-                    time.sleep(wait_time)
+                    for remaining in range(int(wait_time), 0, -1):
+                        if check_cancelled and check_cancelled():
+                            return None
+                        time.sleep(1)
 
         logger.error(f"Failed to translate target batch after {MAX_RETRIES} attempts.")
         return None
