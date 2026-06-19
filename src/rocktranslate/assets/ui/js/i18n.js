@@ -233,9 +233,9 @@ document.addEventListener('alpine:init', () => {
                 prop_layout_complexity: "Layout Complexity:",
                 prop_input_tokens: "Estimated Input Tokens:",
                 prop_output_tokens: "Estimated Output Tokens:",
-                complexity_low: "Low (Simple single-column)",
-                complexity_medium: "Medium (Standard columns)",
-                complexity_high: "High (Tables & denses columns)",
+                complexity_low: "Low ",
+                complexity_medium: "Medium ",
+                complexity_high: "High ",
 
 
 
@@ -457,9 +457,9 @@ document.addEventListener('alpine:init', () => {
                 prop_layout_complexity: "Complexité de la mise en page :",
                 prop_input_tokens: "Jetons d'entrée estimés :",
                 prop_output_tokens: "Jetons de sortie estimés :",
-                complexity_low: "Faible (Texte simple sur une seule colonne)",
-                complexity_medium: "Moyenne (Colonnes scientifiques standards)",
-                complexity_high: "Élevée (Tableaux et colonnes denses)",
+                complexity_low: "Faible",
+                complexity_medium: "Moyenne",
+                complexity_high: "Élevée",
 
             },
 
@@ -676,9 +676,9 @@ document.addEventListener('alpine:init', () => {
                 prop_layout_complexity: "Complejidad del diseño:",
                 prop_input_tokens: "Tokens de entrada estimados:",
                 prop_output_tokens: "Tokens de salida estimados:",
-                complexity_low: "Baja (Texto simple de una columna)",
-                complexity_medium: "Media (Columnas científicas estándar)",
-                complexity_high: "Alta (Tablas y columnas densas)",
+                complexity_low: "Baja",
+                complexity_medium: "Media",
+                complexity_high: "Alta",
            
             },
 
@@ -894,9 +894,9 @@ document.addEventListener('alpine:init', () => {
                 prop_layout_complexity: "Layout-Komplexität:",
                 prop_input_tokens: "Geschätzte Eingabe-Tokens:",
                 prop_output_tokens: "Geschätzte Ausgabe-Tokens:",
-                complexity_low: "Niedrig (Einfacher einspaltiger Text)",
-                complexity_medium: "Mittel (Standard-Mehrspaltenlayouts)",
-                complexity_high: "Hoch (Dichte Tabellen und Spalten)",
+                complexity_low: "Niedrig",
+                complexity_medium: "Mittel",
+                complexity_high: "Hoch",
             
             }
         },

@@ -127,13 +127,14 @@ function workspaceController() {
             const htmlFrame = document.getElementById('html-iframe');
             if (!pdfFrame || !htmlFrame) return;
 
-            const port = window.location.port;
-            const pdfjsViewer = `http://localhost:${port}/pdfjs/web/viewer.html`;
+            // Dynamically resolve "http://127.0.0.1:XXXXX" or "http://localhost:XXXXX"
+            const origin = window.location.origin;
+            const pdfjsViewer = `${origin}/pdfjs/web/viewer.html`;
 
-            // Format localhost served file URLs safely
-            const fileUrl = `http://localhost:${port}/local-file?path=${encodeURIComponent(this.$data.activeFilePath)}`;
-            const htmlUrl = `http://localhost:${port}/local-file?path=${encodeURIComponent(this.$data.activeHtmlPath)}`;
-
+            // Format served file URLs safely to maintain Same-Origin alignment (prevents CORS crashes)
+            const fileUrl = `${origin}/local-file?path=${encodeURIComponent(this.$data.activeFilePath)}`;
+            const htmlUrl = `${origin}/local-file?path=${encodeURIComponent(this.$data.activeHtmlPath)}`;
+            
             // Load left iframe with PDF.js viewer and completely hide the top toolbar/navpanes
             pdfFrame.src = `${pdfjsViewer}?file=${encodeURIComponent(fileUrl)}#toolbar=0&navpanes=0&pagemode=none`;
 
