@@ -66,9 +66,15 @@ Built with a local-first architecture, RockTranslate prioritizes performance, re
 Choose the installation method that best suits your requirements:
 
 ### A. Package Installation (via pip)
-Once published on PyPI, you can install the latest stable version of RockTranslate directly:
+RockTranslate is officially published on PyPI. You can install the core lightweight library (CLI & API only) or include full desktop GUI support:
+
+**For CLI & Programmatic API only (Lightweight, No GUI):**
 ```bash
 pip install rocktranslate
+```
+**For the full Desktop Graphical User Interface (GUI):**
+```bash
+pip install "rocktranslate[gui]"
 ```
 
 ### B. Development Installation (via Git)
@@ -271,7 +277,9 @@ else:
     *   *Our Solution:* We have implemented a robust Windows crash preventer (`SetErrorMode`) and a strict 30-second subprocess timeout. If a compilation hangs, RockTranslate instantly terminates the process and fails gracefully in under 50ms without freezing the UI [1].
 
 ### Roadmap & Future TODOs:
-*   [ ] **PyQt6 / QWebEngine Migration:** Migrate the Desktop GUI away from PyQt6 and heavy Chromium-based `QWebEngine` wrappers, transitioning towards a lightweight native webview (e.g., `pywebview`). This will reduce the compiled `.exe` bundle size from ~150MB down to under 20MB.
+*   [ ] **Bilingual Translation Memory Export (TMX / JSON):** Add a button inside the document properties modal to let users download a clean bilingual parallel aligned sheet (.json/.tmx) of the translated paper.
+*   [ ] **Local PDF.js Night & Sepia Mode:** Implement visual color inversion overlays inside the native PDF.js iframe, allowing users to comfortably study original double-column layouts in low-light environments.
+*   [ ] **Scanned PDF Support (Local OCR Fallback):** Integrate a lightweight local OCR pipeline (e.g., Tesseract wrapper) to automatically recognize and translate text flattened inside scanned, image-only academic PDFs.
 *   [ ] **Automatic Fallback to Serverless Cloud Conversion:** Integrate an optional, free, or self-hosted serverless cloud rendering API (using the official Docker Linux image) to handle complex LaTeX papers without any local system limitations [1, 2].
 *   [ ] **Concurrent Batch Translation:** Implement parallel API calls (limited to 3 concurrent requests to respect free-tier quotas) to speed up translation times by 3x [1].
 
