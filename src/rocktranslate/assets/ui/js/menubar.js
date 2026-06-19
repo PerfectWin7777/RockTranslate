@@ -110,6 +110,13 @@ function menubarController() {
             }
         },
 
+        loadRecentFile(filePath) {
+            this.closeAll();
+            if (window.pywebview && window.pywebview.api && window.pywebview.api.extract_pdf) {
+                window.pywebview.api.extract_pdf(filePath);
+            }
+        },
+
         /**
          * First click opens the target menu and activates menu hover-switching mode.
          */

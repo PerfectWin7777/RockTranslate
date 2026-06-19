@@ -254,6 +254,8 @@ class TranslationApiMixin:
                 f"window.dispatchEvent(new CustomEvent('reset-page', "
                 f"{{ detail: {{ page: {current_page} }} }}))"
             )
+            # Reset pointer to prevent blocking the overlay on next run
+            self._current_translating_page = -1
 
         if not quiet:
             self._send_status_i18n("status_trans_cancelled")
@@ -278,6 +280,9 @@ class TranslationApiMixin:
             return
 
         try:
+            # Always reset the active page indicator when the thread starts
+            self._current_translating_page = -1
+
             self._send_status_i18n("status_trans_init")
             
             # Resolve AI provider configuration details

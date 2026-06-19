@@ -417,7 +417,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                         flattened_children.append(new_span)
                     else:
                         flattened_children.append(element)
-                elif element.name == "span" and element.get("class") and "_" in element.get("class"):
+                elif element.name == "span" and element.get("class") and any(cls.startswith("_") for cls in element.get("class")):
                     # Spacers are kept flat without wrapping
                     flattened_children.append(element)
                 elif element.name in ["span", "b", "i", "sup", "sub", "em", "strong"]:
@@ -513,7 +513,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     child_classes = []
 
                 # Now that it's initialized, we can use it safely
-                if child.name == "span" and "_" in child_classes:
+                if child.name == "span" and any(cls.startswith("_") for cls in child_classes):
                     is_spacer = True
                     for cls in child_classes:
                         if cls.startswith("_") and len(cls) > 1:
@@ -624,7 +624,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
         #sidebar { display: none !important; }
         #page-container { left: 0 !important; margin: 0 auto !important; }
 
-        span[data-trans-id] {
+        span[data-trans-id].translated {
             word-spacing: 0.25em !important;
         }
 
@@ -722,6 +722,8 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     '<span style="color: #$1;">$2</span>'
                 );
                 span.innerHTML = formattedHTML;
+
+                span.classList.add('translated');
 
                 // Clear skeletal loading animations once real DOM content is injected [1.2.6]
                 span.classList.remove('shimmer-line');
