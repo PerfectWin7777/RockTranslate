@@ -19,7 +19,15 @@ setup.bat
 *.pdf
 *.docx
 *.html
-Nsangou Ngapna et al._ASR_2024.pdf
+
+# Prevent Git from ignoring site assets inside the /docs folder (GitHub Pages)
+!docs/
+!docs/**/*.html
+!docs/**/*.css
+!docs/**/*.js
+!docs/**/*.png
+
+
 outputs/
 fonts/*.ttf
 !fonts/FreeSerif.ttf
