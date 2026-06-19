@@ -102,7 +102,7 @@ pip install git+https://github.com/PerfectWin7777/RockTranslate.git
 *The following animation demonstrates opening, rendering, and translating a multi-column paper dynamically:*
 
 <p align="center">
-  <img src=" docs/assets/readme_animation.gif" width="800" alt="RockTranslate Application Demo" />
+  <img src="docs/assets/readme_animation.gif" width="800" alt="RockTranslate Application Demo" />
 </p>
 
 ---
@@ -110,7 +110,7 @@ pip install git+https://github.com/PerfectWin7777/RockTranslate.git
 ### 🔬 1. English to Spanish (Elsevier Double-Column Layout)
 *Demonstrating perfect preservation of multi-column text flow, publisher headers, and author blocks.*
 
-![English to Spanish Comparison]( docs/assets/readme_comparison_en_to_spa.png)
+![English to Spanish Comparison](docs/assets/readme_comparison_en_to_spa.png)
 
 *The original Elsevier double-column layout is fully retained with zero text-overlapping or margin drift.*
 
@@ -119,7 +119,7 @@ pip install git+https://github.com/PerfectWin7777/RockTranslate.git
 ### 🧠 2. English to French (Attention Is All You Need — Abstract & Title)
 *Demonstrating precise preservation of scientific structures, titles, and mathematical equations.*
 
-![English to French Comparison]( docs/assets/readme_comparison_en_to_fr.png)
+![English to French Comparison](docs/assets/readme_comparison_en_to_fr.png)
 
 *Mathematical formulas, paragraph flows, and proper academic register remain completely intact.*
 
@@ -128,7 +128,7 @@ pip install git+https://github.com/PerfectWin7777/RockTranslate.git
 ### 🌸 3. English to Japanese (Attention Is All You Need — Paragraph Flow)
 *Demonstrating robust handling of double-byte CJK characters without vertical line collapses or overlapping.*
 
-![English to Japanese Comparison]( docs/assets/readme_comparison_en_to_jn.png)
+![English to Japanese Comparison](docs/assets/readme_comparison_en_to_jn.png)
 
 *Japanese Kanji and Kana characters are rendered cleanly with proportional horizontal scaling.*
 
@@ -137,7 +137,7 @@ pip install git+https://github.com/PerfectWin7777/RockTranslate.git
 ### 🌸 4. English to German (Elsevier Double-Column Layout— Paragraph Flow and Table)
 *Demonstrating robust preservation of tables and math formulas in a double-column layout..*
 
-![English to German Comparison]( docs/assets/readme_comparison_en_to_ge.png)
+![English to German Comparison](docs/assets/readme_comparison_en_to_ge.png)
 
 *Clarity of paragraphs, tables and styles, preservation of mathematical formulas.*
 
