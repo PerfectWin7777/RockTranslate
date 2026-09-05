@@ -43,7 +43,8 @@ def convert_pdf_to_html(
     on_progress: Optional[Callable[[int, int], None]] = None,
     stall_timeout: float = STALL_TIMEOUT_SECONDS,
     timeout: Optional[float] = None,
-    output_dir: Optional[str] = None
+    output_dir: Optional[str] = None,
+    check_cancelled: Optional[Callable[[], bool]] = None
 ) -> Optional[str]:
     """
     Converts a source PDF into raw HTML using the local pdf2htmlEX executable.
@@ -63,6 +64,8 @@ def convert_pdf_to_html(
         timeout: Optional hard cap in seconds for the entire conversion.
         output_dir: Optional directory where the raw HTML (and its assets) are
             written. Defaults to the PDF's own directory.
+        check_cancelled: Optional polling callback; when it returns True the
+            conversion is aborted and the process killed immediately.
 
     Returns:
         Optional[str]: Absolute path to the generated raw HTML, or None if failed.
@@ -150,9 +153,25 @@ def convert_pdf_to_html(
                 return None
             wait_budget = min(wait_budget, remaining)
 
-        try:
-            line = stderr_queue.get(timeout=wait_budget)
-        except queue.Empty:
+        # Poll in short slices so cancellation stays responsive while the queue
+        # is idle; silence across the whole budget still means the process hung.
+        line: Optional[str] = None
+        stalled = True
+        stall_deadline = time.monotonic() + wait_budget
+        while time.monotonic() < stall_deadline:
+            if check_cancelled is not None and check_cancelled():
+                logger.info("pdf2htmlEX conversion cancelled by caller. Terminating the process.")
+                process.kill()
+                process.wait(timeout=5)
+                return None
+            try:
+                line = stderr_queue.get(timeout=1.0)
+                stalled = False
+                break
+            except queue.Empty:
+                continue
+
+        if stalled:
             logger.error(
                 f"pdf2htmlEX stalled for {stall_timeout}s without output on: {pdf_filename}. "
                 "Terminating the hung process."

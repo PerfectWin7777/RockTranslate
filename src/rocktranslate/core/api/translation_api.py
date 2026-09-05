@@ -269,14 +269,29 @@ class TranslationApiMixin:
 
         cache_dir = self._document_cache_dir()
 
+        # Announce the preparation phase so the right-pane overlay switches to
+        # live progress mode (the UI shows the placeholder in lazy mode).
+        self._send_js("window.dispatchEvent(new CustomEvent('workspace-prep-start'))")
+
         # Thread-safe progress report callback for pdf2htmlEX compilation
         def on_pdf_progress(current: int, total: int):
             self._send_status_i18n("status_extraction_pages", {"current": current, "total": total})
+            self._send_js(
+                f"window.dispatchEvent(new CustomEvent('workspace-prep-progress', {{ "
+                f"detail: {{ current: {current}, total: {total} }} }}))"
+            )
 
         self._send_status_i18n("status_extraction_start")
         raw_html_path = convert_pdf_to_html(
-            pdf_path, assets_dir, on_progress=on_pdf_progress, output_dir=cache_dir
+            pdf_path, assets_dir, on_progress=on_pdf_progress,
+            output_dir=cache_dir, check_cancelled=lambda: self._stop_translation
         )
+
+        # Cancellation requested while converting: exit gracefully
+        if self._stop_translation:
+            logger.info("Layout preparation cancelled by the user.")
+            self._send_status_i18n("status_trans_cancelled")
+            return False
 
         if not raw_html_path or not os.path.exists(raw_html_path):
             self._send_status_i18n("status_extraction_failed")
@@ -576,15 +591,14 @@ class TranslationApiMixin:
 
                 if results is None:
                     self._send_toast_i18n("toast_api_connection_error", "error", duration=8000)
-                    
+
                     # Reset the page that was mid-translation back to waiting overlay
                     if self._current_translating_page != -1:
                         self._send_js(
                             f"window.dispatchEvent(new CustomEvent('reset-page', "
                             f"{{ detail: {{ page: {self._current_translating_page} }} }}))"
                         )
-                    # Notify frontend that thread completed
-                    self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-finished'))")
+                    # 'trigger-translation-finished' is emitted once in the finally block
                     return
 
                 # Record results page-by-page and stream translations
@@ -625,7 +639,7 @@ class TranslationApiMixin:
                 return
 
             self._send_status("Document translation completed successfully.")
-            self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-finished'))")
+            # 'trigger-translation-finished' is emitted once in the finally block
             self._send_toast_i18n("toast_trans_success", "success")
 
         except Exception as error:
@@ -639,12 +653,12 @@ class TranslationApiMixin:
                     f"window.dispatchEvent(new CustomEvent('reset-page', "
                     f"{{ detail: {{ page: {self._current_translating_page} }} }}))"
                 )
-            self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-finished'))")
-            
-            
+
+
         finally:
             # Enforce lock release regardless of crash outcomes
             self._thread_lock.release()
+            # Single, guaranteed completion signal for the frontend run state
             self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-finished'))")
 
     def _send_translation_stream(self, trans_id: str, text: str):

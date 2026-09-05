@@ -19,11 +19,22 @@
         <div id="right-pane" class="workspace-pane">
             <iframe id="html-iframe" class="pane-frame"></iframe>
 
-            <!-- Lazy mode placeholder: shown until the first translation prepares the layout -->
+            <!-- Lazy mode placeholder / preparation overlay: shown until the prepared
+                 workspace arrives. During the first translation it displays the live
+                 pdf2htmlEX page progress, then disappears as soon as the document is ready. -->
             <div id="trans-placeholder" class="trans-placeholder" style="display:none;">
                 <div class="placeholder-card">
-                    <div class="placeholder-icon">🌐</div>
-                    <p class="placeholder-text" x-text="$store.i18n.translate('workspace_lazy_placeholder')"></p>
+                    <div class="placeholder-spinner" x-show="$store.trans.stage === 'preparing'"></div>
+                    <div class="placeholder-icon" x-show="$store.trans.stage !== 'preparing'">🌐</div>
+                    <div class="placeholder-title"
+                        x-text="$store.trans.stage === 'preparing'
+                            ? $store.i18n.translate('prep_overlay_title')
+                            : $store.i18n.translate('workspace_lazy_title')"></div>
+                    <p class="placeholder-progress"
+                        x-show="$store.trans.stage === 'preparing' && $store.trans.prepTotal > 0"
+                        x-text="$store.i18n.translate('prep_overlay_pages', { current: $store.trans.prepCurrent, total: $store.trans.prepTotal })"></p>
+                    <p class="placeholder-text"
+                        x-text="$store.i18n.translate('workspace_lazy_placeholder')"></p>
                 </div>
             </div>
         </div>

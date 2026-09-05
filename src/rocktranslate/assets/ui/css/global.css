@@ -279,3 +279,63 @@ body {
 .dialog-btn-confirm:hover {
     background: var(--accent-blue-hover);
 }
+/* ── Floating Translation Stop Control ─────────────────────────────── */
+/* Single unambiguous stop intent while a translation run is active,
+   fully decoupled from menu item labels (fixes recurring label desync). */
+#translation-stop-overlay {
+    position: fixed;
+    bottom: 64px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 900;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    pointer-events: none;
+}
+
+#stop-translation-btn {
+    pointer-events: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 22px;
+    border: none;
+    border-radius: 999px;
+    background: #dc2626;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(220, 38, 38, 0.35);
+    transition: background-color 0.15s, transform 0.1s;
+}
+
+#stop-translation-btn:hover {
+    background: #b91c1c;
+}
+
+#stop-translation-btn:active {
+    transform: scale(0.97);
+}
+
+#stop-translation-btn .stop-icon {
+    font-size: 10px;
+    line-height: 1;
+}
+
+#stop-stage-text {
+    pointer-events: none;
+    padding: 3px 12px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.78);
+    color: #f8fafc;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+[x-cloak] {
+    display: none !important;
+}

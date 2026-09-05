@@ -102,7 +102,7 @@
                     <span class="dropdown-label">
                         <span class="dropdown-checkmark"></span>
                         <span
-                            x-text="isTranslating ? $store.i18n.translate('item_stop_trans') : $store.i18n.translate('item_start_trans')"></span>
+                            x-text="$store.trans.running ? $store.i18n.translate('item_stop_trans') : $store.i18n.translate('item_start_trans')"></span>
                     </span>
                     <span class="dropdown-shortcut">Ctrl+Enter</span>
                 </div>

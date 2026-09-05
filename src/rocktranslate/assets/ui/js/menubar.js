@@ -31,7 +31,9 @@ function menubarController() {
         showProgressPanel: true,
         isFullscreen: false,
         layoutMode: 'both', // 'both', 'pdf_only', 'trans_only'
-        isTranslating: false,
+        // NOTE: translation running state lives in the central Alpine store
+        // 'trans' (registered in index.html) — never keep a local copy here,
+        // sibling components desync silently.
 
         init() {
             // Fetch initial recent files and API status
@@ -50,14 +52,6 @@ function menubarController() {
 
             // ── CLOSE MENUS ON IFRAME CLICKS LISTENER ──
             window.addEventListener('trigger-close-all-menus', () => this.closeAll());
-
-            // Sync translation thread state reactively
-            window.addEventListener('trigger-translation-start', () => {
-                this.isTranslating = true;
-            });
-            window.addEventListener('trigger-translation-finished', () => {
-                this.isTranslating = false;
-            });
 
             // ── GLOBAL KEYBOARD SHORTCUTS EXECUTOR ──
             window.addEventListener('execute-menu-action', (e) => {

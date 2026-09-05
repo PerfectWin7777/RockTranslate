@@ -193,5 +193,39 @@ def main():
     print("ALL P2 TESTS PASSED")
 
 
+def test_cancel_during_preparation():
+    """Stop requested while pdf2htmlEX is converting must abort quickly and cleanly."""
+    import rocktranslate.core.api.translation_api as ta
+    install_test_config()
+    install_fake_llm()
+    from rocktranslate.core.web_api import RockTranslateAPI
+
+    api = RockTranslateAPI()
+    win = FakeWindow()
+    api._window = win
+
+    api.extract_pdf(PDF_PATH)
+    assert win.wait_for("document-ready", 30), "document-ready never fired"
+
+    api.start_full_translation()
+    assert win.wait_for("workspace-prep-start", 30), "workspace-prep-start never fired"
+
+    # Give the conversion a moment to start, then request a stop
+    time.sleep(3)
+    t0 = time.time()
+    api.stop_translation()
+    assert wait_thread(api._trans_thread, 60), "translation thread did not stop in time"
+    elapsed = time.time() - t0
+
+    assert not api._is_prepared, "document must not be marked prepared after cancellation"
+    assert not win.has("workspace-html-ready"), "no workspace must be served after cancellation"
+    assert win.has("trigger-translation-finished"), "finished signal missing after cancellation"
+    print(f"CANCEL TEST OK: stop during preparation acknowledged in {elapsed:.1f}s, state clean")
+
+    api.close_document()
+
+
 if __name__ == "__main__":
     main()
+    print("---")
+    test_cancel_during_preparation()

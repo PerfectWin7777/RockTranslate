@@ -87,6 +87,19 @@
         </template>
     </div>
 
+    <!-- 5b. Floating Stop Control — single unambiguous stop intent, decoupled from menu labels -->
+    <div id="translation-stop-overlay" class="unselectable" x-cloak x-show="$store.trans.running"
+        x-transition:enter="transition ease-out duration-150">
+        <button id="stop-translation-btn" @click="requestStopTranslation()">
+            <span class="stop-icon">■</span>
+            <span x-text="$store.i18n.translate('item_stop_trans')"></span>
+        </button>
+        <div id="stop-stage-text"
+            x-text="$store.trans.stage === 'preparing'
+                ? $store.i18n.translate('prep_overlay_pages', { current: $store.trans.prepCurrent, total: $store.trans.prepTotal })
+                : $store.i18n.translate('trans_running_stage')"></div>
+    </div>
+
     <!-- 6. Global Modals Mounting Points -->
     <div id="about-modal-mount"></div>
     <div id="system-settings-modal-mount"></div>
@@ -98,6 +111,16 @@
     <!-- Core App Shell Routing JavaScript Logic -->
     <script>
         document.addEventListener('alpine:init', () => {
+            // Single source of truth for the translation run state. The menubar,
+            // the workspace overlay and the shell all read this store: sibling
+            // Alpine components never stay in sync through local copies.
+            Alpine.store('trans', {
+                running: false,
+                stage: 'idle', // 'idle' | 'preparing' | 'translating'
+                prepCurrent: 0,
+                prepTotal: 0
+            });
+
             Alpine.store('modals', {
                 active: null,
                 open(modalName) { this.active = modalName; },
@@ -168,13 +191,12 @@
             window.showToast(translated, type, duration);
         };
 
-        function appShell() {
+            function appShell() {
             return {
                 currentScreen: 'dashboard',
                 activeFilePath: null,
                 activeHtmlPath: null,
                 showProgressPanel: true,
-                isTranslating: false, // Tracks active translation threads state
 
                 init() {
                     window.addEventListener('pywebviewready', async () => {
@@ -195,9 +217,35 @@
                         this.showProgressPanel = e.detail.visible;
                     });
 
-                  // Synchronize active translation state upon background completion
+                  // Synchronize translation run state through the central store (single source of truth)
                     window.addEventListener('trigger-translation-finished', () => {
-                        this.isTranslating = false;
+                        Alpine.store('trans').running = false;
+                        Alpine.store('trans').stage = 'idle';
+                    });
+
+                    // Backend signals: layout preparation phase (lazy pipeline) and effective translation start
+                    window.addEventListener('workspace-prep-start', () => {
+                        const t = Alpine.store('trans');
+                        t.running = true;
+                        t.stage = 'preparing';
+                        t.prepCurrent = 0;
+                        t.prepTotal = 0;
+                    });
+
+                    window.addEventListener('workspace-prep-progress', (e) => {
+                        const t = Alpine.store('trans');
+                        t.running = true;
+                        if (t.stage !== 'translating') t.stage = 'preparing';
+                        if (e.detail) {
+                            t.prepCurrent = e.detail.current || 0;
+                            t.prepTotal = e.detail.total || 0;
+                        }
+                    });
+
+                    window.addEventListener('trigger-translation-start', () => {
+                        const t = Alpine.store('trans');
+                        t.running = true;
+                        t.stage = 'translating';
                     });
 
                     this.mountComponent('menubar-mount', 'components/menubar.html');
@@ -277,12 +325,23 @@
 
 
                /**
-              * Starts or cancels translation based on the active thread state.
+              * Requests a clean stop of the active translation run (dedicated stop intent,
+              * fully decoupled from menu item labels and their historical desync issues).
+              */
+                requestStopTranslation() {
+                    Alpine.store('trans').running = false;
+                    Alpine.store('trans').stage = 'idle';
+                    if (window.pywebview && window.pywebview.api) {
+                        window.pywebview.api.cancel_translation();
+                    }
+                },
+
+               /**
+              * Starts or cancels translation based on the central run state.
               */
                 async toggleTranslation() {
-                    if (this.isTranslating) {
-                        window.pywebview.api.cancel_translation();
-                        this.isTranslating = false;
+                    if (Alpine.store('trans').running) {
+                        this.requestStopTranslation();
                         return;
                     }
 
@@ -306,7 +365,7 @@
                         console.error("[Shell] Error checking translation state:", e);
                     }
 
-                    this.isTranslating = true;
+                    Alpine.store('trans').running = true;
                     window.pywebview.api.start_translation();
                 },
 
@@ -335,7 +394,7 @@
                         console.error("[Shell] Error checking page range translation state:", e);
                     }
 
-                    this.isTranslating = true;
+                    Alpine.store('trans').running = true;
                     window.pywebview.api.translate_pages(rangeStr);
                 },
 
@@ -367,7 +426,8 @@
                         this.activeFilePath = null;
                         this.activeHtmlPath = null;
                         this.currentScreen = 'dashboard';
-                        this.isTranslating = false;
+                        Alpine.store('trans').running = false;
+                        Alpine.store('trans').stage = 'idle';
                         this.$dispatch('refresh-menu-data');
                     }
                 }

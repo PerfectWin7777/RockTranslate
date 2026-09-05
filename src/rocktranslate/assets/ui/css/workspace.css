@@ -101,3 +101,34 @@ iframe.pane-frame {
     line-height: 1.55;
     color: #64748b;
 }
+
+/* ── Preparation Overlay Content (Right Pane) ──────────────────────── */
+/* Live feedback while pdf2htmlEX builds the layout: spinner + page counter. */
+.trans-placeholder .placeholder-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 6px;
+}
+
+.trans-placeholder .placeholder-progress {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent-blue);
+    font-variant-numeric: tabular-nums;
+}
+
+.placeholder-spinner {
+    width: 34px;
+    height: 34px;
+    margin: 0 auto 12px auto;
+    border-radius: 50%;
+    border: 3px solid #e2e8f0;
+    border-top-color: var(--accent-blue);
+    animation: prep-spin 0.9s linear infinite;
+}
+
+@keyframes prep-spin {
+    to { transform: rotate(360deg); }
+}
