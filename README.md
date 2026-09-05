@@ -289,7 +289,7 @@ else:
 
 We believe in making scientific literature universally accessible and welcome contributions from researchers, developers, and educators. Here is how you can help advance the project:
 
-*   **Core UI Refactoring:** Help us migrate from the resource-intensive PyQt6/QWebEngine setup to a lightweight `pywebview` client.
+*   **UI/UX Polish:** Help us improve the `pywebview` interface — modal dialogs, theming, accessibility, and layout refinements.
 *   **Bug Reports & Edge Cases:** Found a PDF with highly complex LaTeX layout issues? Open an issue and upload the file (or a sample page) so we can optimize our BeautifulSoup parser rules.
 *   **Translation & Localization:** Contribute internationalization files (`.qm`/`.ts` translations) to make the user interface available in more languages.
 *   **Prompt Optimization:** Help us refine the instructions in `prompts.py` to further improve terminology preservation and tag alignment across different languages.

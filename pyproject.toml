@@ -32,13 +32,13 @@ dependencies = [
 # Optional dependencies to install the full GUI (pip install -e .[gui])
 [project.optional-dependencies]
 gui = [
-    "PyQt6>=6.4.0",
-    "PyQt6-WebEngine>=6.4.0"
+    "pywebview>=5.0"
 ]
 
 # Registers the global system command linking to our CLI main function
 [project.scripts]
-rocktranslate = "rocktranslate.cli:main" 
+rocktranslate = "rocktranslate.cli:main"
+rocktranslate-gui = "rocktranslate.web_gui:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
