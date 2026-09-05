@@ -17,8 +17,11 @@ Version: 1.0.0
 """
 
 import os, sys
+import queue
 import re
 import subprocess
+import threading
+import time
 import unicodedata
 from typing import Callable, Optional, Dict, Tuple, List, Set, Any
 from bs4 import BeautifulSoup, NavigableString
@@ -29,19 +32,37 @@ from .config_manager import config_db
 from .constants import DEFAULT_ASSETS_DIR, ACCENTS_TO_IGNORE, THRESHOLD_PX
 from .downloader import check_and_download_pdf2htmlex
 
+# Seconds without any stderr output before the conversion is considered hung.
+# A total time limit would kill legitimate long conversions of large documents,
+# so only inactivity is punished: a healthy conversion always emits progress.
+STALL_TIMEOUT_SECONDS = 30.0
+
 def convert_pdf_to_html(
-    pdf_path: str, 
-    assets_dir: str = DEFAULT_ASSETS_DIR, 
-    on_progress: Optional[Callable[[int, int], None]] = None
+    pdf_path: str,
+    assets_dir: str = DEFAULT_ASSETS_DIR,
+    on_progress: Optional[Callable[[int, int], None]] = None,
+    stall_timeout: float = STALL_TIMEOUT_SECONDS,
+    timeout: Optional[float] = None,
+    output_dir: Optional[str] = None
 ) -> Optional[str]:
     """
     Converts a source PDF into raw HTML using the local pdf2htmlEX executable.
     Streams execution output in real-time to report compilation progress per page.
 
+    Robustness is enforced through an inactivity watchdog rather than a total
+    timeout: if pdf2htmlEX stops emitting output for `stall_timeout` seconds
+    (infinite loop on complex LaTeX/arXiv mathematical fonts), the process is
+    killed and None is returned. An optional global `timeout` can still cap the
+    whole conversion for callers that need a hard budget.
+
     Args:
         pdf_path: The filesystem path to the target PDF file.
         assets_dir: Assets folder storing the external pdf2htmlEX compiler.
         on_progress: Optional callback progress tracker (current_page, total_pages).
+        stall_timeout: Max seconds of silence from pdf2htmlEX before it is killed.
+        timeout: Optional hard cap in seconds for the entire conversion.
+        output_dir: Optional directory where the raw HTML (and its assets) are
+            written. Defaults to the PDF's own directory.
 
     Returns:
         Optional[str]: Absolute path to the generated raw HTML, or None if failed.
@@ -54,7 +75,19 @@ def convert_pdf_to_html(
     pdf_dir: str = os.path.dirname(os.path.abspath(pdf_path))
     pdf_filename: str = os.path.basename(pdf_path)
     html_filename: str = f"{os.path.splitext(pdf_filename)[0]}_raw.html"
-    output_html_path: str = os.path.join(pdf_dir, html_filename)
+
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        output_dir_abs: str = os.path.abspath(output_dir)
+        output_html_path = os.path.join(output_dir_abs, html_filename)
+        cmd_pdf_ref: str = os.path.abspath(pdf_path)
+        # Legacy pdf2htmlEX Windows builds prefix the output with "./" and cannot
+        # open absolute output paths: the output name must stay relative to cwd.
+        cmd_output_ref: str = html_filename
+    else:
+        output_html_path = os.path.join(pdf_dir, html_filename)
+        cmd_pdf_ref = pdf_filename
+        cmd_output_ref = html_filename
 
     # Bypass compilation ONLY if raw HTML is already generated and is not empty
     if os.path.exists(output_html_path) and os.path.getsize(output_html_path) > 0:
@@ -64,146 +97,93 @@ def convert_pdf_to_html(
     cmd: List[str] = [
         os.path.abspath(pdf2htmlex_exe),
         "--zoom", "1.3",
-        pdf_filename,
-        html_filename
+        cmd_pdf_ref,
+        cmd_output_ref
     ]
-    
+
     logger.info(f"Starting high-fidelity conversion of PDF: {pdf_filename}")
-    
-    # ── WINDOWS CRASH PROTECTION ──
-    if sys.platform == "win32":
-        import ctypes
-        ctypes.windll.kernel32.SetErrorMode(0x0002)
 
-    # Execute pdf2htmlEX in a background process with line-buffering active
-    process = subprocess.Popen(
-        cmd, 
-        cwd=pdf_dir, 
-        stdout=subprocess.DEVNULL, 
-        stderr=subprocess.PIPE, 
-        text=True,
-        bufsize=1,                  # Line buffered output
-        universal_newlines=True     # Translates carriage returns (\r) to newlines (\n)
-    )
-
-    # ── REAL-TIME NON-BLOCKING PIPE READER ──
-    # Read compile progress line-by-line as the third-party binary executes
-    while True:
-        line = process.stderr.readline()
-        # If stream terminates and process exited, break out
-        if not line and process.poll() is not None:
-            break
-            
-        if line:
-            # Parse progress metrics (Format: "Working: 12/30")
-            match = re.search(r"Working:\s*(\d+)/(\d+)", line)
-            if match and on_progress:
-                current_page = int(match.group(1))
-                total_pages = int(match.group(2))
-                on_progress(current_page, total_pages)
-
-    process.wait()
-
-    if process.returncode == 0 and os.path.exists(output_html_path):
-        logger.info("Raw HTML file generated successfully.")
-        return output_html_path
-        
-    logger.error(f"pdf2htmlEX exited with error code: {process.returncode}")
-    return None
-
-
-
-def convert_pdf_to_htmlSSSS(
-    pdf_path: str, 
-    assets_dir: str = DEFAULT_ASSETS_DIR, 
-    on_progress: Optional[Callable[[int, int], None]] = None
-) -> Optional[str]:
-    """
-    Converts a source PDF into raw HTML using the local pdf2htmlEX executable.
-    Implements a strict 45-second execution timeout to prevent the application
-    from hanging indefinitely on complex LaTeX/arXiv mathematical documents [1].
-
-    Args:
-        pdf_path: The filesystem path to the target PDF file.
-        assets_dir: Assets folder storing the external pdf2htmlEX compiler.
-        on_progress: Optional callback progress tracker (current_page, total_pages).
-
-    Returns:
-        Optional[str]: Absolute path to the generated raw HTML, or None if failed/timed out.
-    """
-    pdf2htmlex_exe = check_and_download_pdf2htmlex(assets_dir)
-    if not pdf2htmlex_exe:
-        logger.error("pdf2htmlEX executable could not be resolved.")
-        return None
-
-    pdf_dir: str = os.path.dirname(os.path.abspath(pdf_path))
-    pdf_filename: str = os.path.basename(pdf_path)
-    html_filename: str = f"{os.path.splitext(pdf_filename)[0]}_raw.html"
-    output_html_path: str = os.path.join(pdf_dir, html_filename)
-
-    # Bypass compilation ONLY if raw HTML is already generated and is not empty
-    if os.path.exists(output_html_path) and os.path.getsize(output_html_path) > 0:
-        logger.info(f"Raw HTML already exists and is valid. Skipping compilation for: {pdf_filename}")
-        return output_html_path
-
-    cmd: List[str] = [
-        os.path.abspath(pdf2htmlex_exe),
-        "--zoom", "1.3",
-        pdf_filename,
-        html_filename
-    ]
-    
-    logger.info(f"Starting high-fidelity conversion of PDF: {pdf_filename}")
-    
     # ── WINDOWS CRASH PROTECTION ──
     if sys.platform == "win32":
         import ctypes
         # Disable Windows GPF error dialog popups ("Application has stopped working").
         # This ensures that if the process crashes, it terminates immediately
-        # instead of hanging in memory waiting for a user click [1].
+        # instead of hanging in memory waiting for a user click.
         ctypes.windll.kernel32.SetErrorMode(0x0002)
 
-    # Execute pdf2htmlEX in a background process
     process = subprocess.Popen(
-        cmd, 
-        cwd=pdf_dir, 
-        stdout=subprocess.DEVNULL, 
-        stderr=subprocess.PIPE, 
-        text=True
+        cmd,
+        cwd=output_dir or pdf_dir,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,                  # Line buffered output
+        universal_newlines=True     # Translates carriage returns (\r) to newlines (\n)
     )
 
-    # ── STRICT 45-SECOND TIMEOUT PROTECTION ──
-    # To prevent the application from freezing when pdf2htmlEX enters an infinite loop
-    # (common with LaTeX/arXiv mathematical fonts), we enforce a strict 30s timeout [1].
-    try:
-        # Wait up to 45 seconds for execution to complete cleanly [1]
-        stderr_output, _ = process.communicate(timeout=45)
-        
-    except subprocess.TimeoutExpired:
-        # Crucial: Force-kill the hanging process to free system memory and release locks [1]
-        logger.error(f"pdf2htmlEX conversion timed out after 30 seconds on: {pdf_filename}")
-        process.kill()
-        
-        # Clean up zombie processes and release file handles securely
-        process.communicate()
-        
-        # TODO: If local compilation fails or times out, implement an automatic fallback
-        # to a remote serverless cloud-rendering API to convert complex LaTeX documents.
-        return None
+    # ── NON-BLOCKING PIPE READER ──
+    # stderr is consumed on a dedicated thread and forwarded through a queue so
+    # the main loop can wait with a timeout (select() is unreliable on Windows
+    # pipes) instead of blocking forever on readline().
+    stderr_queue: "queue.Queue[Optional[str]]" = queue.Queue()
 
-    # Parse final compilation progress from accumulated stderr logs
-    if stderr_output and on_progress:
-        matches = re.findall(r"Working:\s*(\d+)/(\d+)", stderr_output)
-        if matches:
-            last_match = matches[-1]
-            on_progress(int(last_match[0]), int(last_match[1]))
+    def _read_stderr() -> None:
+        try:
+            for line in process.stderr:  # type: ignore[union-attr]
+                stderr_queue.put(line)
+        finally:
+            stderr_queue.put(None)  # EOF sentinel
+
+    threading.Thread(target=_read_stderr, name="pdf2htmlex-stderr", daemon=True).start()
+
+    deadline: Optional[float] = (time.monotonic() + timeout) if timeout else None
+    last_progress: Tuple[int, int] = (0, 0)
+
+    while True:
+        wait_budget = stall_timeout
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                logger.error(f"pdf2htmlEX conversion exceeded the {timeout}s total budget on: {pdf_filename}")
+                process.kill()
+                process.wait(timeout=5)
+                return None
+            wait_budget = min(wait_budget, remaining)
+
+        try:
+            line = stderr_queue.get(timeout=wait_budget)
+        except queue.Empty:
+            logger.error(
+                f"pdf2htmlEX stalled for {stall_timeout}s without output on: {pdf_filename}. "
+                "Terminating the hung process."
+            )
+            process.kill()
+            process.wait(timeout=5)
+            # TODO: If local compilation fails or times out, implement an automatic fallback
+            # to a remote serverless cloud-rendering API to convert complex LaTeX documents.
+            return None
+
+        if line is None:
+            break  # EOF: process stderr stream terminated
+
+        # Parse progress metrics (Format: "Working: 12/30")
+        match = re.search(r"Working:\s*(\d+)/(\d+)", line)
+        if match:
+            last_progress = (int(match.group(1)), int(match.group(2)))
+            if on_progress:
+                on_progress(last_progress[0], last_progress[1])
+
+    process.wait()
+
+    if last_progress != (0, 0) and on_progress:
+        on_progress(last_progress[0], last_progress[1])
 
     if process.returncode == 0 and os.path.exists(output_html_path):
         logger.info("Raw HTML file generated successfully.")
         return output_html_path
-        
+
     logger.error(f"pdf2htmlEX exited with error code: {process.returncode}")
-    
+
     # TODO: In the main UI window, handle the None return value by displaying a clear
     # and friendly error message explaining that this PDF contains unsupported fonts.
     return None
