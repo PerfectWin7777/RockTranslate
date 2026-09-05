@@ -284,7 +284,7 @@ body {
    fully decoupled from menu item labels (fixes recurring label desync). */
 #translation-stop-overlay {
     position: fixed;
-    bottom: 64px;
+    top: 68px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 900;

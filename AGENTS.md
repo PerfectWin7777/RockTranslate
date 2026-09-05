@@ -24,6 +24,20 @@ Dernière mise à jour : 2026-09-05
   PyQt6 → pywebview est **terminée** : plus aucune trace de Qt dans le code actif.
 - Le README et pyproject.toml doivent rester alignés avec cette réalité.
 
+## Décisions produit actées (ne pas rouvrir sans l'auteur)
+
+- **Réécriture Rust/C du moteur d'extraction : rejetée** (fausse bonne idée).
+  pdf2htmlEX produit le modèle HTML+CSS matriciel précis que tout le pipeline
+  consomme ; le remplacer déplacerait le problème au lieu de le résoudre.
+- **pdf2htmlEX 0.18.8.rc1 n'existe PAS en build Windows** (vérifié via l'API
+  GitHub et le miroir SourceForge : assets Linux uniquement). Windows reste sur
+  le binaire 0.14.6 (bundlé), Linux utilise l'AppImage officielle 0.18.8.rc1.
+  Le levier vitesse côté Windows = conversion par tranches de pages, pas un
+  changement de binaire.
+- Accélération "pages spécifiques" : approche choisie = **tranches** (découpe
+  pypdf de la plage demandée, conversion de la tranche, remappage d'offset).
+  Implémentation différée jusqu'à validation du feedback UI par l'auteur.
+
 ## Pièges connus (à ne pas casser)
 
 - Le binaire pdf2htmlEX 0.14.6 (Windows) **n'accepte pas les chemins de sortie
