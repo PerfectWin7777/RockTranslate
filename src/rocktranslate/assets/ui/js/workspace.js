@@ -116,6 +116,9 @@ function workspaceController() {
 
             // Re-sync iframe loads on active file paths changes
             this.$watch('$data.activeFilePath', () => this.loadFrames());
+
+            // Lazy mode: load the right pane only when a prepared workspace becomes available
+            this.$watch('$data.activeHtmlPath', () => this.loadHtmlFrame());
         },
 
         loadFrames() {
@@ -127,24 +130,43 @@ function workspaceController() {
             const htmlFrame = document.getElementById('html-iframe');
             if (!pdfFrame || !htmlFrame) return;
 
+            this.loadPdfFrame(pdfFrame);
+            this.loadHtmlFrame();
+        },
+
+        loadPdfFrame(pdfFrame) {
             // Dynamically resolve "http://127.0.0.1:XXXXX" or "http://localhost:XXXXX"
             const origin = window.location.origin;
             const pdfjsViewer = `${origin}/pdfjs/web/viewer.html`;
 
             // Format served file URLs safely to maintain Same-Origin alignment (prevents CORS crashes)
             const fileUrl = `${origin}/local-file?path=${encodeURIComponent(this.$data.activeFilePath)}`;
-            const htmlUrl = `${origin}/local-file?path=${encodeURIComponent(this.$data.activeHtmlPath)}`;
-            
+
             // Load left iframe with PDF.js viewer and completely hide the top toolbar/navpanes
             pdfFrame.src = `${pdfjsViewer}?file=${encodeURIComponent(fileUrl)}#toolbar=0&navpanes=0&pagemode=none`;
-
-            // Load right iframe with Instrumented HTML workspace
-            htmlFrame.src = htmlUrl;
 
             // Apply current active zoom factor immediately on load
             this.applyZoom(this.zoomFactor);
 
-            this.setupSyncScrolls(pdfFrame, htmlFrame);
+            this.setupSyncScrolls(pdfFrame, document.getElementById('html-iframe'));
+        },
+
+        loadHtmlFrame() {
+            const htmlFrame = document.getElementById('html-iframe');
+            const placeholder = document.getElementById('trans-placeholder');
+            if (!htmlFrame) return;
+
+            // Lazy mode: no prepared workspace yet, show the placeholder overlay
+            if (!this.$data.activeHtmlPath) {
+                htmlFrame.removeAttribute('src');
+                if (placeholder) placeholder.style.display = 'flex';
+                return;
+            }
+
+            if (placeholder) placeholder.style.display = 'none';
+
+            const htmlUrl = `${window.location.origin}/local-file?path=${encodeURIComponent(this.$data.activeHtmlPath)}`;
+            htmlFrame.src = htmlUrl;
         },
 
         /**

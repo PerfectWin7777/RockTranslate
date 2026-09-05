@@ -61,3 +61,43 @@ iframe.pane-frame {
 #workspace-grid.dragging iframe {
     pointer-events: none !important;
 }
+/* ── Lazy Mode Placeholder (Right Pane) ─────────────────────────────── */
+/* Shown while the instrumented workspace is not prepared yet: the heavy
+   pdf2htmlEX pipeline is deferred to the first translation request. */
+.trans-placeholder {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: repeating-linear-gradient(
+        45deg,
+        #fafafc,
+        #fafafc 12px,
+        #f4f4f8 12px,
+        #f4f4f8 24px
+    );
+    z-index: 50;
+}
+
+.trans-placeholder .placeholder-card {
+    max-width: 340px;
+    text-align: center;
+    padding: 28px 32px;
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 8px 28px rgba(15, 23, 42, 0.08);
+}
+
+.trans-placeholder .placeholder-icon {
+    font-size: 34px;
+    margin-bottom: 10px;
+}
+
+.trans-placeholder .placeholder-text {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #64748b;
+}

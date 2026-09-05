@@ -18,6 +18,14 @@
         <!-- RIGHT PANE: Instrumented HTML Document -->
         <div id="right-pane" class="workspace-pane">
             <iframe id="html-iframe" class="pane-frame"></iframe>
+
+            <!-- Lazy mode placeholder: shown until the first translation prepares the layout -->
+            <div id="trans-placeholder" class="trans-placeholder" style="display:none;">
+                <div class="placeholder-card">
+                    <div class="placeholder-icon">🌐</div>
+                    <p class="placeholder-text" x-text="$store.i18n.translate('workspace_lazy_placeholder')"></p>
+                </div>
+            </div>
         </div>
 
     </div>

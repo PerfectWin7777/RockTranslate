@@ -37,6 +37,7 @@
 
 <body x-data="appShell()"
     @document-ready.window="transitionToWorkspace($event.detail.pdfPath, $event.detail.htmlPath, $event.detail.totalPages, $event.detail.totalSegments)"
+    @workspace-html-ready.window="activeHtmlPath = $event.detail.htmlPath"
     @trigger-file-picker.window="triggerFilePicker()" @trigger-toggle-translation.window="toggleTranslation()"
     @trigger-translation-range-execute.window="executeRangeTranslation($event.detail.range)"
     @trigger-show-about.window="$store.modals.open('about')"
@@ -241,7 +242,7 @@
                 },
 
                 async transitionToWorkspace(pdfPath, htmlPath, totalPages, totalSegments) {
-                    console.log("[Shell] Layout compiled successfully. Swapping viewports...");
+                    console.log("[Shell] Document opened. Swapping viewports...");
                     this.activeFilePath = pdfPath;
                     this.activeHtmlPath = htmlPath;
                     this.currentScreen = 'workspace';
@@ -250,11 +251,16 @@
                     await this.mountComponent('workspace-mount', 'components/workspace.html');
 
                     const filename = pdfPath.split('\\').pop().split('/').pop();
-                    const loadedText = Alpine.store('i18n').translate('doc_loaded_msg', {
-                        filename: filename,
-                        pages: totalPages,
-                        segments: totalSegments
-                    });
+                    const i18n = Alpine.store('i18n');
+
+                    // Lazy mode: htmlPath is null until the first translation prepares the layout
+                    const loadedText = (htmlPath === null || htmlPath === undefined)
+                        ? i18n.translate('doc_loaded_lazy_msg', { filename: filename, pages: totalPages })
+                        : i18n.translate('doc_loaded_msg', {
+                            filename: filename,
+                            pages: totalPages,
+                            segments: totalSegments
+                        });
                     window.showStatusMessage(loadedText);
                 },
 

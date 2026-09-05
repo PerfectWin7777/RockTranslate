@@ -14,10 +14,12 @@ Version: 1.1.0
 
 import os
 import json
+import hashlib
+import shutil
 import threading
 import tempfile
 import re
-from typing import Dict, List, Optional, Any, Set
+from typing import Dict, List, Optional, Any, Set, Tuple
 from loguru import logger
 
 import webview
@@ -39,19 +41,25 @@ class TranslationApiMixin:
         # File paths tracking current active workspace files
         self._active_pdf_path: Optional[str] = None
         self._active_html_path: Optional[str] = None
-        
+
         # Mapped original document data structures
         self._original_texts: Dict[str, str] = {}
         self._tid_to_page: Dict[str, int] = {}
-        
+
         # Structured validation cache: { page_index: { segment_id: translated_text } }
         self._translated_pages: Dict[int, Dict[str, str]] = {}
+
+        # Lazy preparation state: documents are opened instantly (PDF.js only) and
+        # the pdf2htmlEX layout pipeline runs once, at the first translation request.
+        self._is_prepared: bool = False
+        self._metadata_total_pages: int = 0
+        self._document_hash: Optional[str] = None
 
         # Thread synchronization and cancel indicators
         self._stop_translation: bool = False
         self._current_translating_page: int = -1
         self._trans_thread: Optional[threading.Thread] = None
-        
+
         # Mutual exclusion lock to prevent concurrent overlapping translation runs
         self._thread_lock = threading.Lock()
 
@@ -82,9 +90,11 @@ class TranslationApiMixin:
 
     def _run_extraction(self, pdf_path: str) -> None:
         """
-        Executes layout-preserving geometric extraction using local pdf2htmlEX engines,
-        applies BeautifulSoup parsing to instrument the DOM tree, and updates
-        the frontend viewport through state triggers.
+        Opens a document instantly without running the pdf2htmlEX pipeline: the
+        PDF is served straight to the PDF.js viewer while the heavy geometric
+        layout preparation is deferred to the first translation request. If a
+        prepared workspace already exists in the hash-keyed cache, it is loaded
+        immediately so the dual-pane view is restored without any conversion.
         """
         try:
             # ── DEFENSIVE CHECK (Anti-Crash Guard for Drag and Drop Sandbox limits) ──
@@ -96,61 +106,59 @@ class TranslationApiMixin:
                 self._send_js("window.dispatchEvent(new CustomEvent('trigger-close-document'))")
                 return
 
-            self._send_status_i18n("status_extraction_start")
-            logger.info(f"Initiating background layout extraction for: {pdf_path}")
-
-            # Define a thread-safe progress report callback for pdf2htmlEX compilation
-            def on_pdf_progress(current: int, total: int):
-                self._send_status_i18n("status_extraction_pages", {"current": current, "total": total})
-
-            # Check for custom system overrides, falling back to default directories
-            assets_dir = str(config_db.get("SystemConfig", "pdf2htmlex_path_override", "") or "").strip()
-            if not assets_dir or not os.path.exists(assets_dir):
-                assets_dir = DEFAULT_ASSETS_DIR
-
-            # Compile PDF to a temporary raw geometric HTML document
-            raw_html_path = convert_pdf_to_html(pdf_path, assets_dir, on_progress=on_pdf_progress)
-
-            if not raw_html_path or not os.path.exists(raw_html_path):
+            if not os.path.exists(pdf_path):
+                logger.error(f"Extraction aborted: file not found: {pdf_path}")
                 self._send_status_i18n("status_extraction_failed")
-                self._send_toast_i18n("status_extraction_failed", "error")
+                self._send_toast_i18n("toast_extraction_failed", "error")
                 return
 
-            self._send_status_i18n("status_extraction_instrumenting")
-            logger.info("Executing BeautifulSoup semantic tag compilation...")
+            self._send_status_i18n("status_extraction_start")
+            logger.info(f"Opening document (lazy mode): {pdf_path}")
 
-            # Define and configure the final instrumented workspace output path
-            pdf_dir = os.path.dirname(os.path.abspath(pdf_path))
-            pdf_filename = os.path.basename(pdf_path)
-            instrumented_html_path = os.path.join(pdf_dir, f"{os.path.splitext(pdf_filename)[0]}_workspace.html")
+            # Register the document bounds from lightweight metadata (no conversion)
+            metadata = get_pdf_metadata(pdf_path)
+            total_pages = metadata.get("pages_count", 1) or 1
 
-            # Execute BeautifulSoup instrumentation and build translation mapping tables
-            original_texts_map, tid_to_page = instrument_html(raw_html_path, instrumented_html_path)
-
-            # Store fresh parsed states into the API session
+            # Reset per-document session state
             self._active_pdf_path = pdf_path
-            self._active_html_path = instrumented_html_path
-            self._original_texts = original_texts_map
-            self._tid_to_page = tid_to_page
-            
-            # Wipes any active page cache for fresh documents
-            self._translated_pages = {} 
+            self._active_html_path = None
+            self._original_texts = {}
+            self._tid_to_page = {}
+            self._translated_pages = {}
+            self._is_prepared = False
+            self._metadata_total_pages = int(total_pages)
+            self._document_hash = self._compute_document_hash(pdf_path)
 
-            # Register document bounds into configurations and recent documents
-            total_pages = max(tid_to_page.values()) + 1 if tid_to_page else 1
-            config_db.set("RecentFiles", "active_total_pages", total_pages)
             self._add_to_recent_files(pdf_path)
 
-            self._send_status_i18n("status_extraction_success")
-            logger.info(f"Document successfully loaded: {total_pages} pages, {len(original_texts_map)} segments.")
+            # Fast path: reuse a previously prepared workspace for this exact file
+            cached = self._load_cached_preparation()
+            if cached:
+                workspace_html_path, original_texts_map, tid_to_page = cached
+                self._active_html_path = workspace_html_path
+                self._original_texts = original_texts_map
+                self._tid_to_page = tid_to_page
+                self._is_prepared = True
+                total_pages = max(tid_to_page.values()) + 1 if tid_to_page else total_pages
+                self._metadata_total_pages = int(total_pages)
+                logger.info(f"Cache hit: prepared workspace restored instantly ({len(original_texts_map)} segments).")
+            else:
+                logger.info("No cached workspace: layout preparation deferred to the first translation.")
 
-            # Trigger workspace view transitions on the frontend Web SPA
-            total_segments = len(original_texts_map)
+            config_db.set("RecentFiles", "active_total_pages", total_pages)
+
+            self._send_status_i18n("status_extraction_success")
+            logger.info(f"Document opened: {total_pages} pages, {len(self._original_texts)} segments mapped.")
+
+            # Trigger workspace view transition on the frontend Web SPA.
+            # htmlPath is None when the layout is not prepared yet: the right pane
+            # then shows a placeholder until 'workspace-html-ready' is emitted.
+            total_segments = len(self._original_texts)
             js_call = (
                 f"window.dispatchEvent(new CustomEvent('document-ready', {{ "
                 f"detail: {{ "
                 f"pdfPath: {json.dumps(pdf_path)}, "
-                f"htmlPath: {json.dumps(instrumented_html_path)}, "
+                f"htmlPath: {json.dumps(self._active_html_path)}, "
                 f"totalPages: {total_pages}, "
                 f"totalSegments: {total_segments} "
                 f"}} "
@@ -162,6 +170,149 @@ class TranslationApiMixin:
             logger.error(f"Critical exception raised during background document processing: {error}")
             self._send_status_i18n("status_extraction_error", {"error": str(error)})
             self._send_toast_i18n("toast_extraction_error", "error", variables={"error": str(error)})
+
+    # ==============================================================================
+    # 1b. HASH-KEYED WORKSPACE CACHE & LAZY LAYOUT PREPARATION
+    # ==============================================================================
+
+    def _compute_document_hash(self, pdf_path: str) -> str:
+        """
+        Computes a stable SHA-256 content hash of the PDF file. Content hashing
+        (instead of basename matching) guarantees that two different documents
+        sharing the same filename never collide in the workspace cache.
+        """
+        sha256 = hashlib.sha256()
+        with open(pdf_path, "rb") as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                sha256.update(chunk)
+        return sha256.hexdigest()
+
+    def _document_cache_dir(self, document_hash: Optional[str] = None) -> str:
+        """
+        Resolves the per-document cache directory under the application data
+        folder (e.g. %LOCALAPPDATA%/RockTranslate/cache/<sha256>/).
+        """
+        active_hash = document_hash or self._document_hash or "unknown"
+        return str(config_db.get_cache_dir() / active_hash)
+
+    def _load_cached_preparation(self) -> Optional[Tuple[str, Dict[str, str], Dict[str, int]]]:
+        """
+        Loads a previously prepared workspace (instrumented HTML + segment maps)
+        from the hash-keyed cache. Returns None when the cache is incomplete.
+        """
+        try:
+            cache_dir = self._document_cache_dir()
+            workspace_html_path = os.path.join(cache_dir, "workspace.html")
+            maps_path = os.path.join(cache_dir, "maps.json")
+
+            if not (os.path.exists(workspace_html_path)
+                    and os.path.getsize(workspace_html_path) > 0
+                    and os.path.exists(maps_path)):
+                return None
+
+            with open(maps_path, "r", encoding="utf-8") as f:
+                maps = json.load(f)
+            original_texts = maps.get("original_texts", {})
+            tid_to_page = maps.get("tid_to_page", {})
+            if not original_texts or not tid_to_page:
+                return None
+
+            return workspace_html_path, original_texts, tid_to_page
+        except (OSError, ValueError) as e:
+            logger.warning(f"Workspace cache unreadable, ignoring: {e}")
+            return None
+
+    def _save_preparation_cache(
+        self,
+        workspace_html_path: str,
+        original_texts: Dict[str, str],
+        tid_to_page: Dict[str, int]
+    ) -> None:
+        """
+        Persists the segment maps alongside the instrumented workspace HTML so
+        the next open of the same document skips pdf2htmlEX entirely.
+        """
+        try:
+            cache_dir = self._document_cache_dir()
+            os.makedirs(cache_dir, exist_ok=True)
+            maps_path = os.path.join(cache_dir, "maps.json")
+            with open(maps_path, "w", encoding="utf-8") as f:
+                json.dump({
+                    "original_texts": original_texts,
+                    "tid_to_page": tid_to_page
+                }, f, ensure_ascii=False)
+        except OSError as e:
+            logger.warning(f"Could not persist workspace cache maps: {e}")
+
+    def _prepare_document_for_translation(self) -> bool:
+        """
+        Runs the deferred heavy pipeline (pdf2htmlEX conversion + BeautifulSoup
+        instrumentation) for the active document. Called from the translation
+        worker thread so the UI never freezes; progress is streamed to the
+        status bar during the conversion.
+
+        Returns:
+            bool: True when the workspace is ready for translation.
+        """
+        if self._is_prepared:
+            return True
+
+        pdf_path = self._active_pdf_path
+        if not pdf_path or not os.path.exists(pdf_path):
+            self._send_toast_i18n("toast_extraction_failed", "error")
+            return False
+
+        # Check for custom system overrides, falling back to default directories
+        assets_dir = str(config_db.get("SystemConfig", "pdf2htmlex_path_override", "") or "").strip()
+        if not assets_dir or not os.path.exists(assets_dir):
+            assets_dir = DEFAULT_ASSETS_DIR
+
+        cache_dir = self._document_cache_dir()
+
+        # Thread-safe progress report callback for pdf2htmlEX compilation
+        def on_pdf_progress(current: int, total: int):
+            self._send_status_i18n("status_extraction_pages", {"current": current, "total": total})
+
+        self._send_status_i18n("status_extraction_start")
+        raw_html_path = convert_pdf_to_html(
+            pdf_path, assets_dir, on_progress=on_pdf_progress, output_dir=cache_dir
+        )
+
+        if not raw_html_path or not os.path.exists(raw_html_path):
+            self._send_status_i18n("status_extraction_failed")
+            self._send_toast_i18n("status_extraction_failed", "error")
+            return False
+
+        self._send_status_i18n("status_extraction_instrumenting")
+        logger.info("Executing BeautifulSoup semantic tag compilation...")
+
+        workspace_html_path = os.path.join(cache_dir, "workspace.html")
+        try:
+            original_texts_map, tid_to_page = instrument_html(raw_html_path, workspace_html_path)
+        except Exception as error:
+            logger.error(f"Instrumentation failed during lazy preparation: {error}")
+            self._send_status_i18n("status_extraction_error", {"error": str(error)})
+            self._send_toast_i18n("toast_extraction_error", "error", variables={"error": str(error)})
+            return False
+
+        self._active_html_path = workspace_html_path
+        self._original_texts = original_texts_map
+        self._tid_to_page = tid_to_page
+        self._is_prepared = True
+        self._metadata_total_pages = max(tid_to_page.values()) + 1 if tid_to_page else self._metadata_total_pages
+
+        self._save_preparation_cache(workspace_html_path, original_texts_map, tid_to_page)
+        config_db.set("RecentFiles", "active_total_pages", self._metadata_total_pages)
+
+        # Serve the freshly prepared workspace to the right pane
+        self._send_js(
+            f"window.dispatchEvent(new CustomEvent('workspace-html-ready', {{ "
+            f"detail: {{ htmlPath: {json.dumps(workspace_html_path)} }} "
+            f"}}))"
+        )
+        self._send_status_i18n("status_extraction_success")
+        logger.info(f"Lazy preparation completed: {len(original_texts_map)} segments mapped.")
+        return True
 
 
     # ==============================================================================
@@ -178,12 +329,14 @@ class TranslationApiMixin:
         """
         Orchestrates page-range validation and begins the translation run.
         Assumes target checks have already been cleanly handled by the frontend.
+        If the document layout is not prepared yet (lazy open), the heavy
+        pdf2htmlEX pipeline runs inside the worker thread before translating.
 
         Args:
             range_str: Custom page range input parsed from UI dialogues (e.g., '1-3, 5').
         """
-        if not self._original_texts:
-            self._send_toast("No translatable text elements found in this document.", "warning")
+        if not self._active_pdf_path:
+            self._send_toast("No document is currently open.", "warning")
             return
 
         # Secure Lock Check: Silently ignore start triggers if a thread is already running
@@ -192,36 +345,43 @@ class TranslationApiMixin:
             return
         self._thread_lock.release()
 
-        total_pages = max(self._tid_to_page.values()) + 1 if self._tid_to_page else 1
+        # In lazy mode the segment map is not built yet: validate ranges against
+        # the lightweight PDF metadata page count instead.
+        total_pages = max(self._tid_to_page.values()) + 1 if self._tid_to_page else self._metadata_total_pages
         target_pages: Optional[List[int]] = None
-        
+
         if range_str:
-            target_pages = self._parse_page_range(range_str, total_pages)
+            target_pages = self._parse_page_range(range_str, max(total_pages, 1))
             if not target_pages:
                 self._send_toast_i18n("enter_valid_page_range", "warning")
                 return
 
-        # Gather already translated IDs from page caches
-        already_translated_ids = set()
-        for page_data in self._translated_pages.values():
-            already_translated_ids.update(page_data.keys())
+        if self._is_prepared:
+            # Gather already translated IDs from page caches
+            already_translated_ids = set()
+            for page_data in self._translated_pages.values():
+                already_translated_ids.update(page_data.keys())
 
-        # Filter out segment IDs belonging to already translated blocks
-        untranslated_texts = {
-            k: v for k, v in self._original_texts.items()
-            if k not in already_translated_ids
-        }
-        if target_pages is not None:
-            untranslated_texts = {
-                k: v for k, v in untranslated_texts.items()
-                if self._tid_to_page.get(k, 0) in target_pages
+            # Filter out segment IDs belonging to already translated blocks
+            untranslated_texts: Optional[Dict[str, str]] = {
+                k: v for k, v in self._original_texts.items()
+                if k not in already_translated_ids
             }
+            if target_pages is not None:
+                untranslated_texts = {
+                    k: v for k, v in untranslated_texts.items()
+                    if self._tid_to_page.get(k, 0) in target_pages
+                }
 
-        # Safe fallback check if called with fully translated documents
-        if not untranslated_texts:
-            self._send_status_i18n("status_trans_completed")
-            self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-finished'))")
-            return
+            # Safe fallback check if called with fully translated documents
+            if not untranslated_texts:
+                self._send_status_i18n("status_trans_completed")
+                self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-finished'))")
+                return
+        else:
+            # Lazy mode: untranslated segments are resolved after the layout
+            # preparation completes inside the translation worker thread.
+            untranslated_texts = None
 
         self._stop_translation = False
 
@@ -321,6 +481,23 @@ class TranslationApiMixin:
                 custom_glossary=config_db.get("TranslationConfig", "custom_glossary", ""),
                 on_status=lambda msg: self._send_status(msg)
             )
+
+            # ── LAZY LAYOUT PREPARATION ──
+            # First translation on a lazily opened document: the deferred
+            # pdf2htmlEX pipeline runs here, inside the worker thread, so the
+            # UI only pays the conversion cost when actually translating.
+            if untranslated_texts is None:
+                if not self._prepare_document_for_translation():
+                    return
+                untranslated_texts = dict(self._original_texts)
+                if target_pages is not None:
+                    untranslated_texts = {
+                        k: v for k, v in untranslated_texts.items()
+                        if self._tid_to_page.get(k, 0) in target_pages
+                    }
+                if not untranslated_texts:
+                    self._send_status_i18n("status_trans_completed")
+                    return
 
             context_size = config_db.get("TranslationConfig", "sliding_context_size", 5)
 
@@ -621,7 +798,7 @@ class TranslationApiMixin:
         """
         if hasattr(self, "_tid_to_page") and self._tid_to_page:
             return max(self._tid_to_page.values()) + 1
-        return 1
+        return max(getattr(self, "_metadata_total_pages", 0), 1)
 
 
     # ==============================================================================
@@ -747,15 +924,27 @@ class TranslationApiMixin:
         if the clear_cache_on_exit user setting is set to True.
         """
         if config_db.get("SystemConfig", "clear_cache_on_exit", False):
-            # 1. Delete workspace HTML
+            # 1. Delete the hash-keyed workspace cache folder of this document
+            #    (prepared workspace + raw pdf2htmlEX output + segment maps)
+            if self._document_hash:
+                try:
+                    cache_dir = self._document_cache_dir()
+                    if os.path.isdir(cache_dir):
+                        shutil.rmtree(cache_dir, ignore_errors=True)
+                        logger.info(f"Cleaned up workspace cache directory: {cache_dir}")
+                except OSError as e:
+                    logger.warning(f"Could not delete workspace cache directory: {e}")
+
+            # 2. Delete legacy workspace files written next to the PDF by
+            #    previous versions of the application
             if self._active_html_path and os.path.exists(self._active_html_path):
                 try:
                     os.remove(self._active_html_path)
                     logger.info(f"Cleaned up temporary workspace HTML: {self._active_html_path}")
                 except OSError as e:
                     logger.warning(f"Could not delete temporary workspace file: {e}")
-            
-            # 2. Delete raw HTML compiled by pdf2htmlEX
+
+            # 3. Delete raw HTML compiled by pdf2htmlEX
             if self._active_pdf_path:
                 pdf_dir = os.path.dirname(os.path.abspath(self._active_pdf_path))
                 pdf_filename = os.path.basename(self._active_pdf_path)
@@ -767,7 +956,7 @@ class TranslationApiMixin:
                     except OSError as e:
                         logger.warning(f"Could not delete raw HTML file: {e}")
 
-    
+
     def close_document(self) -> None:
         """
         Safely stops any active threads, purges temporary cache files
@@ -775,11 +964,14 @@ class TranslationApiMixin:
         """
         self.stop_translation()
         self._cleanup_workspace_files()
-        
+
         # Reset local document states
         self._active_pdf_path = None
         self._active_html_path = None
         self._original_texts = {}
         self._tid_to_page = {}
         self._translated_pages  = {}
+        self._is_prepared = False
+        self._metadata_total_pages = 0
+        self._document_hash = None
         self._send_status_i18n("status_ready")

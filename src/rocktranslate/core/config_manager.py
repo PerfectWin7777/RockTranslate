@@ -111,6 +111,15 @@ class ConfigManager:
         self.data[section][key] = value
         self._save()
 
+    def get_cache_dir(self) -> Path:
+        """
+        Returns the application cache directory (created on demand), used to
+        store per-document prepared workspaces keyed by file hash.
+        """
+        cache_dir = self.config_dir / "cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        return cache_dir
+
     def clear(self) -> None:
         """
         Wipes all configuration categories from runtime memory and saves

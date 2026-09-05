@@ -175,6 +175,9 @@ document.addEventListener('alpine:init', () => {
                 prop_date: "Translation Date:",
 
                 doc_loaded_msg: "Document loaded: {filename} ({pages} pages, {segments} text segments mapped)",
+                doc_loaded_lazy_msg: "Document loaded: {filename} ({pages} pages). The translated layout will be prepared when translation starts.",
+
+                workspace_lazy_placeholder: "The translated view will appear here once translation starts. RockTranslate prepares the page layout on first use, then caches it for instant reopening.",
 
                 prop_pages_progress: "Document progress: {done} / {total} pages translated",
                 prop_segments_progress: "Local progress: {done} / {total} segments translated",
@@ -398,6 +401,9 @@ document.addEventListener('alpine:init', () => {
                 prop_date: "Date de traduction :",
 
                 doc_loaded_msg: "Document chargé : {filename} ({pages} pages, {segments} segments de texte mappés)",
+                doc_loaded_lazy_msg: "Document chargé : {filename} ({pages} pages). La mise en page traduite sera préparée au lancement de la traduction.",
+
+                workspace_lazy_placeholder: "La vue traduite apparaîtra ici au lancement de la traduction. RockTranslate prépare la mise en page à la première utilisation, puis la met en cache pour une réouverture instantanée.",
 
                 prop_pages_progress: "Progression du document : {done} / {total} pages traduites",
                 prop_segments_progress: "Progression locale : {done} / {total} segments traduits",
@@ -622,6 +628,9 @@ document.addEventListener('alpine:init', () => {
                 prop_date: "Fecha de traducción:",
 
                 doc_loaded_msg: "Documento cargado: {filename} ({pages} páginas, {segments} segmentos de texto mapeados)",
+                doc_loaded_lazy_msg: "Documento cargado: {filename} ({pages} páginas). La maquetación traducida se preparará al iniciar la traducción.",
+
+                workspace_lazy_placeholder: "La vista traducida aparecerá aquí cuando comience la traducción. RockTranslate prepara la maquetación en el primer uso y luego la guarda en caché para una reapertura instantánea.",
                 prop_pages_progress: "Progreso del documento: {done} / {total} páginas traducidas",
                 prop_segments_progress: "Progreso local: {done} / {total} segmentos traducidos",
                 batch_info_msg: "Lote {done}/{total}",
@@ -843,6 +852,9 @@ document.addEventListener('alpine:init', () => {
                 prop_date: "Übersetzungsdatum:",
 
                 doc_loaded_msg: "Dokument geladen: {filename} ({pages} Seiten, {segments} Segmente erfasst)",
+                doc_loaded_lazy_msg: "Dokument geladen: {filename} ({pages} Seiten). Das übersetzte Layout wird beim Start der Übersetzung vorbereitet.",
+
+                workspace_lazy_placeholder: "Die übersetzte Ansicht erscheint hier, sobald die Übersetzung beginnt. RockTranslate bereitet das Seitenlayout beim ersten Gebrauch vor und speichert es für ein sofortiges erneutes Öffnen zwischen.",
                 prop_pages_progress: "Dokumentfortschritt: {done} / {total} Seiten übersetzt",
                 prop_segments_progress: "Lokaler Fortschritt: {done} / {total} Segmente übersetzt",
                 batch_info_msg: "Batch {done}/{total}",
