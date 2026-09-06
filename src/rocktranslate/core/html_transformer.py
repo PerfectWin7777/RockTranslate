@@ -23,6 +23,7 @@ import subprocess
 import threading
 import time
 import unicodedata
+from collections import deque
 from typing import Callable, Optional, Dict, Tuple, List, Set, Any
 from bs4 import BeautifulSoup, NavigableString
 from loguru import logger
@@ -44,7 +45,10 @@ def convert_pdf_to_html(
     stall_timeout: float = STALL_TIMEOUT_SECONDS,
     timeout: Optional[float] = None,
     output_dir: Optional[str] = None,
-    check_cancelled: Optional[Callable[[], bool]] = None
+    check_cancelled: Optional[Callable[[], bool]] = None,
+    env: Optional[Dict[str, str]] = None,
+    first_page: Optional[int] = None,
+    last_page: Optional[int] = None
 ) -> Optional[str]:
     """
     Converts a source PDF into raw HTML using the local pdf2htmlEX executable.
@@ -103,6 +107,13 @@ def convert_pdf_to_html(
         cmd_pdf_ref,
         cmd_output_ref
     ]
+    # Page-range conversion on the ORIGINAL file: parallel workers convert
+    # disjoint ranges without any PDF extraction step (extracting pages with
+    # pypdf produces resource-truncated PDFs this legacy binary crashes on).
+    if first_page is not None:
+        cmd += ["-f", str(int(first_page))]
+    if last_page is not None:
+        cmd += ["-l", str(int(last_page))]
 
     logger.info(f"Starting high-fidelity conversion of PDF: {pdf_filename}")
 
@@ -121,7 +132,8 @@ def convert_pdf_to_html(
         stderr=subprocess.PIPE,
         text=True,
         bufsize=1,                  # Line buffered output
-        universal_newlines=True     # Translates carriage returns (\r) to newlines (\n)
+        universal_newlines=True,    # Translates carriage returns (\r) to newlines (\n)
+        env=env                     # Parallel workers pass an isolated TEMP/TMP here
     )
 
     # ── NON-BLOCKING PIPE READER ──
@@ -141,6 +153,7 @@ def convert_pdf_to_html(
 
     deadline: Optional[float] = (time.monotonic() + timeout) if timeout else None
     last_progress: Tuple[int, int] = (0, 0)
+    stderr_tail: "deque" = deque(maxlen=8)
 
     while True:
         wait_budget = stall_timeout
@@ -185,6 +198,7 @@ def convert_pdf_to_html(
         if line is None:
             break  # EOF: process stderr stream terminated
 
+        stderr_tail.append(line.rstrip())
         # Parse progress metrics (Format: "Working: 12/30")
         match = re.search(r"Working:\s*(\d+)/(\d+)", line)
         if match:
@@ -202,6 +216,8 @@ def convert_pdf_to_html(
         return output_html_path
 
     logger.error(f"pdf2htmlEX exited with error code: {process.returncode}")
+    for tail_line in list(stderr_tail)[-5:]:
+        logger.error(f"pdf2htmlEX stderr | {tail_line}")
 
     # TODO: In the main UI window, handle the None return value by displaying a clear
     # and friendly error message explaining that this PDF contains unsupported fonts.

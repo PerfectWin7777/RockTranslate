@@ -12,16 +12,28 @@ Version: 1.1.0
 """
 
 import json
+import time
 from loguru import logger
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from ..config_manager import config_db
 from ..constants import (
-    DEFAULT_PROVIDERS, 
-    THRESHOLD_PX, 
-    SLIDING_CONTEXT_MAX_SIZE, 
-    MAX_SEGMENTS_PER_BATCH, 
+    DEFAULT_PROVIDERS,
+    THRESHOLD_PX,
+    SLIDING_CONTEXT_MAX_SIZE,
+    MAX_SEGMENTS_PER_BATCH,
     MAX_RETRIES
 )
+
+# Tokens identifying non-chat models (audio, embeddings, moderators…) that are
+# pointless for document translation and are excluded from suggestion lists.
+_EXCLUDED_MODEL_TOKENS = (
+    "audio", "transcribe", "tts", "whisper", "embedding", "moderation",
+    "realtime", "live", "dall-e", "image", "rerank", "guard", "search",
+    "computer-use", "video",
+)
+
+# How long the persisted per-provider model cache stays authoritative (24h).
+_MODEL_CACHE_TTL_SECONDS = 86400
 
 
 class ConfigApiMixin:
@@ -195,6 +207,76 @@ class ConfigApiMixin:
             Dict[str, Any]: Provider profiles catalog dictionary.
         """
         return DEFAULT_PROVIDERS
+
+    def get_available_models(self, provider: str) -> Dict[str, Any]:
+        """
+        Builds the up-to-date model list for a provider without any network call:
+        LiteLLM bundles a full model registry (model_cost, ~3800 entries) that is
+        refreshed with each package update, so newly released models appear after
+        a simple dependency upgrade — no more hardcoded-list releases.
+
+        The result is merged with the curated defaults and persisted in the local
+        configuration database, giving instant offline availability.
+
+        Args:
+            provider: Provider display name (e.g. 'Google Gemini', 'OpenRouter').
+
+        Returns:
+            Dict[str, Any]: {'status', 'provider', 'models', 'source'} payload.
+        """
+        provider = str(provider)
+        defaults: List[str] = list(DEFAULT_PROVIDERS.get(provider, {}).get("models", []))
+
+        # 1. Fresh persisted cache: serve instantly (offline-friendly)
+        cached = config_db.get("ModelCache", provider, {})
+        if isinstance(cached, dict) and cached.get("models") \
+                and (time.time() - float(cached.get("fetched_at", 0)) < _MODEL_CACHE_TTL_SECONDS):
+            return {
+                "status": "success",
+                "provider": provider,
+                "models": cached["models"],
+                "source": "cache"
+            }
+
+        # 2. Rebuild from the bundled LiteLLM registry (offline, milliseconds)
+        registry: List[str] = []
+        source = "defaults"
+        try:
+            import litellm
+            model_cost = getattr(litellm, "model_cost", {}) or {}
+            prefix = str(DEFAULT_PROVIDERS.get(provider, {}).get("prefix", ""))
+            if provider == "Ollama (Local)":
+                # Local server models are listed at runtime by Ollama itself
+                registry = []
+            elif prefix:
+                registry = [k[len(prefix):] for k in model_cost
+                            if k.startswith(prefix) and len(k) > len(prefix)]
+            else:
+                # OpenAI-family models are registered without any provider prefix
+                registry = sorted(getattr(litellm, "models_by_provider", {}).get("openai", set()))
+
+            registry = [
+                m for m in registry
+                if m and not any(bad in m.lower() for bad in _EXCLUDED_MODEL_TOKENS)
+            ]
+            if registry:
+                source = "registry+defaults"
+        except Exception as registry_error:
+            logger.warning(f"[API] LiteLLM registry unavailable for {provider}: {registry_error}")
+
+        merged = list(dict.fromkeys(defaults + sorted(set(registry))))
+        if not merged:
+            merged = defaults
+
+        try:
+            config_db.set("ModelCache", provider, {
+                "models": merged,
+                "fetched_at": time.time()
+            })
+        except OSError as cache_error:
+            logger.warning(f"[API] Could not persist model cache: {cache_error}")
+
+        return {"status": "success", "provider": provider, "models": merged, "source": source}
 
     def get_api_config(self) -> Dict[str, Any]:
         """

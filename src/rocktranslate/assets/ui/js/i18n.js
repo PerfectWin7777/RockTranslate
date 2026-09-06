@@ -15,6 +15,11 @@ document.addEventListener('alpine:init', () => {
 
         translations: {
             en: {
+                model_custom_ph: "Paste a model ID (e.g. openrouter/anthropic/claude-…)…",
+                model_use_btn: "Use",
+                model_custom_hint: "Paste any model ID from your provider console (OpenRouter, Google AI Studio…) and press Use — the provider prefix is added automatically if missing.",
+                model_custom_applied: "Custom model applied: {model}",
+                model_custom_empty: "Enter or paste a model ID first.",
                 // Top-level menu headers
                 menu_file: "File",
                 menu_translation: "Translation",
@@ -138,6 +143,11 @@ document.addEventListener('alpine:init', () => {
 
                 range_title: "Translate Specific Pages",
                 range_subtitle_total: "Translate Specific Pages (Total Pages: {total})",
+                model_custom_ph: "Pega un ID de modelo (p. ej. openrouter/anthropic/claude-…)…",
+                model_use_btn: "Usar",
+                model_custom_hint: "Pega cualquier ID de modelo desde la consola de tu proveedor (OpenRouter, Google AI Studio…) y pulsa Usar — el prefijo del proveedor se añade automáticamente si falta.",
+                model_custom_applied: "Modelo personalizado aplicado: {model}",
+                model_custom_empty: "Introduce o pega primero un ID de modelo.",
                 range_syntax_guide: "Syntax Guide",
                 range_guide_1: "Enter a single page number (e.g., '4') to translate only that page.",
                 range_guide_2: "Use '-' for a sequential range of pages (e.g., '2-5' translates pages 2, 3, 4, and 5).",
@@ -249,6 +259,11 @@ document.addEventListener('alpine:init', () => {
                 
             },
             fr: {
+                model_custom_ph: "Collez un ID de modèle (ex. openrouter/anthropic/claude-…)…",
+                model_use_btn: "Utiliser",
+                model_custom_hint: "Collez n'importe quel ID de modèle depuis la console de votre fournisseur (OpenRouter, Google AI Studio…) puis Utiliser — le préfixe du fournisseur est ajouté automatiquement s'il manque.",
+                model_custom_applied: "Modèle personnalisé appliqué : {model}",
+                model_custom_empty: "Saisissez ou collez d'abord un ID de modèle.",
                 // Top-level menu headers
                 menu_file: "Fichier",
                 menu_translation: "Traduction",
@@ -709,6 +724,11 @@ document.addEventListener('alpine:init', () => {
             },
 
             de: {
+                model_custom_ph: "Modell-ID einfügen (z. B. openrouter/anthropic/claude-…)…",
+                model_use_btn: "Verwenden",
+                model_custom_hint: "Füge eine beliebige Modell-ID aus der Konsole deines Anbieters ein (OpenRouter, Google AI Studio…) und klicke Verwenden — das Anbieter-Präfix wird bei Bedarf automatisch ergänzt.",
+                model_custom_applied: "Eigenes Modell übernommen: {model}",
+                model_custom_empty: "Bitte zuerst eine Modell-ID eingeben oder einfügen.",
                 // Top-level menu headers
                 menu_file: "Datei",
                 menu_translation: "Übersetzung",

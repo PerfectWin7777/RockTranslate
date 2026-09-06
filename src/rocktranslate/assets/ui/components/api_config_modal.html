@@ -5,7 +5,7 @@
 
 <div id="api-config-modal-overlay" class="modal-overlay" x-data="apiConfigController()"
     x-show="$store.modals.active === 'api_config'" x-transition x-cloak>
-    <div class="modal-card" style="width: 620px;" @click.away="$store.modals.close()">
+    <div class="modal-card" style="width: 620px;">
 
         <!-- ── Header ── -->
         <div class="modal-header">
@@ -33,7 +33,7 @@
                         <label class="form-label" x-text="$store.i18n.translate('api_config_provider_lbl')"></label>
                         <select x-model="currentProvider"
                             style="width: 100%; height: 36px; padding: 0 10px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; outline: none; background: white; color: var(--text-primary);"
-                            @change="showSuccessLabel = false">
+                            @change="onProviderChange()">
                             <template x-for="provider in Object.keys(providersConfig)" :key="provider">
                                 <option :value="provider" :selected="currentProvider === provider" x-text="provider">
                                 </option>
@@ -111,7 +111,7 @@
                             style="width: 100%; height: 36px; padding: 0 12px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; outline: none; background: white; color: var(--text-primary); box-sizing: border-box;">
                     </div>
 
-                    <!-- Model selector -->
+                    <!-- Model selector (dynamic LiteLLM registry, cached offline) -->
                     <div style="display: flex; flex-direction: column; gap: 6px;">
                         <label class="form-label" x-text="$store.i18n.translate('system_model_lbl')"></label>
                         <!-- :key="index" prevents duplicate-key issues when model lists overlap -->
@@ -123,6 +123,21 @@
                                     x-text="model"></option>
                             </template>
                         </select>
+
+                        <!-- Paste-any-model-id field: copy an id from OpenRouter /
+                             Google AI Studio / any provider console and use it directly -->
+                        <div style="display: flex; gap: 8px; align-items: center; margin-top: 2px;">
+                            <input type="text" x-model="customModelId"
+                                :placeholder="$store.i18n.translate('model_custom_ph')"
+                                @keydown.enter.prevent="applyCustomModel()"
+                                style="flex: 1; height: 34px; padding: 0 12px; border: 1px dashed var(--border-color); border-radius: 4px; font-size: 12px; outline: none; background: white; color: var(--text-primary); box-sizing: border-box;">
+                            <button type="button" class="btn-browse"
+                                style="height: 34px; padding: 0 14px; font-size: 12px; font-weight: 500; border: 1px solid var(--border-color); border-radius: 4px; background: white; color: var(--text-primary); cursor: pointer; white-space: nowrap;"
+                                @click="applyCustomModel()"
+                                x-text="$store.i18n.translate('model_use_btn')"></button>
+                        </div>
+                        <p style="font-size: 10px; color: var(--text-muted); margin: 0;"
+                            x-text="$store.i18n.translate('model_custom_hint')"></p>
                     </div>
 
                     <!-- OpenRouter free-tier warning banner -->

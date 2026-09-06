@@ -248,6 +248,57 @@
                         t.stage = 'translating';
                     });
 
+                    // ── TRUE MODALITY (modals store + confirm dialogs) ──
+                    // ESC closes, Tab is trapped inside the open modal card,
+                    // and background scrolling is locked while a modal shows.
+                    window.addEventListener('keydown', (e) => {
+                        const modals = Alpine.store('modals');
+                        const dialogs = Alpine.store('dialogs');
+
+                        if (e.key === 'Escape') {
+                            if (dialogs.isOpen) {
+                                dialogs.handleCancel();
+                                e.preventDefault();
+                            } else if (modals.active) {
+                                modals.close();
+                                e.preventDefault();
+                            }
+                            return;
+                        }
+
+                        if (modals.active && e.key === 'Tab') {
+                            const overlay = [...document.querySelectorAll('.modal-overlay')]
+                                .find(el => el.offsetParent !== null || el.getClientRects().length);
+                            const card = overlay && overlay.querySelector('.modal-card');
+                            if (!card) return;
+                            const focusables = [...card.querySelectorAll(
+                                'input, select, textarea, button, [tabindex]:not([tabindex="-1"])')]
+                                .filter(el => !el.disabled && el.offsetParent !== null);
+                            if (!focusables.length) return;
+                            const first = focusables[0];
+                            const last = focusables[focusables.length - 1];
+                            if (!card.contains(document.activeElement)) {
+                                first.focus();
+                                e.preventDefault();
+                            } else if (e.shiftKey && document.activeElement === first) {
+                                last.focus();
+                                e.preventDefault();
+                            } else if (!e.shiftKey && document.activeElement === last) {
+                                first.focus();
+                                e.preventDefault();
+                            }
+                        }
+                    }, true);
+
+                    // Lock background scroll whenever any modal or dialog is open
+                    const updateScrollLock = () => {
+                        const locked = !!Alpine.store('modals').active || Alpine.store('dialogs').isOpen;
+                        document.body.style.overflow = locked ? 'hidden' : '';
+                    };
+                    window.addEventListener('trigger-modals-changed', updateScrollLock);
+                    this.$watch('$store.modals.active', updateScrollLock);
+                    this.$watch('$store.dialogs.isOpen', updateScrollLock);
+
                     this.mountComponent('menubar-mount', 'components/menubar.html');
                     this.mountComponent('dashboard-mount', 'components/dashboard.html');
                     this.mountComponent('progress-mount', 'components/progress.html');

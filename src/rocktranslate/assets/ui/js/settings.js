@@ -144,6 +144,14 @@ function apiConfigController() {
         // Toggle to show green checkmark success feedbacks
         showSuccessLabel: false,
 
+        // Dynamic model list served by the bundled LiteLLM registry (cached
+        // offline by the backend). Falls back to the curated provider list.
+        availableModels: [],
+        modelSource: '',
+
+        // Free-text field: paste any model id straight from the provider console
+        customModelId: '',
+
         // ── TIMING FIX: State marker to prevent uninitialized rendering clashes ──
         loading: true,
 
@@ -177,6 +185,8 @@ function apiConfigController() {
 
                     // 3. Now that the options are physically present, safely set the active provider
                     this.currentProvider = data.current_provider;
+                    // 4. Serve the dynamic (cached, offline) model list
+                    await this.refreshModels();
                 } else {
                     this.loading = false;
                 }
@@ -187,13 +197,69 @@ function apiConfigController() {
         },
 
         /**
-         * Resolves the list of suggested models for the active selection.
+         * Resolves the model list for the active provider: the dynamic LiteLLM
+         * registry list when available, otherwise the curated default list.
+         * The currently selected model is always kept in the options.
          */
         getSuggestedModels() {
-            if (this.providersConfig && this.providersConfig[this.currentProvider]) {
-                return this.providersConfig[this.currentProvider].models || [];
+            const list = this.availableModels.length
+                ? this.availableModels.slice()
+                : ((this.providersConfig && this.providersConfig[this.currentProvider])
+                    ? (this.providersConfig[this.currentProvider].models || []).slice()
+                    : []);
+            const current = this.isolatedConfigs[this.currentProvider]
+                && this.isolatedConfigs[this.currentProvider].last_model;
+            if (current && !list.includes(current)) {
+                list.unshift(current);
             }
-            return [];
+            return list;
+        },
+
+        /**
+         * Fetches the dynamic model list for the active provider. The backend
+         * serves a persisted cache (24h TTL) rebuilt from the bundled LiteLLM
+         * registry — instant, offline, and updated with every app/dependency
+         * upgrade instead of hardcoded releases.
+         */
+        async refreshModels() {
+            this.availableModels = [];
+            this.modelSource = '';
+            try {
+                const result = await window.pywebview.api.get_available_models(this.currentProvider);
+                if (result && result.status === 'success' && Array.isArray(result.models)) {
+                    this.availableModels = result.models;
+                    this.modelSource = result.source || '';
+                }
+            } catch (error) {
+                console.warn('[API Config] Dynamic model list unavailable, using curated defaults:', error);
+            }
+        },
+
+        /**
+         * Provider switched in the dropdown: reload its dynamic model list.
+         */
+        async onProviderChange() {
+            this.showSuccessLabel = false;
+            this.customModelId = '';
+            await this.refreshModels();
+        },
+
+        /**
+         * Applies a pasted model id (e.g. copied from OpenRouter or Google AI
+         * Studio) directly as the active model for the current provider.
+         */
+        applyCustomModel() {
+            const i18n = Alpine.store('i18n');
+            const value = (this.customModelId || '').trim();
+            if (!value) {
+                window.showToast(i18n.translate('model_custom_empty'), 'warning');
+                return;
+            }
+            if (this.isolatedConfigs[this.currentProvider]) {
+                this.isolatedConfigs[this.currentProvider].last_model = value;
+                this.customModelId = '';
+                window.showToast(i18n.translate('model_custom_applied', { model: value }), 'success');
+            }
         },
 
         /**
