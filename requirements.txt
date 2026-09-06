@@ -6,4 +6,4 @@ litellm>=1.0.0
 json-repair>=0.10.0
 pypdf>=4.0.0
 loguru>=0.7.0
-tiktoken>=0.5.0
+tiktoken>=0.5.0tinycss2

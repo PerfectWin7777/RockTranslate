@@ -26,7 +26,8 @@ dependencies = [
     "json-repair",
     "pypdf",
     "loguru",
-    "tiktoken"
+    "tiktoken",
+    "tinycss2"
 ]
 
 # Optional dependencies to install the full GUI (pip install -e .[gui])
