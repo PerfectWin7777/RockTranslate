@@ -53,36 +53,34 @@ PDF2HTMLEX_DOWNLOAD_URL: Final[str] = (
 # ==============================================================================
 
 # Default model routing used when initiating clients without custom user preferences
-DEFAULT_MODEL: Final[str] = "gemini/gemini-3.1-flash-lite"
+DEFAULT_MODEL: Final[str] = "gemini/gemini-3.8-flash"
 DEFAULT_TOKEN_LIMIT: Final[int] = 1000
 
 # Limits on usable context tokens for input segments, preventing prompt truncation
 MODEL_TOKEN_LIMITS: Final[Dict[str, int]] = {
     # Lightweight Models (optimized for high-frequency low-latency batches)
-    "gemini/gemini-3.5-flash": 1500,
+    "gemini/gemini-3.8-flash": 2500,
+    "gemini/gemini-3.7-flash": 2500,
+    "gemini/gemini-3.5-flash": 2500,
     "gemini/gemini-3.1-flash-lite": 1000,
-    "gemini/gemini-2.5-flash-lite": 1000,
     "gemini/gemini-3-flash-preview": 1000,
-    "gemini/gemini-2.5-flash": 1500,
-    "gemini/gemini-2.0-flash": 1500,
-    "gemini/gemini-2.0-flash-lite": 1000,
-    "gpt-4o-mini": 1500,
     "gpt-5-mini": 1500,
     "gpt-5-nano": 1000,
     "ollama/mistral": 800,
-    "ollama/llama3": 800,
+    "ollama/llama4": 800,
     
     # Large Reasoning Models (pro-tier and advanced research targets)
     "gemini/gemini-3.1-pro": 2500,
-    "gemini/gemini-2.5-pro": 2500,
-    "gemini/gemini-1.5-pro": 2500,
-    "gpt-4o": 2500,
-    "gpt-5": 2500,
+    "gpt-5.6-terra": 2500,
     "gpt-5.5": 2500,
-    "claude-3-5-sonnet-20241022": 2500,
-    "claude-4-sonnet": 2500,
+    "gpt-5": 2500,
+    "claude-5-sonnet": 2500,
+    "claude-5-haiku": 2500,
+    "claude-4.8-opus": 2500,
     "claude-4.6-sonnet": 2500,
-    "claude-sonnet-4-20250514": 2500,
+    "claude-4-sonnet": 2500,
+    "claude-3-7-sonnet": 2500,
+    "deepseek-v4-flash": 2500,
 }
 
 # Supported AI providers, dynamic prefixes, env keys, and suggested models
@@ -92,18 +90,14 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
         "key_env": "GEMINI_API_KEY",
         "key_url": "https://aistudio.google.com/",
         "models": [
+            "gemini-3.8-flash",
+            "gemini-3.7-flash",
+            "gemini-3.6-flash",
             "gemini-3.5-flash",
-            "gemini-3.1-flash-lite",
-            "gemini-2.5-flash-lite",
-            "gemini-3-flash-preview",
+            "gemini-3.5-flash-lite",
             "gemini-3.1-pro",
-            "gemini-2.5-flash",
-            "gemini-2.5-pro",
-            "gemini-2.0-flash",
-            "gemini-2.0-flash-lite",
-            "gemini-1.5-pro",
-            "gemini-1.5-flash",
-            "gemini-exp-1206"
+            "gemini-3.1-flash-lite",
+            "gemini-3-flash-preview"
         ]
     },
 
@@ -112,23 +106,18 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
         "key_env": "OPENAI_API_KEY",
         "key_url": "https://platform.openai.com/api-keys",
         "models": [
+            "gpt-5.6-terra",
+            "gpt-5.5",
+            "gpt-5.4",
             "gpt-5",
             "gpt-5-mini",
             "gpt-5-nano",
-            "gpt-5.5",
-            "gpt-5.4",
-            "gpt-4.1",
-            "gpt-4.1-mini",
-            "gpt-4.1-nano",
-            "gpt-4o",
-            "gpt-4o-mini",
-            "chatgpt-4o-latest",
-            "o1",
-            "o1-mini",
-            "o1-preview",
+            "o4-mini",
             "o3",
             "o3-mini",
-            "o4-mini"
+            "gpt-4.1",
+            "gpt-4.1-mini",
+            "gpt-4.1-nano"
         ]
     },
 
@@ -137,17 +126,14 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
         "key_env": "ANTHROPIC_API_KEY",
         "key_url": "https://console.anthropic.com/settings/keys",
         "models": [
+            "claude-5-sonnet",
+            "claude-5-haiku",
             "claude-4.8-opus",           
             "claude-4.6-sonnet",         
             "claude-4.5-haiku",
             "claude-4-opus",
             "claude-4-sonnet",
-            "claude-3-7-sonnet",
-            "claude-3-5-sonnet-20241022",
-            "claude-3-5-haiku-20241022",
-            "claude-3-opus-20240229",
-            "claude-3-sonnet-20240229",
-            "claude-3-haiku-20240307"
+            "claude-3-7-sonnet"
         ]
     },
 
@@ -174,14 +160,11 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
             "mistral-small-latest",
             "mistral-large-latest",
             "mistral-medium-latest",
-            "mistral-small-latest",
             "pixtral-large-latest",
             "pixtral-12b",
             "ministral-8b-latest",
             "ministral-3b-latest",
-            "open-mistral-nemo",
-            "open-mixtral-8x22b",
-            "open-mixtral-8x7b"
+            "open-mistral-nemo"
         ]
     },
 
@@ -192,12 +175,8 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
         "models": [
             "llama-4-scout-groq",        
             "llama-3.3-70b-versatile",   
-            "llama3-70b-8192",
-            "llama-3.3-70b-versatile",
             "llama-3.1-70b-versatile",
             "llama-3.1-8b-instant",
-            "mixtral-8x7b-32768",
-            "gemma2-9b-it",
             "qwen-qwq-32b",
             "deepseek-r1-distill-llama-70b"
         ]
@@ -210,20 +189,14 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
         "models": [
             "meta-llama/Llama-4-Maverick",         
             "meta-llama/Llama-4-Scout",            
-            "meta-llama/Meta-Llama-3.1-405B-Instruct",
             "meta-llama/Meta-Llama-3.3-70B-Instruct",
             "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-            "meta-llama/Llama-3.1-405B-Instruct-Turbo",
-            "meta-llama/Llama-3.1-70B-Instruct-Turbo",
-            "meta-llama/Llama-3.1-8B-Instruct-Turbo",
             "Qwen/Qwen3-235B-A22B",
             "Qwen/Qwen3-32B",
             "Qwen/Qwen2.5-72B-Instruct",
             "deepseek-ai/DeepSeek-V4-Pro",
             "deepseek-ai/DeepSeek-R1",
             "deepseek-ai/DeepSeek-V3",
-            "mistralai/Mixtral-8x7B-Instruct-v0.1",
-            "mistralai/Mixtral-8x22B-Instruct-v0.1",
             "moonshotai/Kimi-K2",
             "zai-org/GLM-4.7"
         ]
@@ -237,10 +210,7 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
             "kimi-k2.6",                 
             "kimi-k2.5",              
             "kimi-k2",
-            "kimi-k2-instruct",
-            "moonshot-v1-8k",
-            "moonshot-v1-32k",
-            "moonshot-v1-128k"
+            "kimi-k2-instruct"
         ]
     },
 
@@ -301,8 +271,8 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
         "key_url": "https://openrouter.ai/keys",
         "models": [
             "openrouter/free", 
-            "google/gemini-2.5-flash:free", 
-            "meta-llama/llama-3-8b-instruct:free", 
+            "google/gemini-3.5-flash:free", 
+            "meta-llama/llama-4-scout:free", 
             "nex-agi/nex-n2-pro:free",
             "nvidia/nemotron-3.5-content-safety:free",
             "nvidia/nemotron-3-ultra-550b-a55b:free",
@@ -315,10 +285,10 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
             "nvidia/nemotron-nano-12b-vl:free",
             "inclusionai/ring-2.6-1t:free",
             "baidu/cobuddy:free",
+            "openai/gpt-5.6-terra",
             "openai/gpt-5",
             "openai/gpt-5-mini",
             "openai/gpt-4.1",
-            "openai/gpt-4o",
 
             "nvidia/nemotron-3-ultra-550b-a55b",
             "minimax/minimax-m3",
@@ -336,8 +306,7 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
             "anthropic/claude-4.5-haiku",
             "anthropic/claude-3.7-sonnet",
             
-            "google/gemini-2.5-pro",
-            "google/gemini-2.5-flash",
+            "google/gemini-3.8-flash",
             "google/gemini-3.5-flash",
             "google/gemini-3.1-flash-lite",
 

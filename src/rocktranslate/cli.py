@@ -93,10 +93,10 @@ def main() -> None:
             rocktranslate paper.pdf -l Spanish -o report_es.pdf
 
         3. Translate to German using OpenAI with an explicit API key:
-            rocktranslate document.pdf -m openai/gpt-4o-mini -k YOUR_OPENAI_KEY -l German
+            rocktranslate document.pdf -m openai/gpt-5.6-terra -k YOUR_OPENAI_KEY -l German
 
         4. Run fully local translation using Ollama (no API key required):
-            rocktranslate document.pdf -m ollama/llama3 -l French
+            rocktranslate document.pdf -m ollama/llama4 -l French
         """
     )
     
@@ -119,13 +119,13 @@ def main() -> None:
     parser.add_argument(
         "-m", "--model", 
         help=(
-            "Target LLM model router string (default: gemini/gemini-3.1-flash-lite).\n"
+            "Target LLM model router string (default: gemini/gemini-3.8-flash).\n"
             "Format: [provider]/[model_name]\n"
             "Examples:\n"
-            "  - gemini/gemini-2.5-flash-lite\n"
-            "  - openai/gpt-4o-mini\n"
-            "  - anthropic/claude-3-5-sonnet\n"
-            "  - ollama/llama3 (for local execution)"
+            "  - gemini/gemini-3.8-flash\n"
+            "  - openai/gpt-5.6-terra\n"
+            "  - anthropic/claude-5-sonnet\n"
+            "  - ollama/llama4 (for local execution)"
         )
     )
     parser.add_argument(

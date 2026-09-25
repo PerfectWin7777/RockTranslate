@@ -90,9 +90,10 @@ def main() -> None:
         pyinstaller_args.append(f"--exclude-module={module}")
 
     # Discover and apply the application icon dynamically (Windows exe, taskbar, titlebar)
-    icon_path = os.path.join(assets_src, "rocktranslate_icon.png")
+    icon_ico = os.path.join(assets_src, "rocktranslate_icon.ico")
+    icon_png = os.path.join(assets_src, "rocktranslate_icon.png")
+    icon_path = icon_ico if os.path.exists(icon_ico) else icon_png
     if os.path.exists(icon_path):
-        # On Windows, PyInstaller preferred format is .ico (png is converted or used natively depending on targets)
         pyinstaller_args.append(f"--icon={icon_path}")
         print(f"🎨 Custom icon discovered and applied: {icon_path}")
 
@@ -100,7 +101,7 @@ def main() -> None:
     
     # Run PyInstaller as a subprocess
     try:
-        cmd = ["pyinstaller"] + pyinstaller_args
+        cmd = [sys.executable, "-m", "PyInstaller"] + pyinstaller_args
         subprocess.run(cmd, check=True, cwd=project_root)
         print("\n🎉 Compilation Succeeded!")
         print(f"📂 Standalone executable is available inside: {os.path.join(project_root, 'dist_desktop', 'RockTranslate')}")

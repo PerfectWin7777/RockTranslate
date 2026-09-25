@@ -28,7 +28,7 @@ except ImportError:
     litellm = None
 
 # Safe imports supporting both standard package modules and direct scripts
-from .constants import DEFAULT_PROVIDERS, MAX_RETRIES, RETRY_DELAYS
+from .constants import DEFAULT_PROVIDERS, MAX_RETRIES, RETRY_DELAYS, DEFAULT_MODEL
 from .prompts import get_system_prompt, get_user_message
 from .config_manager import config_db
 
@@ -40,7 +40,7 @@ class LLMClient:
 
     def __init__(
         self,
-        model: str = "gemini/gemini-2.5-flash-lite",
+        model: str = DEFAULT_MODEL,
         api_key: Optional[str] = None,
         target_lang: str = "French",
         max_tokens: Optional[int] = None,
@@ -53,7 +53,7 @@ class LLMClient:
         Initializes the resilient LLM translation client.
 
         Args:
-            model: Selected model routing string (e.g., 'gemini/gemini-2.5-flash').
+            model: Selected model routing string (e.g., 'gemini/gemini-3.8-flash').
             api_key: The API Key corresponding to the selected provider.
             target_lang: Complete text name of the target language (e.g., 'Spanish').
             max_tokens: Optional token ceiling limit.
@@ -274,7 +274,7 @@ class LLMClient:
         active provider, ensuring API billings and keys remain within the same boundaries.
 
         Args:
-            current_model: The routing name of the model that failed (e.g., 'gemini/gemini-2.5-flash-lite').
+            current_model: The routing name of the model that failed (e.g., 'gemini/gemini-3.8-flash').
 
         Returns:
             Tuple[Optional[str], Optional[str]]: The alternative model name and its active API key if configured.
@@ -298,7 +298,7 @@ class LLMClient:
         suggested_models: list = provider_config.get("models", [])
         prefix = provider_config.get("prefix", "")
         
-        # Build fully qualified model paths (e.g., 'gemini/gemini-2.5-flash')
+        # Build fully qualified model paths (e.g., 'gemini/gemini-3.8-flash')
         qualified_models: List[str] = [
             f"{prefix}{m}" if not m.startswith(prefix) else m for m in suggested_models
         ]

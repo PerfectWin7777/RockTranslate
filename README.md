@@ -11,8 +11,8 @@
 
 <p align="center">
   <!-- High-visibility dynamic download badge -->
-  <a href="https://github.com/PerfectWin7777/RockTranslate/releases/download/v1.0.0-beta/RockTranslate_Setup_v1.0.0.exe">
-    <img src="https://img.shields.io/badge/Download-Windows%20GUI%20Installer-blue?style=for-the-badge&logo=windows&logoColor=white" alt="Download Windows GUI Installer" />
+  <a href="https://github.com/PerfectWin7777/RockTranslate/releases/download/v2.0.2/RockTranslate_Setup_v2.0.2.exe">
+    <img src="https://img.shields.io/badge/Download-Windows%20GUI%20Installer%20v2.0.2-blue?style=for-the-badge&logo=windows&logoColor=white" alt="Download Windows GUI Installer" />
   </a>
 </p>
 
@@ -24,7 +24,7 @@
 
 ---
 
-### 📥 [Click here to download the standalone Windows Desktop GUI Installer (.exe)](https://github.com/PerfectWin7777/RockTranslate/releases/tag/v1.0.0-beta/RockTranslate_Setup_v1.0.0.exe)
+### 📥 [Click here to download the standalone Windows Desktop GUI Installer v2.0.2 (.exe)](https://github.com/PerfectWin7777/RockTranslate/releases/download/v2.0.2/RockTranslate_Setup_v2.0.2.exe)
 
 ---
 
@@ -38,7 +38,7 @@ Scientific and academic research is a global endeavor, yet the vast majority of 
 
 Traditional translation tools are either:
 1.  **Prohibitively expensive** or heavily restricted by paid subscription tiers (e.g., DeepL, Google Translate).
-2.  **Lacking visual layout preservation** (e.g., standard text extractors, legacy translation proxies), rendering complex formulas, double-column structures, and tables completely unreadable [2].
+2.  **Lacking visual layout preservation** (e.g., standard text extractors, legacy translation proxies), disrupting complex formulas, double-column structures, and tabular alignments [2].
 
 **RockTranslate** was born out of academic necessity, created by students facing these exact barriers. It is designed to be a fully accessible, local-first, high-fidelity alternative that allows any researcher, anywhere, to translate academic PDFs without losing their original layout—empowering global education without financial borders [1].
 
@@ -153,7 +153,7 @@ A responsive desktop application featuring:
 *   Real-time zoom sliders and page navigation.
 *   Visual shimmer skeleton loaders and real-time status bars [1, 2].
 
-### 📥 [Click here to download the standalone Windows Desktop GUI Installer (.exe)](https://github.com/PerfectWin7777/RockTranslate/releases/tag/v1.0.0-beta/RockTranslate_Setup_v1.0.0.exe)
+### 📥 [Click here to download the standalone Windows Desktop GUI Installer v2.0.2 (.exe)](https://github.com/PerfectWin7777/RockTranslate/releases/download/v2.0.2/RockTranslate_Setup_v2.0.2.exe)
 
 ### B. Command-Line Interface (CLI)
 A lightweight execution engine that can be run globally from the terminal once installed [3].
@@ -169,11 +169,11 @@ A lightweight execution engine that can be run globally from the terminal once i
     ```
 3.  **Translate to German using OpenAI with an explicit API key:**
     ```bash
-    rocktranslate document.pdf -m openai/gpt-4o-mini -k YOUR_OPENAI_KEY -l German
+    rocktranslate document.pdf -m openai/gpt-5.6-terra -k YOUR_OPENAI_KEY -l German
     ```
 4.  **Run fully local translation using Ollama (no API key required):**
     ```bash
-    rocktranslate document.pdf -m ollama/llama3 -l French
+    rocktranslate document.pdf -m ollama/llama4 -l French
     ```
 
 ---
@@ -186,7 +186,7 @@ RockTranslate inherits its entire model routing architecture directly from **Lit
 Both the provider prefix and the model name must match the exact naming conventions defined in the [LiteLLM Supported Providers & Models Documentation](https://docs.litellm.ai/docs/providers).
 
 #### 2. Why Frontier Models are Essential for Perfect Visual Layouts
-While local or lightweight models function perfectly, we highly recommend using advanced **frontier models**—such as **Gemini 3.5 Flash**, **GPT 5.5**, **Claude 4.X**, **DeepSeek V4**, **Kimi K2.6**, or **GLM 5.5 ; Any other open-source LLM provider**—for complex scientific papers. 
+While local or lightweight models function perfectly, we highly recommend using advanced **frontier models**—such as **Gemini 3.8 Flash**, **GPT-5.6 Terra**, **Claude 5 Sonnet**, **DeepSeek V4**, **Llama 4**, or **Kimi K2.6**—for complex scientific papers. 
 
 *   **Instruction-Following & Tag Integrity:** Frontier models possess superior reasoning capabilities. They strictly preserve nested XML style tags (like `<color_HEX>`) and structural JSON mapping arrays, allowing the renderer to position text segments with pixel-perfect accuracy.
 *   **Academic Register & Context:** They avoid literal, broken word-by-word translations of fragmented segments. Instead, they understand the global paragraph context, translating complex double-column academic layouts into natural scientific prose.
@@ -210,9 +210,9 @@ else:
     # SCENARIO 1: Basic Translation (Using Google Gemini with environment key)
     # ──────────────────────────────────────────────────────────────────────
     # Automatically searches for GEMINI_API_KEY inside system environment variables.
-    # Uses the advanced Gemini 3.5 Flash model for superior layout preservation.
+    # Uses the advanced Gemini 3.8 Flash model for superior layout preservation.
     translator_gemini = RockTranslator(
-        model="gemini/gemini-3.5-flash",
+        model="gemini/gemini-3.8-flash",
         target_lang="Spanish"
     )
     
@@ -224,7 +224,7 @@ else:
     # SCENARIO 2: Custom Output Path and Language Customization
     # ──────────────────────────────────────────────────────────────────────
     translator_custom = RockTranslator(
-        model="gemini/gemini-3.5-flash",
+        model="gemini/gemini-3.8-flash",
         target_lang="German"
     )
     
@@ -239,13 +239,13 @@ else:
     print(f"Scenario 2 complete. Translated PDF written to: {custom_output} (Success: {success_custom})")
 
     # ──────────────────────────────────────────────────────────────────────
-    # SCENARIO 3: Frontier Provider (OpenAI GPT 5.5) with Explicit API Key
+    # SCENARIO 3: Frontier Provider (OpenAI GPT-5.6 Terra) with Explicit API Key
     # ──────────────────────────────────────────────────────────────────────
     # Explicit credentials pass overrides local environment configurations.
     # We route the request using the exact LiteLLM naming convention (provider/model_name).
     # Learn more at: https://docs.litellm.ai/docs/providers
     translator_openai = RockTranslator(
-        model="openai/gpt-5.5",
+        model="openai/gpt-5.6-terra",
         api_key="sk-your-openai-api-key-here",  # Replace with a valid credentials key
         target_lang="Italian",
         temperature=0.3  # Lower temperature for more rigid, literal academic translation
@@ -259,7 +259,7 @@ else:
     # ──────────────────────────────────────────────────────────────────────
     # No API keys or remote servers required. Ensure Ollama is running on the host machine.
     translator_local = RockTranslator(
-        model="ollama/llama3",
+        model="ollama/llama4",
         target_lang="French",
         custom_base_url="http://localhost:11434"  # Default local Ollama gateway port
     )
@@ -291,7 +291,7 @@ We believe in making scientific literature universally accessible and welcome co
 
 *   **UI/UX Polish:** Help us improve the `pywebview` interface — modal dialogs, theming, accessibility, and layout refinements.
 *   **Bug Reports & Edge Cases:** Found a PDF with highly complex LaTeX layout issues? Open an issue and upload the file (or a sample page) so we can optimize our BeautifulSoup parser rules.
-*   **Translation & Localization:** Contribute internationalization files (`.qm`/`.ts` translations) to make the user interface available in more languages.
+*   **Translation & Localization:** Contribute internationalization dictionaries (in `src/rocktranslate/assets/ui/js/i18n.js`) to make the user interface available in more languages.
 *   **Prompt Optimization:** Help us refine the instructions in `prompts.py` to further improve terminology preservation and tag alignment across different languages.
 
 To contribute, please fork the repository, make your changes in a dedicated branch, and submit a pull request. For major architectural modifications, feel free to open an issue first to discuss your ideas with the core maintainers.

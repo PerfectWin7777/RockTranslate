@@ -81,7 +81,7 @@ document.addEventListener('alpine:init', () => {
 
                 // 
                 about_title: "About RockTranslate",
-                about_version: "RockTranslate v1.0.0",
+                about_version: "RockTranslate v2.0.2",
                 about_tagline: "Scientific PDF Translation Engine",
                 about_motto: "Preserving Layout. Translating Knowledge.",
                 about_desc_1: "RockTranslate is a desktop application designed for translating scientific, technical, and academic PDF documents while preserving their original structure, formatting, figures, tables, and visual layout.",
@@ -324,7 +324,7 @@ document.addEventListener('alpine:init', () => {
                 waiting_translation: "En attente de traduction...",
 
                 about_title: "À propos de RockTranslate",
-                about_version: "RockTranslate v1.0.0",
+                about_version: "RockTranslate v2.0.2",
                 about_tagline: "Moteur de traduction de PDF scientifiques",
                 about_motto: "Préserver la mise en page. Traduire le savoir.",
                 about_desc_1: "RockTranslate est une application de bureau conçue pour traduire des documents PDF scientifiques, techniques et académiques tout en préservant leur structure d'origine, leur formatage, leurs figures, leurs tableaux et leur mise en page visuelle.",
@@ -555,7 +555,7 @@ document.addEventListener('alpine:init', () => {
                 waiting_translation: "Esperando traducción...",
 
                 about_title: "Acerca de RockTranslate",
-                about_version: "RockTranslate v1.0.0",
+                about_version: "RockTranslate v2.0.2",
                 about_tagline: "Motor de traducción de PDF científicos",
                 about_motto: "Preservar el diseño. Traducir el conocimiento.",
                 about_desc_1: "RockTranslate es una aplicación de escritorio diseñada para traducir documentos PDF científicos, técnicos y académicos conservando su estructura original, formato, figuras, tablas y diseño visual.",
@@ -789,7 +789,7 @@ document.addEventListener('alpine:init', () => {
                 waiting_translation: "Warten auf Übersetzung...",
 
                 about_title: "Über RockTranslate",
-                about_version: "RockTranslate v1.0.0",
+                about_version: "RockTranslate v2.0.2",
                 about_tagline: "Übersetzungs-Engine für wissenschaftliche PDFs",
                 about_motto: "Layout bewahren. Wissen übersetzen.",
                 about_desc_1: "RockTranslate ist eine Desktop-Anwendung zur Übersetzung wissenschaftlicher, technischer und akademischer PDF-Dokumente unter Beibehaltung ihres ursprünglichen Layouts, ihrer Formatierung, Abbildungen und Tabellen.",

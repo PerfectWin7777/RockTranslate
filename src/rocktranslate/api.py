@@ -13,7 +13,7 @@ from typing import Optional, Dict, Any
 from loguru import logger
 
 # Import sibling package modules
-from .core.constants import DEFAULT_ASSETS_DIR
+from .core.constants import DEFAULT_ASSETS_DIR, DEFAULT_MODEL
 from .core.html_transformer import convert_pdf_to_html, instrument_html
 from .core.chunker import build_batches
 from .core.llm_client import LLMClient
@@ -30,7 +30,7 @@ class RockTranslator:
 
     def __init__(
         self,
-        model: str = "gemini/gemini-3.1-flash-lite",
+        model: str = DEFAULT_MODEL,
         api_key: Optional[str] = None,
         target_lang: str = "French",
         temperature: float = 1.0,
@@ -40,7 +40,7 @@ class RockTranslator:
         """Initializes the RockTranslator engine.
 
         Args:
-            model: Target LLM model routing (e.g., 'gemini/gemini-3.1-flash-lite').
+            model: Target LLM model routing (e.g., 'gemini/gemini-3.8-flash').
             api_key: API Key for the active provider.
             target_lang: Destination language name (e.g., 'Spanish', 'German').
             temperature: Model sampling temperature (0.0 to 2.0).
@@ -227,7 +227,7 @@ if __name__ == "__main__":
         logger.info("--- SCENARIO 1: Standard Gemini Translation ---")
         # Automatically searches for GEMINI_API_KEY inside system environment variables
         translator_gemini = RockTranslator(
-            model="gemini/gemini-3.1-flash-lite",
+            model="gemini/gemini-3.8-flash",
             target_lang="Spanish"
         )
         
@@ -240,7 +240,7 @@ if __name__ == "__main__":
         # ──────────────────────────────────────────────────────────────────────
         logger.info("--- SCENARIO 2: Custom Language & Output Path ---")
         translator_custom = RockTranslator(
-            model="gemini/gemini-3.1-flash-lite",
+            model="gemini/gemini-3.8-flash",
             target_lang="German"
         )
         
@@ -260,7 +260,7 @@ if __name__ == "__main__":
         logger.info("--- SCENARIO 3: Custom Provider with Explicit Credentials ---")
         # Explicit credentials pass overrides local environment configurations
         translator_openai = RockTranslator(
-            model="openai/gpt-4o-mini",
+            model="openai/gpt-5.6-terra",
             api_key="sk-your-openai-api-key-here",  # Replace with a valid credentials key
             target_lang="Italian",
             temperature=0.3  # Lower temperature for more rigid, literal academic translation
@@ -275,7 +275,7 @@ if __name__ == "__main__":
         logger.info("--- SCENARIO 4: Offline Local Translation ---")
         # No API keys or remote servers required. Ensure Ollama is running on the host machine.
         translator_local = RockTranslator(
-            model="ollama/llama3",
+            model="ollama/llama4",
             target_lang="French",
             custom_base_url="http://localhost:11434"  # Default local Ollama gateway port
         )

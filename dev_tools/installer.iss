@@ -6,7 +6,7 @@
 ; Highly optimized to pack our lightweight pywebview distribution recursively.
 
 #define MyAppName "RockTranslate"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "2.0.2"
 #define MyAppPublisher "RockTranslate Contributors"
 #define MyAppURL "https://github.com/PerfectWin7777/RockTranslate"
 #define MyAppExeName "RockTranslate.exe"

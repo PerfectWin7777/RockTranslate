@@ -20,7 +20,7 @@ from typing import List, Dict, Optional
 from loguru import logger
 
 # Safe imports supporting both standard package modules and direct scripts
-from .constants import MODEL_TOKEN_LIMITS, DEFAULT_TOKEN_LIMIT, MAX_SEGMENTS_PER_BATCH
+from .constants import MODEL_TOKEN_LIMITS, DEFAULT_TOKEN_LIMIT, MAX_SEGMENTS_PER_BATCH, DEFAULT_MODEL
 from .config_manager import config_db
 
 @dataclass
@@ -113,7 +113,7 @@ def get_max_source_tokens(model: str) -> int:
 
 def build_batches(
     segments: Dict[str, str],
-    model: str = "gemini/gemini-2.5-flash-lite",
+    model: str = DEFAULT_MODEL,
     max_tokens: Optional[int] = None,
 ) -> List[Batch]:
     """

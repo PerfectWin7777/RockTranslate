@@ -27,7 +27,7 @@ extras_require = {
 
 setup(
     name="rocktranslate",
-    version="1.0.0",
+    version="2.0.2",
     author="PerfectWin (WINTER TONY)",
     author_email="wintertony7777@gmail.com",
     description="High-fidelity layout-preserved scientific PDF translator using advanced LLMs",

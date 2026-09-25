@@ -30,6 +30,12 @@ class RockTranslateAPI(HistoryApiMixin, ConfigApiMixin, TranslationApiMixin):
         # Private window reference to prevent WebView2 recursive serialization loops
         self._window: Optional[webview.Window] = None
 
+        # Automatically start background LiteLLM model catalog sync at startup
+        try:
+            self.start_background_model_sync()
+        except Exception as e:
+            logger.warning(f"Failed to start background model sync: {e}")
+
     # ── EXPOSED TRANSLATION ENDPOINTS ──
     def start_translation(self) -> None:
         """Starts a full translation run on the active document."""

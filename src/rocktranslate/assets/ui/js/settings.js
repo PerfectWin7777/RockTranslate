@@ -163,6 +163,14 @@ function apiConfigController() {
                 window.addEventListener('pywebviewready', load);
                 window.addEventListener('python-api-ready', load);
             }
+
+            // Realtime model updates when background LiteLLM sync finishes
+            window.addEventListener('models-refreshed', (event) => {
+                if (event.detail && event.detail.provider === this.currentProvider && Array.isArray(event.detail.models)) {
+                    this.availableModels = event.detail.models;
+                    this.modelSource = event.detail.source || 'remote';
+                }
+            });
         },
 
         async loadConfig() {
