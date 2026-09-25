@@ -1,13 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_data_files
 
-datas = [('d:\\Projets\\RockTranslate\\src\\rocktranslate\\assets', 'rocktranslate\\assets')]
+datas = [('D:\\Projets\\RockTranslate\\src\\rocktranslate\\assets', 'rocktranslate\\assets')]
 datas += collect_data_files('litellm')
 
 
 a = Analysis(
-    ['d:\\Projets\\RockTranslate\\src\\rocktranslate\\web_gui.py'],
-    pathex=['d:\\Projets\\RockTranslate\\src'],
+    ['D:\\Projets\\RockTranslate\\src\\rocktranslate\\web_gui.py'],
+    pathex=['D:\\Projets\\RockTranslate\\src'],
     binaries=[],
     datas=datas,
     hiddenimports=['tiktoken_ext.openai_public', 'tiktoken_ext', 'clr', 'webview.platforms.winforms', 'webview.platforms.cocoa'],
@@ -36,7 +36,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['d:\\Projets\\RockTranslate\\src\\rocktranslate\\assets\\rocktranslate_icon.png'],
+    icon=['D:\\Projets\\RockTranslate\\src\\rocktranslate\\assets\\rocktranslate_icon.ico'],
 )
 coll = COLLECT(
     exe,
