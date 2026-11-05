@@ -51,9 +51,13 @@ RockTranslate is a desktop application designed for translating scientific, tech
 Built with a local-first architecture, RockTranslate prioritizes performance, reliability, and user control. The application combines advanced document analysis, intelligent translation workflows, and high-fidelity PDF reconstruction to deliver professional-quality results.
 
 *   **Layout-Preserved PDF Translation:** Retains the exact geometry, columns, margins, and alignment of the original document [2].
+*   **Paragraph-Level Translation with Justified Reflow (new in 2.0.5):** Lines are regrouped into real paragraphs, translated as whole sentences, then reflowed into the original line boxes with one uniform scale per paragraph — justified when the source was justified, like professional document translators.
+*   **Protected PDFs:** Copy-restricted publisher PDFs open normally; password-protected PDFs prompt for their password (kept in memory only).
 *   **Scientific and Technical Document Support:** Specially designed to handle mathematical formulas, indices, equations, and proper academic nomenclature.
 *   **High-Fidelity PDF Reconstruction:** Preserves figures, images, and tables in their original spatial coordinates.
-*   **Fast Desktop Performance:** Employs parallel and asynchronous processing to deliver translations without blocking user interfaces [1].
+*   **Fast & Economical:** Concurrent LLM requests (4 by default), hidden-reasoning disabled where supported (≈5× faster, ≈4× cheaper on DeepSeek), and a translation cache: nothing is ever paid twice for the same text.
+*   **Transparent Usage:** Live elapsed time, remaining time, tokens and estimated cost during each run, plus cumulative statistics per model.
+*   **Light & Dark Themes:** A native-feeling interface (light, dark or follow the system) with a unified Settings window (Ctrl/⌘+,).
 *   **Lightweight and Responsive User Experience:** Optimized loading speeds and visual feedback indicators.
 *   **Privacy-Conscious Workflow:** Supports offline and local-first execution via local LLMs (Ollama) to guarantee complete data privacy.
 *   **Open-Source and Community-Driven:** Built entirely on open-source foundations, giving control back to the scientific community.
@@ -159,22 +163,35 @@ A responsive desktop application featuring:
 A lightweight execution engine that can be run globally from the terminal once installed [3].
 
 #### Usage Examples:
-1.  **Translate to French (default) using the default Gemini model:**
+1.  **Translate to French with the model saved in the GUI (or the default):**
     ```bash
-    rocktranslate article_scientifique.pdf -l French
+    rocktranslate paper.pdf -l French
     ```
-2.  **Translate to Spanish and save to a custom output file:**
+2.  **Translate only some pages (only those pages are converted):**
     ```bash
-    rocktranslate paper.pdf -l Spanish -o report_es.pdf
+    rocktranslate paper.pdf -l Spanish --pages "1-3, 7" -o paper_es.pdf
     ```
-3.  **Translate to German using OpenAI with an explicit API key:**
+3.  **Use DeepSeek, OpenAI, Gemini… (LiteLLM model routes):**
     ```bash
-    rocktranslate document.pdf -m openai/gpt-5.6-terra -k YOUR_OPENAI_KEY -l German
+    export DEEPSEEK_API_KEY=sk-...
+    rocktranslate paper.pdf -m deepseek/deepseek-flash -l German --parallel 6
     ```
-4.  **Run fully local translation using Ollama (no API key required):**
+4.  **Fully local translation with Ollama (no API key):**
     ```bash
-    rocktranslate document.pdf -m ollama/llama4 -l French
+    rocktranslate paper.pdf -m ollama/llama4 --base-url http://localhost:11434
     ```
+5.  **Password-protected PDF:**
+    ```bash
+    rocktranslate locked.pdf --password "secret"
+    ```
+6.  **Check the environment (pdf2htmlEX, PDF engine, API keys):**
+    ```bash
+    rocktranslate doctor
+    ```
+
+Each run ends with a summary (segments, time, tokens, estimated cost). Exit code `0` = success, `2` = partial result (some batches failed, the PDF was still produced), `1` = failure.
+
+**No browser to install manually:** RockTranslate prints PDFs with an installed Chrome / Edge / Chromium / Brave, and otherwise downloads a pinned `chrome-headless-shell` into your user folder (never into `site-packages`). On Linux, the official pdf2htmlEX AppImage is extracted automatically — no FUSE required (Docker, WSL, Ubuntu 22.04+). Override with `ROCKTRANSLATE_BROWSER=/path/to/chrome` if needed.
 
 ---
 
@@ -195,93 +212,44 @@ While local or lightweight models function perfectly, we highly recommend using 
 ### C. API Developer Library
 Integrate layout-preserved document translation directly into your Python scripts or data pipelines.
 
-#### Programmatic Integration Scenarios:
+#### Programmatic Integration:
 ```python
-import os
 from rocktranslate import RockTranslator
 
-# Ensure a sample file is present before initiating diagnostic runs
-sample_pdf = "article_scientifique.pdf"
+rt = RockTranslator(
+    model="deepseek/deepseek-flash",   # any LiteLLM route: gemini/..., openai/..., ollama/...
+    target_lang="French",              # API key read from DEEPSEEK_API_KEY (or pass api_key=...)
+    parallel=4,                        # concurrent requests
+    temperature=0.3,                   # faithful translation
+)
 
-if not os.path.exists(sample_pdf):
-    print(f"Sample file '{sample_pdf}' not found. Please provide a valid PDF.")
-else:
-    # ──────────────────────────────────────────────────────────────────────
-    # SCENARIO 1: Basic Translation (Using Google Gemini with environment key)
-    # ──────────────────────────────────────────────────────────────────────
-    # Automatically searches for GEMINI_API_KEY inside system environment variables.
-    # Uses the advanced Gemini 3.8 Flash model for superior layout preservation.
-    translator_gemini = RockTranslator(
-        model="gemini/gemini-3.8-flash",
-        target_lang="Spanish"
-    )
-    
-    # Executes translation, saving the file to '[article_scientifique]_translated.pdf'
-    success_gemini = translator_gemini.translate(input_pdf_path=sample_pdf)
-    print(f"Scenario 1 complete. Success: {success_gemini}")
+report = rt.translate_document("paper.pdf", "paper_fr.pdf", pages="1-5")
+print(report.success, report.output_path)
+print(f"{report.segments_translated} segments in {report.seconds:.0f}s, "
+      f"{report.prompt_tokens + report.completion_tokens} tokens, ~${report.cost_usd:.3f}")
 
-    # ──────────────────────────────────────────────────────────────────────
-    # SCENARIO 2: Custom Output Path and Language Customization
-    # ──────────────────────────────────────────────────────────────────────
-    translator_custom = RockTranslator(
-        model="gemini/gemini-3.8-flash",
-        target_lang="German"
-    )
-    
-    # Translates to German and writes output to a custom specified path
-    custom_output = "results/german_report.pdf"
-    os.makedirs("results", exist_ok=True)
-    
-    success_custom = translator_custom.translate(
-        input_pdf_path=sample_pdf,
-        output_pdf_path=custom_output
-    )
-    print(f"Scenario 2 complete. Translated PDF written to: {custom_output} (Success: {success_custom})")
-
-    # ──────────────────────────────────────────────────────────────────────
-    # SCENARIO 3: Frontier Provider (OpenAI GPT-5.6 Terra) with Explicit API Key
-    # ──────────────────────────────────────────────────────────────────────
-    # Explicit credentials pass overrides local environment configurations.
-    # We route the request using the exact LiteLLM naming convention (provider/model_name).
-    # Learn more at: https://docs.litellm.ai/docs/providers
-    translator_openai = RockTranslator(
-        model="openai/gpt-5.6-terra",
-        api_key="sk-your-openai-api-key-here",  # Replace with a valid credentials key
-        target_lang="Italian",
-        temperature=0.3  # Lower temperature for more rigid, literal academic translation
-    )
-    
-    # success_openai = translator_openai.translate(input_pdf_path=sample_pdf)
-    print("Scenario 3 configured. (Run skipped to avoid credential errors.)")
-
-    # ──────────────────────────────────────────────────────────────────────
-    # SCENARIO 4: Fully Local and Offline Translation (Using Ollama)
-    # ──────────────────────────────────────────────────────────────────────
-    # No API keys or remote servers required. Ensure Ollama is running on the host machine.
-    translator_local = RockTranslator(
-        model="ollama/llama4",
-        target_lang="French",
-        custom_base_url="http://localhost:11434"  # Default local Ollama gateway port
-    )
-    
-    # success_local = translator_local.translate(input_pdf_path=sample_pdf)
-    print("Scenario 4 configured for local offline execution.")
+# Backward-compatible boolean API
+ok = rt.translate("paper.pdf")
 ```
+
+The library never reads hidden GUI settings for what you pass explicitly (model, key, temperature, retries), and caches translations by document content: re-running the same document is free.
 
 ---
 
 ## 6. Known Limitations & Roadmap (TODO)
 
 ### Current Limitations:
-*   **The LaTeX FontForge Crash (Windows):** Older standalone versions of `pdf2htmlEX` on Windows occasionally experience segmentation faults or infinite loops when compiling complex, customized LaTeX mathematical fonts (Type-1 vector fonts) [2.2.6].
-    *   *Our Solution:* We have implemented a robust Windows crash preventer (`SetErrorMode`) and a strict 30-second subprocess timeout. If a compilation hangs, RockTranslate instantly terminates the process and fails gracefully in under 50ms without freezing the UI [1].
+*   **Fonts embedded as subsets:** publisher PDFs only embed the glyphs they use. Translated text needing other glyphs (accents, CJK) falls back to a system font for those characters, which can look slightly different.
+*   **Run-in headings and complex inline math:** a line starting with a bold run-in heading ("**Residual Dropout** We apply…") or packed with inline formulas is translated line by line instead of as part of its paragraph.
+*   **Longer target languages** shrink the text of a paragraph uniformly to keep it inside its original box (as other layout-preserving translators do).
+*   **Scanned PDFs** (images only) are not supported yet (no OCR).
+*   **pdf2htmlEX on Windows** is the legacy 0.14.6 build; very unusual LaTeX fonts can stall it — RockTranslate detects the stall, stops the process and reports the reason.
 
-### Roadmap & Future TODOs:
-*   [ ] **Bilingual Translation Memory Export (TMX / JSON):** Add a button inside the document properties modal to let users download a clean bilingual parallel aligned sheet (.json/.tmx) of the translated paper.
-*   [ ] **Local PDF.js Night & Sepia Mode:** Implement visual color inversion overlays inside the native PDF.js iframe, allowing users to comfortably study original double-column layouts in low-light environments.
-*   [ ] **Scanned PDF Support (Local OCR Fallback):** Integrate a lightweight local OCR pipeline (e.g., Tesseract wrapper) to automatically recognize and translate text flattened inside scanned, image-only academic PDFs.
-*   [ ] **Automatic Fallback to Serverless Cloud Conversion:** Integrate an optional, free, or self-hosted serverless cloud rendering API (using the official Docker Linux image) to handle complex LaTeX papers without any local system limitations [1, 2].
-*   [ ] **Concurrent Batch Translation:** Implement parallel API calls (limited to 3 concurrent requests to respect free-tier quotas) to speed up translation times by 3x [1].
+### Roadmap:
+*   [ ] **Structured extraction (`to_json`, `to_markdown`)**: expose the document model (titles, paragraphs, tables, captions, reading order) for RAG and analysis pipelines.
+*   [ ] **Bilingual export (TMX / JSON)** of every translated segment.
+*   [ ] **Scanned PDF support** through a local OCR fallback.
+*   [ ] **Sliced parallel conversion** of very large documents (merger already prototyped in `core/html_merger.py`).
 
 ---
 
