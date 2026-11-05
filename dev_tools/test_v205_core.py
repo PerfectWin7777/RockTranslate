@@ -580,3 +580,18 @@ def test_measured_grouping_absorbs_inline_pieces_only():
     first = next(p for p in paras if p[0]["spans"][0][0] == "a")
     assert [l["spans"][0][0] for l in first] == ["a", "b", "c"]
     assert [p["spans"][0][0] for p in first[0]["pieces"]] == ["cite"]
+
+
+def test_partial_copy_detection_and_color_merge():
+    from rocktranslate.core.llm_client import _copies_source
+    from rocktranslate.core.html_transformer import merge_color_runs
+    src = ("In general AHP is a mathematical method used to evaluate control on drainage systems. "
+           "In the present study we used AHP as a means of measurement which deals with quantifiable criteria")
+    partial = ("De manière générale l'AHP est une méthode mathématique utilisée pour évaluer le contrôle. "
+               "In the present study we used AHP as a means of measurement which deals with quantifiable criteria")
+    full_fr = "De manière générale, l'AHP est une méthode mathématique utilisée dans la présente étude."
+    assert _copies_source(src, partial) is True
+    assert _copies_source(src, full_fr) is False
+    assert _copies_source(src, src) is False          # references / names: accepted as is
+    assert merge_color_runs("<color_0080ad>Saaty,</color_0080ad> <color_0080ad>1977;</color_0080ad> x") == \
+        "<color_0080ad>Saaty, 1977;</color_0080ad> x"

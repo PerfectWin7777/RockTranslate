@@ -406,7 +406,7 @@ SYMBOL_GLYPH_FIXES = str.maketrans({"ð": "(", "Þ": ")", "¼": "=", "þ": "+"})
 
 # Bump whenever instrument_html output changes: cached workspaces built by an
 # older pipeline are then re-instrumented from the cached raw HTML.
-PIPELINE_VERSION = 11
+PIPELINE_VERSION = 13
 
 
 def parse_font_sizes(soup: BeautifulSoup) -> Dict[str, float]:
@@ -740,6 +740,19 @@ def _visual_len(line: Dict[str, Any], texts: Dict[str, str]) -> int:
     return len(re.sub(r"</?[a-z_0-9]+>", "", raw))
 
 
+def merge_color_runs(text: str) -> str:
+    """
+    "<color_X>Saaty,</color_X> <color_X>1977;</color_X>" -> "<color_X>Saaty, 1977;</color_X>".
+    Word-by-word color tags (link annotations) drown the model in markup: it
+    then tends to stop translating halfway and copy the rest verbatim.
+    """
+    previous = None
+    while previous != text:
+        previous = text
+        text = re.sub(r"</color_([0-9a-fA-F]{6})>(\s*)<color_\1>", r"\2", text)
+    return text
+
+
 def join_paragraph_lines(lines: List[str]) -> str:
     """Joins line texts, repairing end-of-line hyphenation ("trans-" + "lation")."""
     out = ""
@@ -863,7 +876,10 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     flattened_children.append(element)
 
             for child in children:
-                flatten_element(child, [])
+                # Bare text inherits the LINE's font/size/color explicitly: the
+                # translation span placed around it may carry another font
+                # (e.g. the line font is a math font whose 'ð' glyph draws '(').
+                flatten_element(child, [c for c in classes if c.startswith(("ff", "fs", "fc"))])
 
             # Re-bind processing contents to our perfectly flattened line nodes
             children = flattened_children
@@ -901,7 +917,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     return
 
                 # Fuse the textual values gathered in the current group
-                merged_text = "".join(current_group_text).strip()
+                merged_text = merge_color_runs("".join(current_group_text).strip())
                 if merged_text:
                     # --- UNIVERSAL ACCENT NORMALIZATION (NFC) ---
                     # Merges split floating accents (like e + ´) into standard unicode characters (like é)
@@ -1124,7 +1140,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     else:
                         line_text = line_text.rstrip() + " " + p_text
                 texts.append(line_text)
-            original_texts_map[pid] = join_paragraph_lines(texts)
+            original_texts_map[pid] = merge_color_runs(join_paragraph_lines(texts))
             tid_to_page[pid] = page_idx
 
     # ── 2. EMBED GLASS OVERLAYS ON ALL PAGES ──

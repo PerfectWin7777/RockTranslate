@@ -15,6 +15,7 @@ Version: 1.0.0
 """
 
 import os
+import re
 import threading
 import time
 from typing import Callable, Optional, List, Dict, Any, Tuple
@@ -35,6 +36,25 @@ from .constants import (
 )
 from .prompts import get_system_prompt, get_user_message
 from .config_manager import config_db
+
+def _copies_source(source: str, translated: str, run: int = 10) -> bool:
+    """True when the output repeats >= `run` consecutive words of the source."""
+    def words(t: str) -> list:
+        return re.findall(r"[^\W\d_]+", re.sub(r"</?[a-z_0-9]+>", " ", t).lower())
+    src, out = words(source), words(translated)
+    if len(src) < run or len(out) < run:
+        return False
+    grams = {tuple(src[i:i + run]) for i in range(len(src) - run + 1)}
+    covered = [False] * len(out)
+    for i in range(len(out) - run + 1):
+        if tuple(out[i:i + run]) in grams:
+            for j in range(i, i + run):
+                covered[j] = True
+    ratio = sum(covered) / len(out)
+    # Fully copied text (references, names, already-target-language text) is
+    # accepted; only a PARTIAL copy means the model gave up halfway.
+    return 0.15 <= ratio < 0.9
+
 
 class LLMClient:
     """
@@ -125,6 +145,12 @@ class LLMClient:
 
         expected_ids = [seg["id"] for seg in batch_segments]
         by_id = self._index_valid_results(results, set(expected_ids))
+        sources = {seg["id"]: seg["text"] for seg in batch_segments}
+        # Partially translated outputs (the model copied the end of the source)
+        # are treated like omissions and go through the retry path.
+        for seg_id in [k for k, v in by_id.items() if _copies_source(sources.get(k, ""), v)]:
+            logger.warning(f"Segment {seg_id} came back partly untranslated; retrying it.")
+            del by_id[seg_id]
 
         missing = [seg for seg in batch_segments if seg["id"] not in by_id]
         if missing and not (check_cancelled and check_cancelled()):
@@ -132,6 +158,18 @@ class LLMClient:
             retry = self._translate_with_retries(missing, context, check_cancelled)
             if retry:
                 by_id.update(self._index_valid_results(retry, {seg["id"] for seg in missing}))
+
+        # Last resort: segments still omitted are sent ONE BY ONE (a model that
+        # keeps skipping an item inside a list almost always answers a single one).
+        still_missing = [seg for seg in batch_segments if seg["id"] not in by_id]
+        for seg in still_missing[:8]:
+            if check_cancelled and check_cancelled():
+                break
+            single = self._translate_with_retries([seg], context, check_cancelled)
+            if single:
+                by_id.update(self._index_valid_results(single, {seg["id"]}))
+        if still_missing and any(seg["id"] not in by_id for seg in still_missing):
+            logger.warning("Some segments could not be translated; they stay in the source language.")
 
         return [{"id": seg_id, "translated": by_id[seg_id]} for seg_id in expected_ids if seg_id in by_id]
 
