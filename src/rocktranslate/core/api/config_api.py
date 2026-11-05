@@ -24,7 +24,8 @@ from ..constants import (
     THRESHOLD_PX,
     SLIDING_CONTEXT_MAX_SIZE,
     MAX_SEGMENTS_PER_BATCH,
-    MAX_RETRIES
+    MAX_RETRIES,
+    DEFAULT_TEMPERATURE,
 )
 
 # Tokens identifying non-chat models (audio, embeddings, moderators…) that are
@@ -218,7 +219,7 @@ class ConfigApiMixin:
             Dict[str, Any]: Map of current active configuration parameters.
         """
         return {
-            "temperature": config_db.get("TranslationConfig", "temperature", 1.0),
+            "temperature": config_db.get("TranslationConfig", "temperature", DEFAULT_TEMPERATURE),
             "sliding_context_size": config_db.get("TranslationConfig", "sliding_context_size", SLIDING_CONTEXT_MAX_SIZE),
             "max_segments_per_batch": config_db.get("TranslationConfig", "max_segments_per_batch", MAX_SEGMENTS_PER_BATCH),
             "threshold_px": config_db.get("TranslationConfig", "threshold_px", THRESHOLD_PX),
@@ -237,7 +238,7 @@ class ConfigApiMixin:
             Dict[str, str]: Status dictionary response.
         """
         try:
-            config_db.set("TranslationConfig", "temperature", float(settings.get("temperature", 1.0)))
+            config_db.set("TranslationConfig", "temperature", float(settings.get("temperature", DEFAULT_TEMPERATURE)))
             config_db.set("TranslationConfig", "sliding_context_size", int(settings.get("sliding_context_size", 5)))
             config_db.set("TranslationConfig", "max_segments_per_batch", int(settings.get("max_segments_per_batch", 60)))
             config_db.set("TranslationConfig", "threshold_px", float(settings.get("threshold_px", 12.0)))

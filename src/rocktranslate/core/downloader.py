@@ -98,29 +98,62 @@ def _download_and_extract(url: str, dest_dir: str, zip_name: str) -> bool:
         return False
 
 
+def pdf2htmlex_data_dir(executable: str) -> Optional[str]:
+    """
+    Returns the data directory to pass with --data-dir for an extracted
+    AppImage build (whose compiled-in /usr/local/share path does not exist on
+    the host), or None when the binary finds its own data.
+    """
+    base = os.path.dirname(os.path.abspath(executable))
+    for candidate in (
+        os.path.join(base, "usr", "local", "share", "pdf2htmlEX"),
+        os.path.join(base, "usr", "share", "pdf2htmlEX"),
+    ):
+        if os.path.exists(os.path.join(candidate, "manifest")):
+            return candidate
+    return None
+
+
+def _extract_appimage(appimage_path: str, target_dir: str) -> Optional[str]:
+    """
+    Extracts an AppImage once (no FUSE needed: Docker, WSL and Ubuntu >= 22.04
+    ship without libfuse2) and returns the path of its AppRun entry point.
+    """
+    import subprocess
+    work_dir = os.path.dirname(os.path.abspath(appimage_path))
+    try:
+        subprocess.run(
+            [os.path.abspath(appimage_path), "--appimage-extract"],
+            cwd=work_dir, check=True, timeout=300,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+    except Exception as e:
+        logger.error(f"Could not extract the pdf2htmlEX AppImage: {e}")
+        return None
+    extracted = os.path.join(work_dir, "squashfs-root")
+    if os.path.isdir(target_dir):
+        shutil.rmtree(target_dir, ignore_errors=True)
+    shutil.move(extracted, target_dir)
+    app_run = os.path.join(target_dir, "AppRun")
+    return app_run if os.path.exists(app_run) else None
+
+
 def check_and_download_pdf2htmlex(assets_dir: str = DEFAULT_ASSETS_DIR) -> Optional[str]:
     """
-    Verifies if pdf2htmlEX is accessible on the host machine.
-    
-    Checks in order:
-    1. The system environment variable PATH (ideal for macOS and system packages).
-    2. Local execution folders in the target assets directory.
-    3. Initiates an automated download if running on Windows or Linux.
+    Resolves a working pdf2htmlEX executable.
 
-    Args:
-        assets_dir: The directory where downloaded local components are stored.
+    Order: user override -> system PATH -> bundled assets (Windows installer)
+    -> previously downloaded engine in the user runtime dir -> download.
+    Downloads always go to the user-writable runtime dir, never site-packages.
 
     Returns:
-        Optional[str]: The absolute path to the executable binary if found or configured,
-                       otherwise None.
+        Optional[str]: Absolute path to the executable, or None.
     """
-    # Check if a custom system override path is specified in the JSON config  by the user
-    override_path = str(config_db.get("SystemConfig", "pdf2htmlex_path_override", "")).strip()
-    if override_path and os.path.exists(override_path):
+    override_path = str(config_db.get("SystemConfig", "pdf2htmlex_path_override", "") or "").strip()
+    if override_path and os.path.isfile(override_path):
         logger.info(f"Using user-defined pdf2htmlEX binary override: {override_path}")
         return override_path
-    
-    # 1. Look for a globally pre-installed instance in the system path (any platform)
+
     system_binary: Optional[str] = shutil.which("pdf2htmlEX")
     if system_binary:
         logger.info(f"Discovered system-wide pdf2htmlEX installation: {system_binary}")
@@ -128,55 +161,70 @@ def check_and_download_pdf2htmlex(assets_dir: str = DEFAULT_ASSETS_DIR) -> Optio
 
     system_os: str = platform.system().lower()
     binary_name: str = "pdf2htmlEX.exe" if system_os == "windows" else "pdf2htmlEX"
-    
-    pdf2html_dir: str = os.path.join(assets_dir, "pdf2htmlEX")
-    local_binary_path: str = os.path.join(pdf2html_dir, binary_name)
 
-    # 2. Check if a local version is already downloaded and present in the local directory
-    if os.path.exists(local_binary_path):
-        return local_binary_path
+    # Bundled engine (Windows installer / source checkout). The directory may
+    # also be a custom assets folder passed by the caller.
+    for base in {assets_dir, DEFAULT_ASSETS_DIR}:
+        if not base:
+            continue
+        bundled = os.path.join(base, "pdf2htmlEX", binary_name)
+        if os.path.isfile(bundled) and system_os == "windows":
+            return bundled
+        extracted = os.path.join(base, "pdf2htmlEX", "appimage", "AppRun")
+        if os.path.isfile(extracted):
+            return extracted
 
-    # 3. If missing, attempt platform-based recovery
+    runtime_dir = os.path.join(str(config_db.get_runtime_dir()), "pdf2htmlEX")
+
     if system_os == "windows":
-        logger.warning("Local pdf2htmlEX binary missing on Windows. Launching automated download...")
-        success = _download_and_extract(PDF2HTMLEX_DOWNLOAD_URL, pdf2html_dir, "pdf2htmlEX.zip")
-        if success:
-            # Recursive scan to find nested binaries in case sub-folders are created during extraction
-            for root, _, files in os.walk(pdf2html_dir):
+        for root, _, files in os.walk(runtime_dir) if os.path.isdir(runtime_dir) else []:
+            if binary_name in files:
+                return os.path.join(root, binary_name)
+        logger.warning("pdf2htmlEX missing on Windows. Launching automated download...")
+        if _download_and_extract(PDF2HTMLEX_DOWNLOAD_URL, runtime_dir, "pdf2htmlEX.zip"):
+            for root, _, files in os.walk(runtime_dir):
                 if binary_name in files:
                     resolved_path = os.path.join(root, binary_name)
                     logger.info(f"Successfully resolved local Windows binary: {resolved_path}")
                     return resolved_path
-        logger.critical("Failed to retrieve or compile pdf2htmlEX automatically.")
+        logger.critical("Failed to retrieve pdf2htmlEX automatically.")
         return None
 
-    elif system_os == "linux":
-        logger.warning("Local pdf2htmlEX binary missing on Linux. Launching automated AppImage download...")
-        os.makedirs(pdf2html_dir, exist_ok=True)
-        try:
-            # Download Linux AppImage and rename it locally to match generic call names
-            urllib.request.urlretrieve(LINUX_APPIMAGE_URL, local_binary_path)
-            
-            # Grant execute permission to the AppImage (equivalent to chmod +x)
-            current_permissions = os.stat(local_binary_path)
-            os.chmod(local_binary_path, current_permissions.st_mode | stat.S_IEXEC)
-            
-            logger.info(f"Successfully configured Linux AppImage executable at: {local_binary_path}")
-            return local_binary_path
-        except Exception as e:
-            logger.error(f"Failed to automatically set up Linux AppImage: {e}")
+    if system_os == "linux":
+        app_run = os.path.join(runtime_dir, "appimage", "AppRun")
+        if os.path.isfile(app_run):
+            return app_run
+        if platform.machine().lower() not in ("x86_64", "amd64"):
+            logger.critical(
+                "The official pdf2htmlEX AppImage only exists for x86_64. "
+                "Install pdf2htmlEX with your package manager and put it on PATH."
+            )
             return None
+        logger.warning("pdf2htmlEX missing on Linux. Downloading the official AppImage...")
+        os.makedirs(runtime_dir, exist_ok=True)
+        appimage_path = os.path.join(runtime_dir, "pdf2htmlEX.AppImage")
+        try:
+            urllib.request.urlretrieve(LINUX_APPIMAGE_URL, appimage_path)
+            os.chmod(appimage_path, os.stat(appimage_path).st_mode | stat.S_IEXEC)
+        except Exception as e:
+            logger.error(f"Failed to download the pdf2htmlEX AppImage: {e}")
+            return None
+        resolved = _extract_appimage(appimage_path, os.path.join(runtime_dir, "appimage"))
+        try:
+            os.remove(appimage_path)
+        except OSError:
+            pass
+        if resolved:
+            logger.info(f"pdf2htmlEX ready (extracted AppImage, no FUSE needed): {resolved}")
+        return resolved
 
-    else:
-        # macOS systems cannot safely share dynamic pre-compiled binaries due to Poppler linkage mismatches.
-        # Direct terminal instructions are provided to avoid crash-loops.
-        logger.critical(
-            f"Required dependency 'pdf2htmlEX' was not found on this macOS system.\n"
-            f"Please install it using Homebrew:\n"
-            f" - macOS (Homebrew):  brew install pdf2htmlex\n"
-            f"Once installed, restart RockTranslate to continue."
-        )
-        return None
+    # macOS: no portable binary exists (Poppler linkage), Homebrew is required.
+    logger.critical(
+        "Required dependency 'pdf2htmlEX' was not found on this macOS system.\n"
+        "Install it with Homebrew:  brew install pdf2htmlex\n"
+        "Then restart RockTranslate."
+    )
+    return None
 
 
 def check_and_download_pdfjs(assets_dir: str = DEFAULT_ASSETS_DIR) -> Optional[str]:
@@ -199,14 +247,16 @@ def check_and_download_pdfjs(assets_dir: str = DEFAULT_ASSETS_DIR) -> Optional[s
         
     pdfjs_dir: str = os.path.join(assets_dir, "pdfjs")
     local_viewer: str = os.path.join(pdfjs_dir, "web", "viewer.html")
-    
-    if os.path.exists(local_viewer):
+    local_core: str = os.path.join(pdfjs_dir, "build", "pdf.js")
+
+    # The viewer is useless without the core bundle it loads from ../build/
+    if os.path.exists(local_viewer) and os.path.exists(local_core):
         return local_viewer
         
     logger.warning("Local PDF.js static package missing. Initiating download...")
     success = _download_and_extract(PDFJS_DOWNLOAD_URL, pdfjs_dir, "pdfjs.zip")
     
-    if success and os.path.exists(local_viewer):
+    if success and os.path.exists(local_viewer) and os.path.exists(local_core):
         logger.info("PDF.js static web package configured successfully.")
         return local_viewer
         
@@ -251,6 +301,21 @@ def get_headless_shell_platform_config() -> Optional[tuple[str, str]]:
     return None
 
 
+def find_downloaded_headless_shell(assets_dir: str = DEFAULT_ASSETS_DIR) -> Optional[str]:
+    """Returns an already-downloaded chrome-headless-shell, without downloading."""
+    config = get_headless_shell_platform_config()
+    if not config:
+        return None
+    _, rel_binary_path = config
+    for candidate in (
+        os.path.join(str(config_db.get_runtime_dir()), "chromium_headless", CHROME_SHELL_VERSION, rel_binary_path),
+        os.path.join(assets_dir, "chromium_headless", rel_binary_path),
+    ):
+        if os.path.isfile(candidate):
+            return os.path.abspath(candidate)
+    return None
+
+
 def check_and_download_headless_shell(assets_dir: str = DEFAULT_ASSETS_DIR) -> Optional[str]:
     """
     Checks if a local copy of Google Chrome Headless Shell is downloaded and extracted.
@@ -269,10 +334,13 @@ def check_and_download_headless_shell(assets_dir: str = DEFAULT_ASSETS_DIR) -> O
         return None
 
     platform_suffix, rel_binary_path = config
-    shell_dir = os.path.join(assets_dir, "chromium_headless")
-    local_binary_path = os.path.join(shell_dir, rel_binary_path)
+    # 1. Reuse a copy from a previous version (assets dir) or the runtime dir
+    legacy_binary = os.path.join(assets_dir, "chromium_headless", rel_binary_path)
+    if os.path.exists(legacy_binary):
+        return os.path.abspath(legacy_binary)
 
-    # 1. Bypass download if binary already exists on the disk
+    shell_dir = os.path.join(str(config_db.get_runtime_dir()), "chromium_headless", CHROME_SHELL_VERSION)
+    local_binary_path = os.path.join(shell_dir, rel_binary_path)
     if os.path.exists(local_binary_path):
         return os.path.abspath(local_binary_path)
 

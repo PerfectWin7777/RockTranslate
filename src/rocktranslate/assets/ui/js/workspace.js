@@ -1,4 +1,17 @@
 /**
+ * Returns the per-session token required by the local file server.
+ * The token is passed once in the index.html query string and cached for reloads.
+ */
+window.rtSessionToken = function () {
+    let tok = new URLSearchParams(window.location.search).get('t');
+    try {
+        if (tok) sessionStorage.setItem('rt-token', tok);
+        else tok = sessionStorage.getItem('rt-token');
+    } catch (e) { /* storage unavailable */ }
+    return encodeURIComponent(tok || '');
+};
+
+/**
  * RockTranslate — Split-Pane Workspace Alpine.js Controller
  * Path: src/rocktranslate/assets/ui/js/workspace.js
  * 
@@ -44,6 +57,17 @@ function workspaceController() {
                         htmlFrame.contentWindow.applyTranslation(e.detail.id, e.detail.text);
                     }
                 }
+            });
+
+            // Batched stream: one bridge call per LLM batch instead of two per segment
+            window.addEventListener('stream-translations', (e) => {
+                const items = (e.detail && e.detail.items) || [];
+                const htmlFrame = document.getElementById('html-iframe');
+                const win = htmlFrame && htmlFrame.contentWindow;
+                if (win && win.applyTranslation) {
+                    items.forEach(it => { if (it && it.id && it.text) win.applyTranslation(it.id, it.text); });
+                }
+                window.dispatchEvent(new CustomEvent('update-progress-segments', { detail: { count: items.length } }));
             });
 
             window.addEventListener('prepare-page', (e) => {
@@ -140,7 +164,7 @@ function workspaceController() {
             const pdfjsViewer = `${origin}/pdfjs/web/viewer.html`;
 
             // Format served file URLs safely to maintain Same-Origin alignment (prevents CORS crashes)
-            const fileUrl = `${origin}/local-file?path=${encodeURIComponent(this.$data.activeFilePath)}`;
+            const fileUrl = `${origin}/local-file?t=${window.rtSessionToken()}&path=${encodeURIComponent(this.$data.activeFilePath)}`;
 
             // Load left iframe with PDF.js viewer and completely hide the top toolbar/navpanes
             pdfFrame.src = `${pdfjsViewer}?file=${encodeURIComponent(fileUrl)}#toolbar=0&navpanes=0&pagemode=none`;
@@ -165,7 +189,7 @@ function workspaceController() {
 
             if (placeholder) placeholder.style.display = 'none';
 
-            const htmlUrl = `${window.location.origin}/local-file?path=${encodeURIComponent(this.$data.activeHtmlPath)}`;
+            const htmlUrl = `${window.location.origin}/local-file?t=${window.rtSessionToken()}&path=${encodeURIComponent(this.$data.activeHtmlPath)}`;
             htmlFrame.src = htmlUrl;
         },
 
@@ -344,6 +368,21 @@ function workspaceController() {
             htmlFrame.onload = function () {
                 const rightDocWindow = htmlFrame.contentWindow;
                 const rightDoc = rightDocWindow.document;
+
+                // Restore translations already known to the backend (previous session,
+                // or a workspace reload) so the right pane never loses finished work.
+                try {
+                    if (window.pywebview && window.pywebview.api && window.pywebview.api.get_session_translations) {
+                        window.pywebview.api.get_session_translations().then((data) => {
+                            if (!data || !rightDocWindow.applyTranslation) return;
+                            (data.pages || []).forEach(p => {
+                                const glass = rightDoc.getElementById('glass-overlay-t-' + p);
+                                if (glass) glass.style.display = 'none';
+                            });
+                            Object.entries(data.items || {}).forEach(([id, text]) => rightDocWindow.applyTranslation(id, text));
+                        }).catch(() => {});
+                    }
+                } catch (err) { console.warn('[Workspace] restore failed', err); }
 
                 // Forward physical keyboard shortcuts up to the main application context
                 rightDoc.addEventListener('keydown', (e) => {

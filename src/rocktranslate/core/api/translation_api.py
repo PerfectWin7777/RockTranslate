@@ -19,17 +19,19 @@ import shutil
 import threading
 import tempfile
 import re
+from concurrent.futures import ThreadPoolExecutor, FIRST_COMPLETED, wait
 from typing import Dict, List, Optional, Any, Set, Tuple
 from loguru import logger
 
 import webview
-from ..html_transformer import convert_pdf_to_html, instrument_html
+from ..html_transformer import convert_pdf_to_html, instrument_html, PIPELINE_VERSION, LAST_CONVERSION_ERROR
 from ..config_manager import config_db
-from ..constants import DEFAULT_ASSETS_DIR, DEFAULT_PROVIDERS
-from ..chunker import build_batches
+from ..constants import DEFAULT_ASSETS_DIR, DEFAULT_PROVIDERS, DEFAULT_PARALLEL_REQUESTS
+from ..chunker import build_batches, should_translate
 from ..llm_client import LLMClient
-from ..renderer import resolve_pdf_renderer, print_html_to_vector_pdf
+from ..renderer import apply_translations_offline, print_html_with_fallback
 from ..pdf_metadata import get_pdf_metadata
+from ..local_server import allow_file
 
 
 class TranslationApiMixin:
@@ -55,8 +57,8 @@ class TranslationApiMixin:
         self._metadata_total_pages: int = 0
         self._document_hash: Optional[str] = None
 
-        # Thread synchronization and cancel indicators
-        self._stop_translation: bool = False
+        # Thread synchronization: one cancellation Event per run
+        self._cancel_event: threading.Event = threading.Event()
         self._current_translating_page: int = -1
         self._trans_thread: Optional[threading.Thread] = None
 
@@ -120,6 +122,7 @@ class TranslationApiMixin:
             total_pages = metadata.get("pages_count", 1) or 1
 
             # Reset per-document session state
+            allow_file(pdf_path)
             self._active_pdf_path = pdf_path
             self._active_html_path = None
             self._original_texts = {}
@@ -212,6 +215,9 @@ class TranslationApiMixin:
 
             with open(maps_path, "r", encoding="utf-8") as f:
                 maps = json.load(f)
+            if maps.get("pipeline_version") != PIPELINE_VERSION:
+                logger.info("Cached workspace built by an older pipeline: it will be re-instrumented.")
+                return None
             original_texts = maps.get("original_texts", {})
             tid_to_page = maps.get("tid_to_page", {})
             if not original_texts or not tid_to_page:
@@ -238,13 +244,14 @@ class TranslationApiMixin:
             maps_path = os.path.join(cache_dir, "maps.json")
             with open(maps_path, "w", encoding="utf-8") as f:
                 json.dump({
+                    "pipeline_version": PIPELINE_VERSION,
                     "original_texts": original_texts,
                     "tid_to_page": tid_to_page
                 }, f, ensure_ascii=False)
         except OSError as e:
             logger.warning(f"Could not persist workspace cache maps: {e}")
 
-    def _prepare_document_for_translation(self) -> bool:
+    def _prepare_document_for_translation(self, cancelled: Optional[Any] = None) -> bool:
         """
         Runs the deferred heavy pipeline (pdf2htmlEX conversion + BeautifulSoup
         instrumentation) for the active document. Called from the translation
@@ -284,18 +291,20 @@ class TranslationApiMixin:
         self._send_status_i18n("status_extraction_start")
         raw_html_path = convert_pdf_to_html(
             pdf_path, assets_dir, on_progress=on_pdf_progress,
-            output_dir=cache_dir, check_cancelled=lambda: self._stop_translation
+            output_dir=cache_dir, check_cancelled=cancelled or (lambda: self._stop_translation)
         )
 
         # Cancellation requested while converting: exit gracefully
-        if self._stop_translation:
+        if (cancelled or (lambda: self._stop_translation))():
             logger.info("Layout preparation cancelled by the user.")
             self._send_status_i18n("status_trans_cancelled")
             return False
 
         if not raw_html_path or not os.path.exists(raw_html_path):
+            reason = LAST_CONVERSION_ERROR.get("message") or ""
             self._send_status_i18n("status_extraction_failed")
-            self._send_toast_i18n("status_extraction_failed", "error")
+            self._send_toast_i18n("toast_conversion_failed_reason", "error", duration=12000,
+                                  variables={"reason": reason or "pdf2htmlEX"})
             return False
 
         self._send_status_i18n("status_extraction_instrumenting")
@@ -340,12 +349,20 @@ class TranslationApiMixin:
         """
         self.start_range_translation(None)
 
+    @property
+    def _stop_translation(self) -> bool:
+        """Backward-compatible view of the CURRENT run's cancellation flag."""
+        return self._cancel_event.is_set()
+
     def start_range_translation(self, range_str: Optional[str]) -> None:
         """
-        Orchestrates page-range validation and begins the translation run.
-        Assumes target checks have already been cleanly handled by the frontend.
-        If the document layout is not prepared yet (lazy open), the heavy
-        pdf2htmlEX pipeline runs inside the worker thread before translating.
+        Validates the requested page range and starts ONE translation run.
+
+        Concurrency model: the run lock is acquired here and released by the
+        worker thread when it exits, so two runs can never overlap. Every run
+        owns its own cancellation Event: stopping run N can never be undone by
+        starting run N+1 (the old shared boolean allowed a cancelled thread to
+        silently resume when the flag was reset).
 
         Args:
             range_str: Custom page range input parsed from UI dialogues (e.g., '1-3, 5').
@@ -354,325 +371,340 @@ class TranslationApiMixin:
             self._send_toast("No document is currently open.", "warning")
             return
 
-        # Secure Lock Check: Silently ignore start triggers if a thread is already running
-        if not self._thread_lock.acquire(blocking=False):
-            self._send_toast_i18n("status_trans_is_running", "warning")
-            return
-        self._thread_lock.release()
-
-        # In lazy mode the segment map is not built yet: validate ranges against
-        # the lightweight PDF metadata page count instead.
-        total_pages = max(self._tid_to_page.values()) + 1 if self._tid_to_page else self._metadata_total_pages
+        total_pages = self.get_total_pages()
         target_pages: Optional[List[int]] = None
-
         if range_str:
             target_pages = self._parse_page_range(range_str, max(total_pages, 1))
             if not target_pages:
                 self._send_toast_i18n("enter_valid_page_range", "warning")
                 return
 
-        if self._is_prepared:
-            # Gather already translated IDs from page caches
-            already_translated_ids = set()
-            for page_data in self._translated_pages.values():
-                already_translated_ids.update(page_data.keys())
+        if not self._thread_lock.acquire(blocking=False):
+            self._send_toast_i18n("status_trans_is_running", "warning")
+            return
 
-            # Filter out segment IDs belonging to already translated blocks
-            untranslated_texts: Optional[Dict[str, str]] = {
-                k: v for k, v in self._original_texts.items()
-                if k not in already_translated_ids
-            }
-            if target_pages is not None:
-                untranslated_texts = {
-                    k: v for k, v in untranslated_texts.items()
-                    if self._tid_to_page.get(k, 0) in target_pages
-                }
-
-            # Safe fallback check if called with fully translated documents
-            if not untranslated_texts:
-                self._send_status_i18n("status_trans_completed")
-                self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-finished'))")
-                return
-        else:
-            # Lazy mode: untranslated segments are resolved after the layout
-            # preparation completes inside the translation worker thread.
-            untranslated_texts = None
-
-        self._stop_translation = False
-
-        # Start the exclusive background processing thread
-        self._trans_thread = threading.Thread(
-            target=self._run_translation,
-            args=(untranslated_texts, target_pages),
-            daemon=True
-        )
-        self._trans_thread.start()
-
+        try:
+            cancel_event = threading.Event()
+            self._cancel_event = cancel_event
+            self._trans_thread = threading.Thread(
+                target=self._run_translation,
+                args=(target_pages, cancel_event),
+                name="rocktranslate-run",
+                daemon=True,
+            )
+            self._trans_thread.start()
+        except Exception:
+            self._thread_lock.release()
+            raise
 
     def stop_translation(self, quiet: bool = False) -> None:
         """
-        Halts the active background translation thread and restores the currently
-        translating page back to its waiting state, preventing UI display freezes.
+        Cancels the active run. The worker abandons in-flight requests and
+        exits within a fraction of a second; late API answers are discarded.
 
         Args:
             quiet: If True, halts the thread without overwriting the status bar message.
         """
-        self._stop_translation = True
-
+        self._cancel_event.set()
         if self._trans_thread and self._trans_thread.is_alive():
-            self._trans_thread.join(timeout=1.0)
-
-        # Restore the page that was mid-translation back to its waiting state
-        current_page = self._current_translating_page
-        if current_page != -1:
-            self._send_js(
-                f"window.dispatchEvent(new CustomEvent('reset-page', "
-                f"{{ detail: {{ page: {current_page} }} }}))"
-            )
-            # Reset pointer to prevent blocking the overlay on next run
-            self._current_translating_page = -1
-
+            self._trans_thread.join(timeout=3.0)
         if not quiet:
             self._send_status_i18n("status_trans_cancelled")
 
-
     def reset_all_translations(self) -> None:
         """Wipes all active translation caches and resets state trackers."""
-        self._stop_translation = False
+        self.stop_translation(quiet=True)
         self._current_translating_page = -1
         self.reset_translation_range(None)
         self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-finished'))")
 
+    def _resolve_llm_client(self) -> Optional[LLMClient]:
+        """Builds the LLM client from the saved provider settings (None if no key)."""
+        provider = config_db.get("APIConfig", "provider", "Google Gemini")
+        keys_dict = config_db.get("APIConfig", "api_keys_by_provider", {})
+        if isinstance(keys_dict, str):
+            try:
+                keys_dict = json.loads(keys_dict)
+            except Exception:
+                keys_dict = {}
+        config = DEFAULT_PROVIDERS.get(provider) or next(iter(DEFAULT_PROVIDERS.values()))
+        active_key = keys_dict.get(provider, "") or os.getenv(config.get("key_env", "") or "", "")
 
-    def _run_translation(self, untranslated_texts: Dict[str, str], target_pages: Optional[List[int]]) -> None:
-        """
-        Primary execution thread looping through batch allocations, managing sliding
-        context boundaries, communicating results, and committing progress page-by-page.
-        """
-        # Acquire thread lock to enforce single-instance runs
-        acquired = self._thread_lock.acquire(blocking=False)
-        if not acquired:
-            return
+        active_model = config_db.get("APIConfig", f"last_model_{provider}", config["models"][0])
+        prefix = config.get("prefix", "")
+        llm_model_name = active_model
+        if prefix and isinstance(prefix, str) and not llm_model_name.startswith(prefix):
+            llm_model_name = f"{prefix}{llm_model_name}"
 
+        use_custom_base = config_db.get("APIConfig", "use_custom_base", False)
+        active_base_url = config_db.get("APIConfig", "custom_base_url", "") if use_custom_base else None
+
+        if provider != "Ollama (Local)" and not active_key:
+            self._send_toast_i18n("toast_trans_missing_key", "error", duration=8000, variables={"provider": provider})
+            self._send_js("window.dispatchEvent(new CustomEvent('trigger-show-api-config'))")
+            return None
+
+        return LLMClient(
+            model=llm_model_name,
+            api_key=active_key,
+            target_lang=config_db.get("SystemConfig", "target_lang", "French"),
+            custom_base_url=active_base_url,
+            all_keys=keys_dict,
+            custom_glossary=config_db.get("TranslationConfig", "custom_glossary", ""),
+            on_status=lambda msg: self._send_status(msg),
+        )
+
+    def _run_translation(self, target_pages: Optional[List[int]], cancel_event: threading.Event) -> None:
+        """
+        Worker thread of one run: lazy layout preparation, batching, concurrent
+        LLM requests, ordered UI streaming and on-disk persistence.
+        The run lock (acquired by start_range_translation) is released on exit.
+        """
+        cancelled = cancel_event.is_set
+        prepared_pages: Set[int] = set()
         try:
-            # Always reset the active page indicator when the thread starts
             self._current_translating_page = -1
-
             self._send_status_i18n("status_trans_init")
-            
-            # Resolve AI provider configuration details
-            provider = config_db.get("APIConfig", "provider", "Google Gemini")
-            keys_dict = config_db.get("APIConfig", "api_keys_by_provider", {})
-            if isinstance(keys_dict, str):
-                try:
-                    keys_dict = json.loads(keys_dict)
-                except Exception:
-                    keys_dict = {}
-            active_key = keys_dict.get(provider, "")
 
-            config = DEFAULT_PROVIDERS[provider]
-            fallback_model = config["models"][0]
-            active_model = config_db.get("APIConfig", f"last_model_{provider}", fallback_model)
-
-            llm_model_name = active_model
-            prefix = config.get("prefix", "")
-            if prefix and isinstance(prefix, str) and not llm_model_name.startswith(prefix):
-                llm_model_name = f"{prefix}{llm_model_name}"
-
-            use_custom_base = config_db.get("APIConfig", "use_custom_base", False)
-            active_base_url = config_db.get("APIConfig", "custom_base_url", "") if use_custom_base else None
-
-            if provider != "Ollama (Local)" and not active_key:
-                self._send_toast_i18n("toast_trans_missing_key", "error", duration=8000, variables={"provider": provider})
-                self._send_js("window.dispatchEvent(new CustomEvent('trigger-show-api-config'))")
+            client = self._resolve_llm_client()
+            if client is None:
                 return
 
-            client = LLMClient(
-                model=llm_model_name,
-                api_key=active_key,
-                target_lang=config_db.get("SystemConfig", "target_lang", "French"),
-                custom_base_url=active_base_url,
-                all_keys=keys_dict,
-                custom_glossary=config_db.get("TranslationConfig", "custom_glossary", ""),
-                on_status=lambda msg: self._send_status(msg)
-            )
-
             # ── LAZY LAYOUT PREPARATION ──
-            # First translation on a lazily opened document: the deferred
-            # pdf2htmlEX pipeline runs here, inside the worker thread, so the
-            # UI only pays the conversion cost when actually translating.
-            if untranslated_texts is None:
-                if not self._prepare_document_for_translation():
+            if not self._is_prepared:
+                if not self._prepare_document_for_translation(cancelled):
                     return
-                untranslated_texts = dict(self._original_texts)
-                if target_pages is not None:
-                    untranslated_texts = {
-                        k: v for k, v in untranslated_texts.items()
-                        if self._tid_to_page.get(k, 0) in target_pages
-                    }
-                if not untranslated_texts:
-                    self._send_status_i18n("status_trans_completed")
-                    return
+            if cancelled():
+                return
 
-            context_size = config_db.get("TranslationConfig", "sliding_context_size", 5)
+            # Persisted translations of a previous session are restored first
+            self._load_persisted_translations(client.model, client.target_lang)
 
-            # Trigger unselected pages glass overlays hide immediately
-            total_pages = max(self._tid_to_page.values()) + 1 if self._tid_to_page else 1
+            already_translated_ids: Set[str] = set()
+            for page_data in self._translated_pages.values():
+                already_translated_ids.update(page_data.keys())
+            untranslated_texts = {
+                k: v for k, v in self._original_texts.items()
+                if k not in already_translated_ids
+                and (target_pages is None or self._tid_to_page.get(k, 0) in target_pages)
+            }
+            total_pages = self.get_total_pages()
+
+            if not untranslated_texts:
+                self._send_status_i18n("status_trans_completed")
+                return
+
             if target_pages is not None:
                 unselected_pages = [p for p in range(total_pages) if p not in target_pages]
                 if unselected_pages:
                     self._send_js(f"window.dispatchEvent(new CustomEvent('hide-glass-overlays', {{ detail: {{ pages: {unselected_pages} }} }}))")
 
-            # Build optimized token-budget batches
             self._send_status_i18n("status_trans_building_batches")
-            batches = build_batches(untranslated_texts, llm_model_name)
+            batches = build_batches(untranslated_texts, client.model)
             total_batches = len(batches)
 
-            if not batches:
-                self._send_status_i18n("status_trans_no_text")
-                return
-
-            # Retrieve count of segments already translated in other pages
-            already_translated_count = 0
-            for p_data in self._translated_pages.values():
-                already_translated_count += len(p_data)
-
-            # Initialize progress bar panels in Alpine.js
             self._send_js(f"window.dispatchEvent(new CustomEvent('trigger-translation-start', {{ detail: {{ totalSegments: {len(untranslated_texts)}, totalPages: {total_pages}, targetPages: {json.dumps(target_pages)} }} }}))")
             self._send_js(f"window.dispatchEvent(new CustomEvent('update-progress-batches', {{ detail: {{ done: 0, total: {total_batches} }} }}))")
+            already_count = sum(len(p) for p in self._translated_pages.values())
+            if already_count > 0:
+                self._send_js(f"window.dispatchEvent(new CustomEvent('set-progress-segments', {{ detail: {{ done: {already_count} }} }}))")
 
-            # Set segment count offset during translation resumption (Uplifting UX)
-            if already_translated_count > 0:
-                self._send_js(f"window.dispatchEvent(new CustomEvent('set-progress-segments', {{ detail: {{ done: {already_translated_count} }} }}))")
-
-            # ── INSTANTLY BYPASS FORMULAS, NUMERICS, AND CITATIONS ──
+            # ── BYPASSED SEGMENTS (numbers, citations, formulas) ──
             translatable_ids: Set[str] = set()
             for batch in batches:
                 translatable_ids.update(batch.ids)
-            
-            skipped_ids = set(untranslated_texts.keys()) - translatable_ids
-            logger.debug(f"Direct bypass triggered: {len(skipped_ids)} segments skipped.")
-            
-           # Keep bypassed elements in a temporary dictionary first
-            uncommitted_bypassed: Dict[str, str] = {}
-            for skipped_id in skipped_ids:
-                orig_text = untranslated_texts[skipped_id]
-                self._send_translation_stream(skipped_id, orig_text)
-                uncommitted_bypassed[skipped_id] = orig_text
-            # ──────────────────────────────────────────
+            bypassed = {k: v for k, v in untranslated_texts.items() if k not in translatable_ids}
+            # Pages with nothing to send to the LLM are complete right away
+            pages_with_work = {self._tid_to_page.get(i, 0) for i in translatable_ids}
+            immediate = {k: v for k, v in bypassed.items() if self._tid_to_page.get(k, 0) not in pages_with_work}
+            if immediate:
+                self._commit_translations(immediate)
+            pending_bypass = {k: v for k, v in bypassed.items() if k not in immediate}
 
-            sliding_context: List[str] = []
+            if not batches:
+                self._persist_translations(client.model, client.target_lang)
+                self._send_status_i18n("status_trans_completed")
+                return
 
-            # Translate batches sequentially
-            for idx, batch in enumerate(batches):
-                if self._stop_translation:
-                    break
+            # Source-text sliding context: known upfront, so batches are independent
+            context_size = int(config_db.get("TranslationConfig", "sliding_context_size", 5))
+            ordered_ids = list(self._original_texts.keys())
+            position = {seg_id: i for i, seg_id in enumerate(ordered_ids)}
+            contexts: List[Optional[str]] = []
+            for batch in batches:
+                first_pos = position.get(batch.ids[0], 0)
+                window = [
+                    self._original_texts[ordered_ids[i]]
+                    for i in range(max(0, first_pos - context_size * 3), first_pos)
+                    if should_translate(self._original_texts[ordered_ids[i]])
+                ][-context_size:]
+                contexts.append("\n".join(window) if window else None)
 
-                self._send_js(f"window.dispatchEvent(new CustomEvent('update-progress-batches', {{ detail: {{ done: {idx + 1}, total: {total_batches} }} }}))")
-                self._send_status_i18n("status_trans_batch_progress", {"current": idx + 1, "total": total_batches})
+            parallel = max(1, int(config_db.get("TranslationConfig", "parallel_requests", DEFAULT_PARALLEL_REQUESTS)))
+            executor = ThreadPoolExecutor(max_workers=parallel, thread_name_prefix="rocktranslate-llm")
+            in_flight: Dict[Any, int] = {}
+            next_batch = 0
+            done_batches = 0
+            failed_batches = 0
 
-                first_id = batch.segments[0]["id"]
-                page_idx = self._tid_to_page.get(first_id, 0)
-                
-                if page_idx != self._current_translating_page:
-                    self._current_translating_page = page_idx
-                    self._send_js(f"window.dispatchEvent(new CustomEvent('prepare-page', {{ detail: {{ page: {page_idx} }} }}))")
-                    self._send_js(f"window.dispatchEvent(new CustomEvent('update-progress-page', {{ detail: {{ page: {page_idx + 1} }} }}))")
+            def submit_next() -> None:
+                nonlocal next_batch
+                idx = next_batch
+                next_batch += 1
+                batch = batches[idx]
+                for page in sorted({self._tid_to_page.get(i, 0) for i in batch.ids}):
+                    if page not in prepared_pages:
+                        prepared_pages.add(page)
+                        self._send_js(f"window.dispatchEvent(new CustomEvent('prepare-page', {{ detail: {{ page: {page} }} }}))")
+                future = executor.submit(client.translate_batch, batch.segments, contexts[idx], cancelled)
+                in_flight[future] = idx
 
-                context_str = "\n".join(sliding_context) if sliding_context else None
-                results = client.translate_batch(
-                    batch.segments, 
-                    context=context_str,
-                    check_cancelled=lambda: self._stop_translation
-                )
+            try:
+                while next_batch < total_batches and len(in_flight) < parallel:
+                    submit_next()
 
-                if self._stop_translation:
-                    break
+                while in_flight:
+                    if cancelled():
+                        break
+                    finished, _ = wait(list(in_flight.keys()), timeout=0.25, return_when=FIRST_COMPLETED)
+                    for future in finished:
+                        idx = in_flight.pop(future)
+                        try:
+                            results = future.result()
+                        except Exception as e:
+                            logger.error(f"Batch {idx + 1} crashed: {e}")
+                            results = None
+                        if cancelled():
+                            break
+                        done_batches += 1
+                        if results:
+                            items = {r["id"]: r["translated"] for r in results}
+                            # Bypassed segments of the same pages land together with them
+                            pages = {self._tid_to_page.get(i, 0) for i in items}
+                            for skip_id, skip_text in list(pending_bypass.items()):
+                                if self._tid_to_page.get(skip_id, 0) in pages:
+                                    items[skip_id] = skip_text
+                                    del pending_bypass[skip_id]
+                            self._commit_translations(items)
+                            self._persist_translations(client.model, client.target_lang)
+                        else:
+                            failed_batches += 1
+                        first_page = self._tid_to_page.get(batches[idx].ids[0], 0)
+                        self._current_translating_page = first_page
+                        self._send_js(f"window.dispatchEvent(new CustomEvent('update-progress-page', {{ detail: {{ page: {first_page + 1} }} }}))")
+                        self._send_js(f"window.dispatchEvent(new CustomEvent('update-progress-batches', {{ detail: {{ done: {done_batches}, total: {total_batches} }} }}))")
+                        self._send_status_i18n("status_trans_batch_progress", {"current": done_batches, "total": total_batches})
+                        if next_batch < total_batches and not cancelled():
+                            submit_next()
+            finally:
+                # Never wait for abandoned HTTP calls: their late results are ignored
+                executor.shutdown(wait=False, cancel_futures=True)
 
-                if results is None:
-                    self._send_toast_i18n("toast_api_connection_error", "error", duration=8000)
+            logger.info(
+                f"Run finished: {done_batches}/{total_batches} batches, {failed_batches} failed | "
+                f"usage: {client.usage['prompt_tokens']} in / {client.usage['completion_tokens']} out tokens, "
+                f"~${client.usage['cost_usd']:.4f}"
+            )
 
-                    # Reset the page that was mid-translation back to waiting overlay
-                    if self._current_translating_page != -1:
-                        self._send_js(
-                            f"window.dispatchEvent(new CustomEvent('reset-page', "
-                            f"{{ detail: {{ page: {self._current_translating_page} }} }}))"
-                        )
-                    # 'trigger-translation-finished' is emitted once in the finally block
-                    return
-
-                # Record results page-by-page and stream translations
-                for item in results:
-                    seg_id = item.get("id")
-                    translated_text = item.get("translated", "").strip()
-                    
-                    if seg_id and translated_text:
-                        self._send_translation_stream(seg_id, translated_text)
-                        
-                        p_idx = self._tid_to_page.get(seg_id, 0)
-                        if p_idx not in self._translated_pages:
-                            self._translated_pages[p_idx] = {}
-                        self._translated_pages[p_idx][seg_id] = translated_text
-                        
-                        # Commit bypassed elements of this page to the cache as well!
-                        # This guarantees that bypassed elements are only committed 
-                        # for pages where at least one LLM translation successfully landed!
-                        for skipped_id, skipped_text in list(uncommitted_bypassed.items()):
-                            if self._tid_to_page.get(skipped_id) == p_idx:
-                                self._translated_pages[p_idx][skipped_id] = skipped_text
-                                del uncommitted_bypassed[skipped_id] # Clear from temp
-                        
-                        sliding_context.append(translated_text)
-
-                if len(sliding_context) > context_size:
-                    sliding_context = sliding_context[-context_size:]
-
-            # ── SECURE INTERRUPT VERIFICATION ──
-            # Prevents emission of standard success labels on cancelled runs
-            if self._stop_translation:
+            if cancelled():
                 self._send_status_i18n("reset_success_msg")
-                if self._current_translating_page != -1:
-                    self._send_js(
-                        f"window.dispatchEvent(new CustomEvent('reset-page', "
-                        f"{{ detail: {{ page: {self._current_translating_page} }} }}))"
-                    )
+                return
+
+            if failed_batches:
+                self._send_toast_i18n("toast_api_connection_error", "error", duration=8000)
                 return
 
             self._send_status("Document translation completed successfully.")
-            # 'trigger-translation-finished' is emitted once in the finally block
             self._send_toast_i18n("toast_trans_success", "success")
 
         except Exception as error:
-            logger.error(f"Critical exception raised during background translation: {error}")
+            logger.exception(f"Critical exception raised during background translation: {error}")
             self._send_status_i18n("status_trans_error", {"error": str(error)})
             self._send_toast_i18n("toast_trans_error", "error", duration=8000, variables={"error": str(error)})
 
-            # Reset the page that was mid-translation back to waiting overlay
-            if self._current_translating_page != -1:
-                self._send_js(
-                    f"window.dispatchEvent(new CustomEvent('reset-page', "
-                    f"{{ detail: {{ page: {self._current_translating_page} }} }}))"
-                )
-
-
         finally:
-            # Enforce lock release regardless of crash outcomes
+            # Pages that were opened for translation but received nothing go back
+            # to the waiting overlay; partially translated pages keep their text.
+            for page in prepared_pages:
+                if not self._translated_pages.get(page):
+                    self._send_js(f"window.dispatchEvent(new CustomEvent('reset-page', {{ detail: {{ page: {page} }} }}))")
+            self._current_translating_page = -1
             self._thread_lock.release()
             # Single, guaranteed completion signal for the frontend run state
             self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-finished'))")
 
-    def _send_translation_stream(self, trans_id: str, text: str):
-        """
-        Increments segment progress counters and streams single text allocations.
-        """
-        self._send_js("window.dispatchEvent(new CustomEvent('update-progress-segment'))")
-        js_call = (
-            f"window.dispatchEvent(new CustomEvent('stream-translation', {{ "
-            f"detail: {{ id: '{trans_id}', text: {json.dumps(text)} }} "
-            f"}}))"
+    def _commit_translations(self, items: Dict[str, str]) -> None:
+        """Stores translations page by page and streams them to the UI in ONE call."""
+        if not items:
+            return
+        for seg_id, text in items.items():
+            p_idx = self._tid_to_page.get(seg_id, 0)
+            self._translated_pages.setdefault(p_idx, {})[seg_id] = text
+        payload = [{"id": k, "text": v} for k, v in items.items()]
+        self._send_js(
+            "window.dispatchEvent(new CustomEvent('stream-translations', "
+            f"{{ detail: {{ items: {json.dumps(payload, ensure_ascii=False)} }} }}))"
         )
-        self._send_js(js_call)
-    
+
+    def _send_translation_stream(self, trans_id: str, text: str):
+        """Backward-compatible single-segment stream (prefer _commit_translations)."""
+        self._commit_translations({trans_id: text})
+
+    # ── PERSISTENCE OF TRANSLATIONS (survive app restarts) ──
+
+    def _translations_file(self, model: str, target_lang: str) -> str:
+        safe = re.sub(r"[^A-Za-z0-9._-]+", "_", f"{target_lang}__{model}")
+        return os.path.join(self._document_cache_dir(), f"translations.{safe}.json")
+
+    def _persist_translations(self, model: str, target_lang: str) -> None:
+        try:
+            path = self._translations_file(model, target_lang)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            # Source text is stored with each translation: entries stay valid across
+            # app updates as long as the segment's source text is unchanged.
+            flat = {
+                seg_id: {"s": self._original_texts.get(seg_id, ""), "t": text}
+                for page in self._translated_pages.values() for seg_id, text in page.items()
+            }
+            tmp = path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump({"format": 2, "translations": flat}, f, ensure_ascii=False)
+            os.replace(tmp, path)
+        except OSError as e:
+            logger.warning(f"Could not persist translations: {e}")
+
+    def _load_persisted_translations(self, model: str, target_lang: str) -> int:
+        """Merges translations saved by a previous session (same language + model)."""
+        try:
+            path = self._translations_file(model, target_lang)
+            if not os.path.exists(path):
+                return 0
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if data.get("format") != 2:
+                return 0
+            restored = {
+                k: v["t"] for k, v in data.get("translations", {}).items()
+                if k in self._original_texts
+                and v.get("s") == self._original_texts[k]
+                and k not in self._translated_pages.get(self._tid_to_page.get(k, 0), {})
+            }
+            if restored:
+                self._commit_translations(restored)
+                logger.info(f"Restored {len(restored)} translated segments from a previous session.")
+            return len(restored)
+        except (OSError, ValueError) as e:
+            logger.warning(f"Could not load persisted translations: {e}")
+            return 0
+
+    def get_session_translations(self) -> Dict[str, Any]:
+        """
+        Exposed to the UI: all translations known for the active document, so a
+        (re)loaded workspace iframe can restore them instantly.
+        """
+        flat = {seg_id: text for page in self._translated_pages.values() for seg_id, text in page.items()}
+        return {"pages": sorted(self._translated_pages.keys()), "items": flat}
+
 
     def is_range_translated(self, range_str: Optional[str]) -> bool:
         """
@@ -736,11 +768,11 @@ class TranslationApiMixin:
                     try:
                         start_val = int(sub_parts[0].strip())
                         end_val = int(sub_parts[1].strip())
-                        if 1 <= start_val <= max_pages and 1 <= end_val <= max_pages:
-                            min_val = min(start_val, end_val)
-                            max_val = max(start_val, end_val)
-                            for p in range(min_val, max_val + 1):
-                                pages.add(p - 1)
+                        # Clamp partially out-of-bounds ranges ("1-50" on 30 pages -> 1-30)
+                        min_val = max(1, min(start_val, end_val))
+                        max_val = min(max_pages, max(start_val, end_val))
+                        for p in range(min_val, max_val + 1):
+                            pages.add(p - 1)
                     except ValueError:
                         continue
             else:
@@ -821,117 +853,65 @@ class TranslationApiMixin:
 
     def export_translated_pdf(self) -> None:
         """
-        Extracts the compiled translated DOM from the workspace frame,
-        opens a native OS Save File dialog, and prints it into a high-fidelity
-        vector PDF file using the resolved headless browser.
+        Builds the translated document from the backend state (workspace HTML +
+        translation cache) and prints it to a vector PDF. Nothing is pulled back
+        from the webview: a 40-page workspace weighs tens of MB of embedded fonts.
         """
         if not self._active_pdf_path or not self._window:
             self._send_toast_i18n("toast_export_no_doc", "warning")
             return
-
-        self._send_status_i18n("status_export_requesting_layout")
-
-        # Extract translated HTML directly from workspace iframe
-        js_get_html = (
-            "document.getElementById('html-iframe') ? "
-            "document.getElementById('html-iframe').contentWindow.document.documentElement.outerHTML : ''"
-        )
-        translated_html = self._window.evaluate_js(js_get_html)
-
-        if not translated_html:
+        if not self._active_html_path or not os.path.exists(self._active_html_path):
             self._send_toast_i18n("toast_export_failed_extract", "error")
             return
 
-        # Offer default output filename
         original_name = os.path.basename(self._active_pdf_path)
         base_name, _ = os.path.splitext(original_name)
         suggested_name = f"{base_name}_translated.pdf"
 
-        # Open native OS save file dialog
         self._send_status_i18n("status_export_waiting_path")
-        file_types = ("PDF Documents (*.pdf)", "All files (*.*)")
         destination_path = self._window.create_file_dialog(
             webview.SAVE_DIALOG,
             allow_multiple=False,
-            file_types=file_types,
-            save_filename=suggested_name
+            file_types=("PDF Documents (*.pdf)", "All files (*.*)"),
+            save_filename=suggested_name,
         )
-
         if not destination_path:
             self._send_status_i18n("status_export_cancelled")
             return
-
-        # Support formatting tuples across platforms
-        if isinstance(destination_path, tuple) or isinstance(destination_path, list):
-            if len(destination_path) > 0:
-                destination_path = destination_path[0]
-            else:
+        if isinstance(destination_path, (tuple, list)):
+            if not destination_path:
                 return
+            destination_path = destination_path[0]
 
         self._send_status_i18n("status_export_generating_pdf")
+        threading.Thread(
+            target=self._export_worker, args=(destination_path,), name="rocktranslate-export", daemon=True
+        ).start()
 
-        # Resolve page dimensions (cm layout rules)
+    def _export_worker(self, destination_path: str) -> None:
+        temp_html_path = None
         try:
-            metadata = get_pdf_metadata(self._active_pdf_path)
-            page_size_raw = metadata.get("page_size", "")
-     
-            match = re.search(r'\[([\d\.]+)\s*x\s*([\d\.]+)\s*cm\]', page_size_raw)
-            page_size_css = f"{match.group(1)}cm {match.group(2)}cm" if match else "A4"
-        except Exception:
-            page_size_css = "A4"
+            translations = {seg_id: text for page in self._translated_pages.values() for seg_id, text in page.items()}
+            fd, temp_html_path = tempfile.mkstemp(suffix=".html", prefix="rocktranslate-export-")
+            os.close(fd)
+            apply_translations_offline(self._active_html_path, temp_html_path, translations)
 
-        # Write extracted DOM to temporary HTML on disk
-        # Define physical document print margins layout rules
-        page_size_style = f"""
-        <style>
-        @page {{
-            size: {page_size_css};
-            margin: 0;
-        }}
-        body {{
-            margin: 0;
-            padding: 0;
-        }}
-        </style>
-        """
-        
-        # Inject physical layout boundaries to prevent Chromium from fallback-printing to default Letter size
-        if "</head>" in translated_html:
-            translated_html = translated_html.replace("</head>", f"{page_size_style}\n</head>")
-
-        try:
-            # 4. Write extracted DOM to a secure temporary HTML file on disk
-            with tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode="w", encoding="utf-8") as temp_file:
-                temp_file.write(translated_html)
-                temp_html_path = temp_file.name
-
-            # Resolve local browser printer
-            browser_path = resolve_pdf_renderer()
-            if not browser_path:
-                self._send_toast_i18n("toast_export_no_chromium", "error")
-                return
-
-            # Print PDF vector
-            success = print_html_to_vector_pdf(browser_path, temp_html_path, destination_path)
-
-            try:
-                os.unlink(temp_html_path)
-            except OSError:
-                pass
-
-            if success:
+            if print_html_with_fallback(temp_html_path, destination_path):
                 self._send_status_i18n("status_export_success", {"filename": os.path.basename(destination_path)})
                 self._send_toast_i18n("toast_export_success", "success", duration=6000)
             else:
-                self._send_toast_i18n("toast_export_failed", "error")
+                self._send_toast_i18n("toast_export_no_chromium", "error")
                 self._send_status_i18n("status_export_failed")
-
         except Exception as e:
             logger.error(f"Error during PDF export pipeline: {e}")
             self._send_toast_i18n("toast_export_error", "error", variables={"error": str(e)})
+        finally:
+            if temp_html_path:
+                try:
+                    os.unlink(temp_html_path)
+                except OSError:
+                    pass
 
-
-    
     def _cleanup_workspace_files(self) -> None:
         """
         Physically deletes temporary html workspace and raw layout files

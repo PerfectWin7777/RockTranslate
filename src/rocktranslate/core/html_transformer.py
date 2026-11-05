@@ -31,12 +31,23 @@ from loguru import logger
 from .config_manager import config_db
 # Safe imports supporting both standard package modules and direct scripts
 from .constants import DEFAULT_ASSETS_DIR, ACCENTS_TO_IGNORE, THRESHOLD_PX
-from .downloader import check_and_download_pdf2htmlex
+from .downloader import check_and_download_pdf2htmlex, pdf2htmlex_data_dir
 
 # Seconds without any stderr output before the conversion is considered hung.
 # A total time limit would kill legitimate long conversions of large documents,
 # so only inactivity is punished: a healthy conversion always emits progress.
 STALL_TIMEOUT_SECONDS = 30.0
+
+# Last pdf2htmlEX failure reason (stderr tail), surfaced to the UI/CLI.
+LAST_CONVERSION_ERROR: Dict[str, str] = {"message": ""}
+
+def _remove_quietly(path: str) -> None:
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except OSError:
+        pass
+
 
 def convert_pdf_to_html(
     pdf_path: str,
@@ -48,7 +59,8 @@ def convert_pdf_to_html(
     check_cancelled: Optional[Callable[[], bool]] = None,
     env: Optional[Dict[str, str]] = None,
     first_page: Optional[int] = None,
-    last_page: Optional[int] = None
+    last_page: Optional[int] = None,
+    user_password: Optional[str] = None,
 ) -> Optional[str]:
     """
     Converts a source PDF into raw HTML using the local pdf2htmlEX executable.
@@ -70,6 +82,11 @@ def convert_pdf_to_html(
             written. Defaults to the PDF's own directory.
         check_cancelled: Optional polling callback; when it returns True the
             conversion is aborted and the process killed immediately.
+        user_password: Password of PDFs that require one to be opened.
+
+    Copy/print permission flags ("DRM") are ignored (--no-drm 1): the user can
+    already read the document, and pdf2htmlEX would otherwise refuse to convert
+    perfectly readable publisher PDFs.
 
     Returns:
         Optional[str]: Absolute path to the generated raw HTML, or None if failed.
@@ -101,12 +118,24 @@ def convert_pdf_to_html(
         logger.info(f"Raw HTML already exists and is valid. Skipping compilation for: {pdf_filename}")
         return output_html_path
 
-    cmd: List[str] = [
-        os.path.abspath(pdf2htmlex_exe),
-        "--zoom", "1.3",
-        cmd_pdf_ref,
-        cmd_output_ref
-    ]
+    # pdf2htmlEX writes to a temporary name that is atomically renamed on
+    # success, so a killed/cancelled run never leaves a truncated HTML behind
+    # that the "already converted" fast path above would reuse.
+    partial_filename = f"{os.path.splitext(html_filename)[0]}.partial.html"
+    partial_html_path = os.path.join(os.path.dirname(output_html_path), partial_filename)
+    cmd_output_ref = partial_filename
+    if os.path.exists(partial_html_path):
+        try:
+            os.remove(partial_html_path)
+        except OSError:
+            pass
+
+    cmd: List[str] = [os.path.abspath(pdf2htmlex_exe), "--zoom", "1.3", "--no-drm", "1"]
+    if user_password:
+        cmd += ["--user-password", user_password]
+    data_dir = pdf2htmlex_data_dir(pdf2htmlex_exe)
+    if data_dir:
+        cmd += ["--data-dir", data_dir]
     # Page-range conversion on the ORIGINAL file: parallel workers convert
     # disjoint ranges without any PDF extraction step (extracting pages with
     # pypdf produces resource-truncated PDFs this legacy binary crashes on).
@@ -114,7 +143,10 @@ def convert_pdf_to_html(
         cmd += ["-f", str(int(first_page))]
     if last_page is not None:
         cmd += ["-l", str(int(last_page))]
+    # Options first, positional arguments last
+    cmd += [cmd_pdf_ref, cmd_output_ref]
 
+    LAST_CONVERSION_ERROR["message"] = ""
     logger.info(f"Starting high-fidelity conversion of PDF: {pdf_filename}")
 
     # ── WINDOWS CRASH PROTECTION ──
@@ -176,6 +208,7 @@ def convert_pdf_to_html(
                 logger.info("pdf2htmlEX conversion cancelled by caller. Terminating the process.")
                 process.kill()
                 process.wait(timeout=5)
+                _remove_quietly(partial_html_path)
                 return None
             try:
                 line = stderr_queue.get(timeout=1.0)
@@ -191,6 +224,8 @@ def convert_pdf_to_html(
             )
             process.kill()
             process.wait(timeout=5)
+            _remove_quietly(partial_html_path)
+            LAST_CONVERSION_ERROR["message"] = f"pdf2htmlEX stalled for {stall_timeout:.0f}s (unsupported fonts?)"
             # TODO: If local compilation fails or times out, implement an automatic fallback
             # to a remote serverless cloud-rendering API to convert complex LaTeX documents.
             return None
@@ -211,13 +246,23 @@ def convert_pdf_to_html(
     if last_progress != (0, 0) and on_progress:
         on_progress(last_progress[0], last_progress[1])
 
-    if process.returncode == 0 and os.path.exists(output_html_path):
+    if process.returncode == 0 and os.path.exists(partial_html_path) and os.path.getsize(partial_html_path) > 0:
+        os.replace(partial_html_path, output_html_path)
         logger.info("Raw HTML file generated successfully.")
         return output_html_path
+
+    try:
+        if os.path.exists(partial_html_path):
+            os.remove(partial_html_path)
+    except OSError:
+        pass
 
     logger.error(f"pdf2htmlEX exited with error code: {process.returncode}")
     for tail_line in list(stderr_tail)[-5:]:
         logger.error(f"pdf2htmlEX stderr | {tail_line}")
+    LAST_CONVERSION_ERROR["message"] = " | ".join(
+        l for l in list(stderr_tail)[-3:] if l and not l.startswith(("Working", "Preprocessing"))
+    )[:400]
 
     # TODO: In the main UI window, handle the None return value by displaying a clear
     # and friendly error message explaining that this PDF contains unsupported fonts.
@@ -355,6 +400,55 @@ def parse_position_classes(soup: BeautifulSoup) -> Tuple[Dict[str, float], Dict[
     return x_map, y_map
 
 
+# Glyphs that broken symbol fonts (no ToUnicode map) expose instead of math signs.
+SYMBOL_GLYPH_FIXES = str.maketrans({"ð": "(", "Þ": ")", "¼": "=", "þ": "+"})
+
+# Bump whenever instrument_html output changes: cached workspaces built by an
+# older pipeline are then re-instrumented from the cached raw HTML.
+PIPELINE_VERSION = 4
+
+
+def parse_font_sizes(soup: BeautifulSoup) -> Dict[str, float]:
+    """Screen font sizes of pdf2htmlEX fsN classes, in px (first definition wins)."""
+    sizes: Dict[str, float] = {}
+    for style_tag in soup.find_all("style"):
+        for m in re.finditer(r"\.(fs[0-9a-f]+)\{font-size:([\d.]+)px;\}", style_tag.get_text()):
+            sizes.setdefault(m.group(1), float(m.group(2)))
+    return sizes
+
+
+def detect_symbol_font_classes(soup: BeautifulSoup) -> Set[str]:
+    """
+    Detects pdf2htmlEX font classes (ffN) that use a broken symbol encoding.
+
+    A font class is considered "symbolic" when it renders at least one of the
+    suspicious glyphs (ð Þ ¼ þ) while containing almost no Latin letters: real
+    prose fonts (e.g. Icelandic text) are dominated by letters and are left intact.
+    """
+    suspicious = set("ðÞ¼þ")
+    stats: Dict[str, List[int]] = {}  # cls -> [suspicious, letters, total]
+    for tag in soup.find_all(class_=re.compile(r"^ff\w+")):
+        ff_classes = [c for c in tag.get("class", []) if c.startswith("ff")]
+        if not ff_classes:
+            continue
+        own_text = "".join(str(t) for t in tag.find_all(string=True, recursive=False))
+        if not own_text.strip():
+            continue
+        entry = stats.setdefault(ff_classes[0], [0, 0, 0])
+        for ch in own_text:
+            if ch.isspace():
+                continue
+            entry[2] += 1
+            if ch in suspicious:
+                entry[0] += 1
+            elif ch.isalpha():
+                entry[1] += 1
+    return {
+        cls for cls, (sus, letters, total) in stats.items()
+        if sus > 0 and total > 0 and letters / total < 0.3
+    }
+
+
 def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str, str], Dict[str, int]]:
     """
     Instruments the raw HTML layout by applying the high-fidelity scaled grouping algorithm.
@@ -377,6 +471,8 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
     color_map:  Dict[str, str] = parse_color_classes(soup)
     x_map, y_map = parse_position_classes(soup)
     pages_list = soup.find_all("div", class_="pf")
+    symbol_fonts: Set[str] = detect_symbol_font_classes(soup)
+    font_size_map: Dict[str, float] = parse_font_sizes(soup)
 
     # Retrieve configuration directly from JSON storage, falling back to constant if undefined
     threshold_px = float(config_db.get("TranslationConfig", "threshold_px", THRESHOLD_PX))
@@ -419,6 +515,13 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     break
 
             children = list(div_t.contents)
+
+            # Word-space threshold relative to the rendered font size: a fixed
+            # 2.5px merged real word spaces of small fonts (footnotes, author
+            # blocks) into kerning ("AshishVaswani"). Kerning stays < ~0.1em.
+            line_fs_cls = next((c for c in classes if c.startswith("fs")), None)
+            em_px = font_size_map.get(line_fs_cls, 0.0) * abs(sy_orig or 1.0) if line_fs_cls else 0.0
+            word_space_px = min(2.5, max(0.8, 0.15 * em_px)) if em_px > 0 else 2.5
             
             # ── 4. RECURSIVE DOM FLATTENING (Surgically exposes nested spacers inside styled spans) ──
             flattened_children: List[Any] = []
@@ -472,14 +575,32 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
 
                     # Copy font styles from the children, but DO NOT inherit fc (font color) classes.
                     # This prevents the parent translation span from bleeding a single color over the entire line.
-                    inherited_classes = ["trans-span"]
+                    # Inherit ONE font family and ONE font size: the ones carrying the
+                    # most characters. Inheriting every ff/fs of the group let the
+                    # stylesheet's last rule win (e.g. a monospace e-mail font taking
+                    # over a whole translated paragraph line).
+                    line_ff = next((c for c in classes if c.startswith("ff")), None)
+                    line_fs = next((c for c in classes if c.startswith("fs")), None)
+                    ff_weight: Dict[str, int] = {}
+                    fs_weight: Dict[str, int] = {}
                     for el in current_group_elements:
-                        if hasattr(el, "get"):
-                            el_classes = el.get("class", [])
-                            for cls in el_classes:
-                                # We inherit font family (ff) and size (fs), but skip color classes
-                                if cls.startswith("ff") or cls.startswith("fs"):
-                                    inherited_classes.append(cls)
+                        if not hasattr(el, "get"):
+                            continue
+                        el_classes = el.get("class", []) or []
+                        weight = len(el.get_text().strip())
+                        if weight == 0:
+                            continue
+                        ff = next((c for c in el_classes if c.startswith("ff")), line_ff)
+                        fs = next((c for c in el_classes if c.startswith("fs")), line_fs)
+                        if ff:
+                            ff_weight[ff] = ff_weight.get(ff, 0) + weight
+                        if fs:
+                            fs_weight[fs] = fs_weight.get(fs, 0) + weight
+                    inherited_classes = ["trans-span"]
+                    if ff_weight:
+                        inherited_classes.append(max(ff_weight, key=ff_weight.get))
+                    if fs_weight:
+                        inherited_classes.append(max(fs_weight, key=fs_weight.get))
                     # Wrap the unified group in a single localizable span
                     group_span = soup.new_tag("span", attrs={
                         "class": " ".join(inherited_classes),
@@ -530,10 +651,18 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 # Now that it's initialized, we can use it safely
                 if child.name == "span" and any(cls.startswith("_") for cls in child_classes):
                     is_spacer = True
+                    known_width = False
                     for cls in child_classes:
-                        if cls.startswith("_") and len(cls) > 1:
-                            width = spacer_map.get(cls[1:], 0.0)
+                        if cls.startswith("_") and len(cls) > 1 and cls[1:] in spacer_map:
+                            width = spacer_map[cls[1:]]
+                            known_width = True
                             break
+                    # pdf2htmlEX writes plain word spaces as <span class="_"> </span>
+                    # (no width class): a literal blank is always a real word space.
+                    if not known_width and child.get_text() and not child.get_text().strip():
+                        current_group_elements.append(child)
+                        current_group_text.append(" ")
+                        continue
 
                 if is_spacer:
                     # --- SCALED WIDTH CALCULATION (Core geometry fix) ---
@@ -543,7 +672,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                         # Case 1: Structural spacing -> Commit active group and append Red Cut marker
                         commit_group()
                         div_t.append(child)
-                    elif scaled_width >= 2.5:
+                    elif scaled_width >= word_space_px:
                         # Case 2: Real word spacing -> Accumulate space and continue
                         current_group_elements.append(child)
                         current_group_text.append(" ")
@@ -558,10 +687,13 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     else:
                         # Extract raw text content
                         text_content = child.get_text()
-                        # --- NORMALIZATION FIX: Convert custom symbol parentheses back to standard Unicode ---
-                        # todo : remplace it by a very table map avec pdf's writter
-                        text_content = text_content.replace("ð", "(").replace("Þ", ")")
-                        text_content = text_content.replace("¼", "=").replace("þ","+")
+                        # --- NORMALIZATION FIX: broken symbol-font encodings (Elsevier MT/Adv fonts) ---
+                        # Only applied to font classes detected as symbol fonts, so real text
+                        # such as Icelandic 'Þór' or the fraction '¼' is never corrupted.
+                        own_ff = [c for c in child_classes if c.startswith("ff")]
+                        effective_ff = own_ff or [c for c in classes if c.startswith("ff")]
+                        if symbol_fonts and any(cls in symbol_fonts for cls in effective_ff):
+                            text_content = text_content.translate(SYMBOL_GLYPH_FIXES)
                         
                         color_hex = None
                         for cls in child_classes:
@@ -641,10 +773,18 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
 
         span[data-trans-id].translated {
             word-spacing: 0.25em !important;
+            /* justified source lines carry letter-spacing that does not apply to new text */
+            letter-spacing: normal !important;
         }
 
         div.t {
             white-space: nowrap !important;
+        }
+
+        /* pdf2htmlEX writes some word spaces as <span class="_"> </span>: nowrap would
+           collapse that lone blank (inline-block) and glue words ("KaimingHe"). */
+        div.t span._ {
+            white-space: pre !important;
         }
 
        @keyframes loading-shimmer {
@@ -701,6 +841,8 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 // Find the target translation span using its unique routing ID
                 var span = document.querySelector('[data-trans-id="' + transId + '"]');
                 if (!span) return;
+                // A layout line cannot hold line breaks
+                translatedText = String(translatedText).replace(/\s*\n\s*/g, ' ');
 
                 // Performance optimization: Skip DOM updates if the translated text is identical to current content
                 if (span.textContent.trim() === translatedText.trim()) {
@@ -732,11 +874,25 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
 
                 // Robust Color Formatting: Transform <color_HEX>...</color_HEX> tags into visual inline spans.
                 // Uses [\s\S]*? to handle line breaks, and allows lazy LLM formatting variations (e.g. simplified </color> closure) [1.2.6].
-                var formattedHTML = translatedText.replace(
-                    /<color_([0-9a-fA-F]{6})>([\s\S]*?)<\/color(?:_\w+)?>/g, 
-                    '<span style="color: #$1;">$2</span>'
-                );
-                span.innerHTML = formattedHTML;
+                // SECURITY: the translation is untrusted (LLM output fed by PDF text).
+                // It is NEVER parsed as HTML: only <color_HEX> tags are rebuilt via DOM nodes,
+                // every other character is inserted as plain text.
+                while (span.firstChild) span.removeChild(span.firstChild);
+                var colorRe = /<color_([0-9a-fA-F]{6})>([\s\S]*?)<\/color(?:_\w+)?>/g;
+                var lastIdx = 0, m;
+                while ((m = colorRe.exec(translatedText)) !== null) {
+                    if (m.index > lastIdx) {
+                        span.appendChild(document.createTextNode(translatedText.slice(lastIdx, m.index)));
+                    }
+                    var colored = document.createElement('span');
+                    colored.style.color = '#' + m[1];
+                    colored.textContent = m[2];
+                    span.appendChild(colored);
+                    lastIdx = colorRe.lastIndex;
+                }
+                if (lastIdx < translatedText.length) {
+                    span.appendChild(document.createTextNode(translatedText.slice(lastIdx)));
+                }
 
                 span.classList.add('translated');
 
@@ -750,12 +906,60 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     var newSx = sx * (origSW / newSW);
                     // Cap horizontal scaling to prevent unnecessary stretching of short text
                     newSx = Math.min(newSx, sx);
-                    // newSx = Math.max(newSx, sx * 0.82);
                     divT.style.transform = 'matrix(' + newSx + ',0,0,' + sy + ',0,0)';
+                    divT.setAttribute('data-fit', String(newSx / sx));
                 }
+                var pageEl = divT.closest('.pf');
+                if (pageEl) window.scheduleHarmonize(pageEl);
             } catch (e) {
                 console.error("Error in applyTranslation:", e);
             }
+        };
+
+        // ── PARAGRAPH HARMONIZATION ──
+        // Each translated line is fitted to its original width on its own, so a
+        // paragraph used to alternate compressed and full-size lines. Lines of
+        // the same column/font/matrix share one compression level: lines that
+        // need more than the group's 20th-percentile ratio keep their own fit
+        // (never overflow); all others are aligned on it.
+        window.harmonizePage = function(page) {
+            try {
+                var groups = {};
+                page.querySelectorAll('div.t[data-fit]').forEach(function(d) {
+                    var cls = d.className;
+                    var key = ((cls.match(/\bx[0-9a-f]+\b/) || [''])[0]) + '|' +
+                              ((cls.match(/\bfs[0-9a-f]+\b/) || [''])[0]) + '|' +
+                              ((cls.match(/\bm[0-9a-f]+\b/) || [''])[0]);
+                    (groups[key] = groups[key] || []).push(d);
+                });
+                Object.keys(groups).forEach(function(key) {
+                    var lines = groups[key];
+                    if (lines.length < 3) return;
+                    var ratios = lines.map(function(d) { return parseFloat(d.getAttribute('data-fit')); })
+                                      .sort(function(a, b) { return a - b; });
+                    var target = ratios[Math.floor(0.2 * (ratios.length - 1))];
+                    lines.forEach(function(d) {
+                        var own = parseFloat(d.getAttribute('data-fit'));
+                        var ratio = Math.min(own, target);
+                        var sx = parseFloat(d.getAttribute('data-sx-orig'));
+                        var sy = parseFloat(d.getAttribute('data-sy-orig'));
+                        d.style.transform = 'matrix(' + (sx * ratio) + ',0,0,' + sy + ',0,0)';
+                    });
+                });
+            } catch (e) { console.error('harmonizePage', e); }
+        };
+
+        var harmonizeTimers = new Map();
+        window.scheduleHarmonize = function(page) {
+            if (harmonizeTimers.has(page)) clearTimeout(harmonizeTimers.get(page));
+            harmonizeTimers.set(page, setTimeout(function() {
+                harmonizeTimers.delete(page);
+                window.harmonizePage(page);
+            }, 60));
+        };
+
+        window.harmonizeAllPages = function() {
+            document.querySelectorAll('.pf').forEach(function(p) { window.harmonizePage(p); });
         };
 
         window.preparePageForTranslation = function(pageIdx) {
@@ -881,9 +1085,9 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
             if (!origHtml) return;
 
             // Create a temporary container to extract raw, unstyled text from original HTML
-            var tempDiv = document.createElement('div');
-            tempDiv.innerHTML = origHtml;
-            var cleanText = tempDiv.textContent || tempDiv.innerText || "";
+            // DOMParser documents are inert: no script or onerror handler can run
+            var parsed = new DOMParser().parseFromString(origHtml, 'text/html');
+            var cleanText = (parsed.body && parsed.body.textContent) || "";
             cleanText = cleanText.trim();
 
             if (!cleanText) return;

@@ -1,45 +1,84 @@
 [build-system]
-requires = ["setuptools>=61.0.0", "wheel"]
+requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "rocktranslate"
-version = "2.0.2"
+dynamic = ["version"]
 description = "High-Fidelity AI Layout-Preserved PDF Translator"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [
-    {name = "RockTranslate Contributors"}
+    {name = "Tony Winter (PerfectWin)", email = "wintertony410@gmail.com"}
 ]
+keywords = ["pdf", "translation", "llm", "layout", "scientific", "pdf2htmlEX"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+    "Topic :: Text Processing :: Linguistic",
 ]
 
 # Minimal dependencies required for CLI and Library usage
 dependencies = [
-    "beautifulsoup4",
-    "lxml",
-    "litellm",
-    "json-repair",
-    "pypdf",
-    "loguru",
-    "tiktoken",
-    "tinycss2"
+    "beautifulsoup4>=4.12",
+    "lxml>=4.9",
+    "litellm>=1.40",
+    "json-repair>=0.25",
+    "pypdf>=4.0",
+    "loguru>=0.7",
+    "tiktoken>=0.5",
+    "tinycss2>=1.2",
 ]
 
-# Optional dependencies to install the full GUI (pip install -e .[gui])
+# Optional dependencies to install the full GUI (pip install "rocktranslate[gui]")
 [project.optional-dependencies]
 gui = [
-    "pywebview>=5.0"
+    "pywebview>=5.0",
 ]
 
-# Registers the global system command linking to our CLI main function
+[project.urls]
+Homepage = "https://github.com/PerfectWin7777/RockTranslate"
+Issues = "https://github.com/PerfectWin7777/RockTranslate/issues"
+
+# Registers the global system commands
 [project.scripts]
 rocktranslate = "rocktranslate.cli:main"
 rocktranslate-gui = "rocktranslate.web_gui:main"
 
+[tool.setuptools.dynamic]
+version = {attr = "rocktranslate.__version__"}
+
+[tool.setuptools]
+include-package-data = false
+
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["rocktranslate*"]
+namespaces = false
+exclude = ["rocktranslate.assets*"]
+
+# Runtime assets shipped in the wheel. The Windows pdf2htmlEX bundle (21 MB) is
+# NOT shipped: it is downloaded on demand by core/downloader.py on Windows only.
+[tool.setuptools.package-data]
+rocktranslate = [
+    "assets/*.png",
+    "assets/*.ico",
+    "assets/fonts/*.ttf",
+    "assets/ui/*.html",
+    "assets/ui/components/*.html",
+    "assets/ui/css/*.css",
+    "assets/ui/js/*.js",
+    "assets/pdfjs/LICENSE",
+    "assets/pdfjs/build/*.js",
+    "assets/pdfjs/web/*.html",
+    "assets/pdfjs/web/*.css",
+    "assets/pdfjs/web/*.js",
+    "assets/pdfjs/web/images/*",
+    "assets/pdfjs/web/cmaps/*",
+    "assets/pdfjs/web/standard_fonts/*",
+    "assets/pdfjs/web/locale/*",
+    "assets/pdfjs/web/locale/*/*",
+]

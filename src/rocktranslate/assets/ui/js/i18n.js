@@ -219,6 +219,7 @@ document.addEventListener('alpine:init', () => {
                 toast_extraction_error: "Could not parse target document: {error}",
                 status_trans_reset: "Translation state reset cleanly.",
                 status_trans_is_running: "Translation is already running in background.",
+                toast_conversion_failed_reason: "This PDF could not be converted for translation. Reason: {reason}",
                 status_trans_cancelled: "Translation canceled by the user.", 
                 retranslate_confirm_msg: 'All selected pages are already translated. Do you want to reset and translate again?',
 
@@ -463,6 +464,7 @@ document.addEventListener('alpine:init', () => {
                 status_trans_error: "Erreur de traduction : {error}",
                 toast_trans_error: "La traduction a échoué : {error}",
                 status_trans_is_running: "Traduction déjà en cours en arrière-plan.",
+                toast_conversion_failed_reason: "Ce PDF n'a pas pu être converti pour la traduction. Raison : {reason}",
                 status_trans_reset: "État de la traduction réinitialisé proprement.",
                 status_trans_cancelled: "Traduction annulée par l'utilisateur.",
                 retranslate_confirm_msg: "Toutes les pages sélectionnées sont déjà traduites. Voulez-vous réinitialiser et traduire à nouveau ?",
@@ -683,6 +685,7 @@ document.addEventListener('alpine:init', () => {
                 toast_extraction_error: "No se pudo analizar el documento: {error}",
                 status_trans_reset: "Estado de traducción restablecido limpiamente.",
                 status_trans_is_running: "La traducción ya se está ejecutando en segundo plano.",
+                toast_conversion_failed_reason: "No se pudo convertir este PDF para traducirlo. Motivo: {reason}",
                 status_trans_cancelled: "Traducción cancelada por el usuario.",
                 retranslate_confirm_msg: "Todas las páginas seleccionadas ya están traducidas. ¿Desea restablecer el estado y traducir de nuevo?",
 
@@ -916,6 +919,7 @@ document.addEventListener('alpine:init', () => {
                 toast_extraction_error: "Dokument konnte nicht analysiert werden: {error}",
                 status_trans_reset: "Übersetzungsstatus erfolgreich zurückgesetzt.",
                 status_trans_is_running: "Die Übersetzung läuft bereits im Hintergrund.",
+                toast_conversion_failed_reason: "Dieses PDF konnte nicht für die Übersetzung konvertiert werden. Grund: {reason}",
                 status_trans_cancelled: "Übersetzung vom Benutzer abgebrochen.",
                 retranslate_confirm_msg: "Alle ausgewählten Seiten sind bereits übersetzt. Möchten Sie den Status zurücksetzen und erneut übersetzen?",
 

@@ -85,3 +85,7 @@ src/rocktranslate/assets/fonts/tmp*
 dev_tools/fidelity_report/fidelity_cache/
 dev_tools/fidelity_report/work/
 dev_tools/fidelity_report/*_printed.html
+
+# pdf.js runtime bundle (the generic "build/" rule above must not drop it)
+!src/rocktranslate/assets/pdfjs/build/
+!src/rocktranslate/assets/pdfjs/build/*.js

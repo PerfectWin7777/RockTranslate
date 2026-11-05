@@ -15,6 +15,7 @@ Version: 1.0.0
 """
 
 import os
+import threading
 import time
 from typing import Callable, Optional, List, Dict, Any, Tuple
 from loguru import logger
@@ -28,7 +29,10 @@ except ImportError:
     litellm = None
 
 # Safe imports supporting both standard package modules and direct scripts
-from .constants import DEFAULT_PROVIDERS, MAX_RETRIES, RETRY_DELAYS, DEFAULT_MODEL
+from .constants import (
+    DEFAULT_PROVIDERS, MAX_RETRIES, RETRY_DELAYS, DEFAULT_MODEL,
+    DEFAULT_TEMPERATURE, REQUEST_TIMEOUT_SECONDS,
+)
 from .prompts import get_system_prompt, get_user_message
 from .config_manager import config_db
 
@@ -48,6 +52,8 @@ class LLMClient:
         all_keys: Optional[Dict[str, str]] = None,
         custom_glossary: Optional[str] = None,
         on_status: Optional[Callable[[str], None]] = None,
+        temperature: Optional[float] = None,
+        max_retries: Optional[int] = None,
     ) -> None:
         """
         Initializes the resilient LLM translation client.
@@ -69,6 +75,13 @@ class LLMClient:
         self.all_keys: Dict[str, str] = all_keys or {}
         self.custom_glossary: Optional[str] = custom_glossary 
         self.on_status: Optional[Callable[[str], None]] = on_status
+        # Explicit values (library/CLI) win over the GUI config file
+        self.temperature: Optional[float] = temperature
+        self.max_retries: Optional[int] = max_retries
+
+        # Cumulative usage of this client (tokens + estimated USD cost)
+        self.usage: Dict[str, Any] = {"requests": 0, "prompt_tokens": 0, "completion_tokens": 0, "cost_usd": 0.0}
+        self._usage_lock = threading.Lock()
 
         if litellm is None:
             raise ImportError(
@@ -96,79 +109,125 @@ class LLMClient:
         check_cancelled: Optional[Callable[[], bool]] = None,
     ) -> Optional[List[Dict[str, str]]]:
         """
-        Translates a batch of text segments, managing network failures,
-        exponential delays, and automated provider-isolated fallbacks.
+        Translates a batch of segments with real exponential backoff, rate-limit
+        waits, provider-isolated fallback and output validation.
 
-        Args:
-            batch_segments: Payload segments list structure (e.g., [{"id": "g-0", "text": "..."}]).
-            context: Sliding terminal context of translated paragraphs.
+        The returned list only contains ids that belong to the batch (hallucinated
+        ids are dropped). Segments the model silently omitted are re-requested
+        once as a smaller follow-up batch.
 
         Returns:
-            Optional[List[Dict[str, str]]]: Translated segments output list or None.
+            The translated segments ([{"id", "translated"}]) or None on failure.
         """
+        results = self._translate_with_retries(batch_segments, context, check_cancelled)
+        if results is None:
+            return None
+
+        expected_ids = [seg["id"] for seg in batch_segments]
+        by_id = self._index_valid_results(results, set(expected_ids))
+
+        missing = [seg for seg in batch_segments if seg["id"] not in by_id]
+        if missing and not (check_cancelled and check_cancelled()):
+            logger.warning(f"Model omitted {len(missing)} segment(s); re-requesting them once.")
+            retry = self._translate_with_retries(missing, context, check_cancelled)
+            if retry:
+                by_id.update(self._index_valid_results(retry, {seg["id"] for seg in missing}))
+
+        return [{"id": seg_id, "translated": by_id[seg_id]} for seg_id in expected_ids if seg_id in by_id]
+
+    @staticmethod
+    def _index_valid_results(results: List[Any], allowed_ids: set) -> Dict[str, str]:
+        """Keeps well-formed results whose id belongs to the request."""
+        valid: Dict[str, str] = {}
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            seg_id = item.get("id")
+            text = item.get("translated")
+            if isinstance(seg_id, str) and seg_id in allowed_ids and isinstance(text, str) and text.strip():
+                valid[seg_id] = text.strip()
+        return valid
+
+    def _translate_with_retries(
+        self,
+        batch_segments: List[Dict[str, str]],
+        context: Optional[str],
+        check_cancelled: Optional[Callable[[], bool]],
+    ) -> Optional[List[Dict[str, Any]]]:
         current_model: str = self.model
         current_key: Optional[str] = self.api_key
-        # Load dynamic connection retry budget directly from configuration, fallback to constants
-        max_retries = int(config_db.get("TranslationConfig", "max_retries", MAX_RETRIES))
+        max_retries = max(1, int(self.max_retries if self.max_retries is not None
+                                 else config_db.get("TranslationConfig", "max_retries", MAX_RETRIES)))
 
         for attempt in range(max_retries):
-             # Abort immediately if cancellation is requested.
             if check_cancelled and check_cancelled():
                 self._log_status("Translation batch aborted: cancellation requested.")
                 return None
+
+            # Provider-isolated fallback on the last attempts only
+            if attempt >= 2:
+                fallback_model, fallback_key = self._get_fallback_model_and_key(current_model)
+                if fallback_model and fallback_model != current_model:
+                    self._log_status(
+                        f"🔄 '{current_model}' keeps failing: switching to '{fallback_model}' "
+                        f"from the same provider (attempt {attempt + 1}/{max_retries})."
+                    )
+                    current_model, current_key = fallback_model, fallback_key
+
+            error: Optional[Exception] = None
             try:
-                # Trigger provider-safe dynamic fallback on repeated failures (attempts 3 and 4)
-                if attempt >= 2:
-                    fallback_model, fallback_key = self._get_fallback_model_and_key(current_model)
-                    if fallback_model and fallback_key:
-                        self._log_status(
-                            f"🔄 Connection temporarily unavailable. "
-                            f"Safely falling back to alternative model '{fallback_model}' "
-                            f"from the same provider (Attempt {attempt + 1})..."
-                        )
-                        current_model = fallback_model
-                        current_key = fallback_key
-
-                # Perform raw API invocation
                 results = self._call_llm(batch_segments, model=current_model, api_key=current_key, context=context)
-
                 if results is not None:
                     return results
+                logger.warning(f"Unparseable model output (attempt {attempt + 1}/{max_retries}).")
+            except Exception as e:  # network, auth, rate limit, timeout...
+                error = e
+                logger.warning(f"LLM call failed ({type(e).__name__}): {str(e)[:300]}")
 
-            except Exception as e:
-                err_msg: str = str(e).lower()
-                is_rate_limit: bool = any(
-                    x in err_msg for x in [
-                        "rate_limit", "rate limit", "429", "overloaded", "RESOURCE_EXHAUSTED",
-                        "resource_exhausted", "resource exhausted", "quota",
-                        "UNAVAILABLE", "503", "timeout", "timed out", "connection error",
-                    ]
-                )
+            if error is not None and self._is_fatal_error(error):
+                self._log_status(f"❌ {type(error).__name__}: {str(error)[:200]}")
+                return None
+            if attempt == max_retries - 1:
+                break
 
-                # Calculate exponential delay index matching RETRY_DELAYS bounds
-                delay_index: int = min(attempt, len(RETRY_DELAYS) - 1)
-                wait_time: float = RETRY_DELAYS[delay_index] * (attempt + 1)
+            delay_index = min(attempt, len(RETRY_DELAYS) - 1)
+            wait_time = RETRY_DELAYS[delay_index] * (attempt + 1)
+            if error is None:
+                wait_time = 1.0  # unparseable JSON: retry quickly
+            elif self._is_rate_limit_error(error):
+                wait_time *= 2
+                self._log_status(f"⏳ Rate limit or quota reached. Retrying in {int(wait_time)}s...")
+            else:
+                self._log_status(f"❌ API error ({type(error).__name__}). Retrying in {int(wait_time)}s...")
 
-                if is_rate_limit:
-                    for remaining in range(int(wait_time), 0, -1):
-                        # Abort immediately if cancelled while waiting
-                        if check_cancelled and check_cancelled():
-                            return None
-                        self._log_status(
-                            f"⏳ API quota or rate limits exceeded. Automatically retrying in {remaining}s..."
-                        )
-                        time.sleep(1)
-                else:
-                    self._log_status(
-                        f"❌ Network connection error ({type(e).__name__}). Pausing for {int(wait_time)}s..."
-                    )
-                    for remaining in range(int(wait_time), 0, -1):
-                        if check_cancelled and check_cancelled():
-                            return None
-                        time.sleep(1)
+            deadline = time.monotonic() + wait_time
+            while time.monotonic() < deadline:
+                if check_cancelled and check_cancelled():
+                    return None
+                time.sleep(min(0.25, max(0.0, deadline - time.monotonic())))
 
-        logger.error(f"Failed to translate target batch after {MAX_RETRIES} attempts.")
+        logger.error(f"Failed to translate batch after {max_retries} attempts.")
         return None
+
+    @staticmethod
+    def _is_rate_limit_error(error: Exception) -> bool:
+        msg = f"{type(error).__name__} {error}".lower()
+        return any(x in msg for x in (
+            "ratelimit", "rate_limit", "rate limit", "429", "overloaded",
+            "resource_exhausted", "resource exhausted", "quota", "unavailable", "503",
+        ))
+
+    @staticmethod
+    def _is_fatal_error(error: Exception) -> bool:
+        """Errors that retrying cannot fix (bad key, unknown model, no balance)."""
+        if LLMClient._is_rate_limit_error(error):
+            return False
+        msg = f"{type(error).__name__} {error}".lower()
+        return any(x in msg for x in (
+            "authenticationerror", "invalid api key", "incorrect api key",
+            "permissiondenied", "notfounderror", "model not found", "does not exist",
+            "insufficient balance", "insufficient_quota",
+        ))
 
     def translate_single(self, text: str) -> str:
         """
@@ -196,40 +255,97 @@ class LLMClient:
         model: str,
         api_key: Optional[str],
         context: Optional[str] = None,
-    ) -> Optional[List[Dict[str, str]]]:
-        """ Executes standard completion payloads using the LiteLLM client router. """
+    ) -> Optional[List[Dict[str, Any]]]:
+        """
+        Executes one completion. Network/API errors are RAISED so the retry
+        loop can apply backoff; None means the output could not be parsed.
+        """
+        system_prompt: str = get_system_prompt(self.target_lang, self.custom_glossary)
+        user_message: str = get_user_message(batch_segments, context=context)
+
+        temperature = (self.temperature if self.temperature is not None
+                       else float(config_db.get("TranslationConfig", "temperature", DEFAULT_TEMPERATURE)))
+        timeout = float(config_db.get("TranslationConfig", "request_timeout", REQUEST_TIMEOUT_SECONDS))
+
+        kwargs: Dict[str, Any] = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+            "temperature": temperature,
+            "max_tokens": self._output_token_budget(model),
+            "timeout": timeout,
+        }
+        if api_key:
+            kwargs["api_key"] = api_key
+        # Translation gains nothing from hidden "thinking" tokens: measured on
+        # DeepSeek-V4.1-Flash, disabling them is ~5x faster and ~4x cheaper with
+        # the same output. Providers rejecting the flag are retried without it.
+        no_thinking = self._no_thinking_kwargs(model)
+        if no_thinking and model not in LLMClient._thinking_flag_rejected:
+            kwargs.update(no_thinking)
+        # Integrate dynamic base URLs for custom target endpoints (e.g. Ollama)
+        if self.custom_base_url:
+            kwargs["api_base"] = self.custom_base_url
+
         try:
-            system_prompt: str = get_system_prompt(self.target_lang, self.custom_glossary)
-            user_message: str = get_user_message(batch_segments, context=context)
-            # Read AI creativity temperature parameters directly from local storage
-            temperature = float(config_db.get("TranslationConfig", "temperature", 1.0))
-
-            kwargs: Dict[str, Any] = {
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message},
-                ],
-                "temperature": temperature,
-                "max_tokens": 16384,  # Budget to prevent response truncation
-            }
-
-            if api_key:
-                kwargs["api_key"] = api_key
-            
-            # Integrate dynamic base URLs for custom target endpoints (e.g. Ollama)
-            if self.custom_base_url:
-                kwargs["api_base"] = self.custom_base_url
-
             response = litellm.completion(**kwargs)
-            raw_text: str = response.choices[0].message.content.strip()
-            return self._parse_json_response(raw_text)
-            
         except Exception as e:
-            import traceback
-            traceback.print_exc()
-            logger.warning(f"Error during raw LiteLLM execution: {e}")
-            return None
+            if no_thinking and any(k in kwargs for k in no_thinking) and "thinking" in str(e).lower():
+                logger.info(f"'{model}' rejects the no-thinking flag; continuing without it.")
+                LLMClient._thinking_flag_rejected.add(model)
+                for k in no_thinking:
+                    kwargs.pop(k, None)
+                response = litellm.completion(**kwargs)
+            else:
+                raise
+        self._record_usage(response, model)
+        raw_text: str = (response.choices[0].message.content or "").strip()
+        return self._parse_json_response(raw_text)
+
+    # Models that returned an error for the no-thinking flag (process-wide)
+    _thinking_flag_rejected: set = set()
+
+    @staticmethod
+    def _no_thinking_kwargs(model: str) -> Dict[str, Any]:
+        """Provider-specific arguments disabling hidden reasoning, if supported."""
+        if not bool(config_db.get("TranslationConfig", "disable_reasoning", True)):
+            return {}
+        name = model.lower()
+        if name.startswith("deepseek/") and "reasoner" not in name:
+            return {"extra_body": {"thinking": {"type": "disabled"}}}
+        return {}
+
+    @staticmethod
+    def _output_token_budget(model: str) -> int:
+        """Largest safe completion budget for the model (16k cap, model-limit aware)."""
+        try:
+            info = litellm.get_model_info(model)
+            limit = info.get("max_output_tokens") or info.get("max_tokens")
+            if limit:
+                return int(min(16384, limit))
+        except Exception:
+            pass
+        return 8192
+
+    def _record_usage(self, response: Any, model: str) -> None:
+        """Accumulates token usage and estimated cost (thread-safe)."""
+        try:
+            usage = getattr(response, "usage", None)
+            prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
+            completion_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+            try:
+                cost = float(litellm.completion_cost(completion_response=response, model=model) or 0.0)
+            except Exception:
+                cost = 0.0
+            with self._usage_lock:
+                self.usage["requests"] += 1
+                self.usage["prompt_tokens"] += prompt_tokens
+                self.usage["completion_tokens"] += completion_tokens
+                self.usage["cost_usd"] += cost
+        except Exception:
+            pass
 
     def _parse_json_response(self, raw: str) -> Optional[List[Dict[str, str]]]:
         """
@@ -324,7 +440,12 @@ class LLMClient:
 
     @staticmethod
     def _get_api_key_from_env(model: str) -> Optional[str]:
-        """ Retrieves standard credentials from active system environments dynamically. """
+        """Resolves the provider's API key from its standard environment variable."""
+        for cfg in DEFAULT_PROVIDERS.values():
+            prefix = cfg.get("prefix", "")
+            env_name = cfg.get("key_env")
+            if prefix and env_name and model.startswith(prefix):
+                return os.getenv(env_name)
         model_lower = model.lower()
         if "gemini" in model_lower:
             return os.getenv("GEMINI_API_KEY")
@@ -332,4 +453,6 @@ class LLMClient:
             return os.getenv("OPENAI_API_KEY")
         if "claude" in model_lower or "anthropic" in model_lower:
             return os.getenv("ANTHROPIC_API_KEY")
+        if "deepseek" in model_lower:
+            return os.getenv("DEEPSEEK_API_KEY")
         return None

@@ -46,6 +46,12 @@ function progressController() {
                 this.incrementSegment();
             });
 
+            window.addEventListener('update-progress-segments', (e) => {
+                const n = (e.detail && e.detail.count) || 0;
+                this.doneSegments += n;
+                this.updateSpeedAndEta();
+            });
+
             window.addEventListener('update-progress-batches', (e) => {
                 if (e.detail) {
                     this.batchesDone = e.detail.done;

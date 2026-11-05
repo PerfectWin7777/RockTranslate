@@ -142,7 +142,7 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
         "key_env": "DEEPSEEK_API_KEY",
         "key_url": "https://platform.deepseek.com/api_keys",
         "models": [
-            "deepseek-v4-flash",
+            "deepseek-flash",
             "deepseek-v4-pro",
             "deepseek-chat",
             "deepseek-reasoner",
@@ -351,6 +351,15 @@ MAX_SEGMENTS_PER_BATCH: Final[int] = 60
 SLIDING_CONTEXT_MAX_SIZE: Final[int] = 5
 
 MAX_RETRIES: Final[int] = 4
+
+# Low temperature: translation must be faithful, not creative
+DEFAULT_TEMPERATURE: Final[float] = 0.3
+
+# Per-request network timeout for LLM calls (seconds)
+REQUEST_TIMEOUT_SECONDS: Final[float] = 180.0
+
+# Number of LLM batches translated concurrently
+DEFAULT_PARALLEL_REQUESTS: Final[int] = 4
 RETRY_DELAYS: Final[List[float]] = [2.0, 3.0, 6.0]
 
 

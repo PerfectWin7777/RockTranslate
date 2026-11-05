@@ -83,7 +83,7 @@ function systemSettingsController() {
 function translationSettingsController() {
     return {
         fields: {
-            temperature: 1.0,
+            temperature: 0.3,
             sliding_context_size: 5,
             max_segments_per_batch: 60,
             threshold_px: 12.0,

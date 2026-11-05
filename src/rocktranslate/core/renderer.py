@@ -11,7 +11,9 @@ import os
 import sys
 import shutil
 import json
+import re
 import subprocess
+from pathlib import Path
 from typing import Optional, Dict, Any
 
 if sys.platform == "win32":
@@ -21,100 +23,154 @@ else:
 
 
 
-def find_system_chromium_browser() -> Optional[str]:
-    """Scans the operating system to find the path of a Chromium-based browser.
+def _is_confined_package(path: str) -> bool:
+    """Snap/Flatpak browsers cannot read our temp files: never use them headless."""
+    real = os.path.realpath(path)
+    return real.startswith(("/snap/", "/var/lib/snapd/")) or "/flatpak/" in real or real.endswith("/snap")
 
-    Filters out non-Chromium browsers (e.g., Firefox) to prevent printing hangs.
 
-    Returns:
-        The absolute path to the browser binary, or None if none are found.
-    """
-    # 1. Search system environment PATH (Linux/macOS)
-    common_commands = [
-        "google-chrome", "chrome", "chromium", 
-        "chromium-browser", "microsoft-edge", "msedge"
-    ]
-    for cmd in common_commands:
-        resolved_path = shutil.which(cmd)
-        if resolved_path:
-            return resolved_path
-
-    # 2. Search Windows Registry if running on Win32
-    if sys.platform == "win32" and winreg:
-        registry_path = r"SOFTWARE\Clients\StartMenuInternet"
-        try:
-            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, registry_path) as hkey:
-                index = 0
-                while True:
-                    try:
-                        subkey_name = winreg.EnumKey(hkey, index)
-                        index += 1
-                        cmd_path = rf"{registry_path}\{subkey_name}\shell\open\command"
-                        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, cmd_path) as command_key:
-                            raw_command, _ = winreg.QueryValueEx(command_key, "")
-                            if raw_command:
-                                clean_path = raw_command.strip().strip('"')
-                                if " -osint" in clean_path:
-                                    clean_path = clean_path.split(" -osint")[0].strip('"')
-                                
-                                clean_path_lower = clean_path.lower()
-                                if any(x in clean_path_lower for x in ["chrome", "edge", "chromium", "brave"]):
-                                    if os.path.exists(clean_path):
-                                        return clean_path
-                    except OSError as e:
-                        if e.winerror == 259:  # No more registry subkeys
-                            break
-                        raise
-        except Exception:
-            pass
-
-    # 3. Search standard app bundles on macOS
-    elif sys.platform == "darwin": # todo
-        mac_apps = [
-            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"
+def _candidate_browser_paths() -> list:
+    """Well-known install locations per OS (checked in order)."""
+    candidates = []
+    if sys.platform == "win32":
+        roots = [os.environ.get(k) for k in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA")]
+        rel_paths = [
+            r"Google\Chrome\Application\chrome.exe",
+            r"Microsoft\Edge\Application\msedge.exe",   # always present on Windows 10/11
+            r"Chromium\Application\chrome.exe",
+            r"BraveSoftware\Brave-Browser\Application\brave.exe",
         ]
-        for path in mac_apps:
-            if os.path.exists(path):
-                return path
-                
+        for root in roots:
+            if root:
+                candidates += [os.path.join(root, rel) for rel in rel_paths]
+    elif sys.platform == "darwin":
+        apps = [
+            "Google Chrome.app/Contents/MacOS/Google Chrome",
+            "Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+            "Chromium.app/Contents/MacOS/Chromium",
+            "Brave Browser.app/Contents/MacOS/Brave Browser",
+        ]
+        for root in ("/Applications", os.path.expanduser("~/Applications")):
+            candidates += [os.path.join(root, app) for app in apps]
+    else:
+        candidates += [
+            "/usr/bin/google-chrome-stable", "/usr/bin/google-chrome", "/opt/google/chrome/chrome",
+            "/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/lib/chromium/chromium",
+            "/usr/bin/microsoft-edge", "/usr/bin/brave-browser",
+        ]
+    return candidates
+
+
+def find_system_chromium_browser() -> Optional[str]:
+    """
+    Finds an installed Chromium-based browser usable for headless printing.
+
+    Order: ROCKTRANSLATE_BROWSER env / settings override -> PATH commands ->
+    well-known install paths -> Windows registry. Firefox is never used (its
+    headless print-to-PDF has no equivalent CLI), snap/flatpak builds are
+    skipped (sandboxed: cannot read temp files).
+    """
+    override = os.environ.get("ROCKTRANSLATE_BROWSER") or ""
+    if not override:
+        try:
+            from .config_manager import config_db
+            override = str(config_db.get("SystemConfig", "browser_path_override", "") or "")
+        except Exception:
+            override = ""
+    if override and os.path.isfile(override):
+        return override
+
+    for cmd in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser",
+                "chrome", "microsoft-edge", "msedge", "brave-browser"):
+        resolved = shutil.which(cmd)
+        if resolved and not _is_confined_package(resolved):
+            return resolved
+
+    for path in _candidate_browser_paths():
+        if os.path.isfile(path) and not _is_confined_package(path):
+            return path
+
+    if sys.platform == "win32" and winreg:
+        for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+            for exe in ("chrome.exe", "msedge.exe", "brave.exe"):
+                try:
+                    key_path = rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{exe}"
+                    with winreg.OpenKey(hive, key_path) as key:
+                        value, _ = winreg.QueryValueEx(key, "")
+                        if value and os.path.isfile(value.strip('"')):
+                            return value.strip('"')
+                except OSError:
+                    continue
     return None
 
 
-def apply_translations_offline(
-    input_html_path: str, 
-    output_html_path: str, 
-    translations: Dict[str, str], 
-    page_size_css: str = "A4"
-) -> None:
-    """Injects the translated segments dictionary into a script tag inside the HTML.
+def build_page_size_css(html_content: str) -> str:
+    """
+    Builds print rules giving EVERY page its own physical size.
 
-    Appends an automated headless execution hook that triggers the original scale-compression
-    and layout engine inside Chrome before compiling the PDF.
+    pdf2htmlEX's print stylesheet sizes each page box (.pf.wN.hM) in pt at 4/3
+    of the real PDF size; Chromium then shrinks the content to the paper. A
+    single @page size (the old behaviour, from page 1 only) therefore broke
+    documents mixing portrait and landscape pages. Named pages fix that.
+    """
+    def print_dims(prefix: str, prop: str) -> Dict[str, float]:
+        dims: Dict[str, float] = {}
+        for m in re.finditer(r"\.(" + prefix + r"[0-9a-f]+)\{" + prop + r":([\d.]+)pt;\}", html_content):
+            dims[m.group(1)] = float(m.group(2)) * 0.75
+        return dims
+
+    widths, heights = print_dims("w", "width"), print_dims("h", "height")
+    combos = []
+    for m in re.finditer(r'<div[^>]+class="pf ([^"]+)"', html_content):
+        classes = m.group(1).split()
+        w = next((c for c in classes if c in widths), None)
+        h = next((c for c in classes if c in heights), None)
+        if w and h and (w, h) not in combos:
+            combos.append((w, h))
+
+    if not combos:
+        return "<style>@page { margin: 0; } body { margin: 0; padding: 0; }</style>"
+
+    rules = []
+    first_w, first_h = combos[0]
+    rules.append(f"@page {{ size: {widths[first_w]:.3f}pt {heights[first_h]:.3f}pt; margin: 0; }}")
+    for w, h in combos:
+        name = f"rt-{w}-{h}"
+        rules.append(f"@page {name} {{ size: {widths[w]:.3f}pt {heights[h]:.3f}pt; margin: 0; }}")
+        rules.append(f"@media print {{ .pf.{w}.{h} {{ page: {name}; }} }}")
+    rules.append("body { margin: 0; padding: 0; }")
+    return "<style>\n" + "\n".join(rules) + "\n</style>"
+
+
+def apply_translations_offline(
+    input_html_path: str,
+    output_html_path: str,
+    translations: Dict[str, str],
+    page_size_css: Optional[str] = None,
+) -> None:
+    """Injects the translations into the instrumented HTML for headless printing.
+
+    The translations are applied on 'load' through the same applyTranslation()
+    used live in the GUI (same geometry fitting), then overlays/shimmers are
+    removed. Page sizes come from the document itself (see build_page_size_css).
 
     Args:
-        input_html_path: Path to the template instrumented HTML workspace.
-        output_html_path: Path where the compiled output HTML should be written.
-        translations: Dictionary mapping element IDs to translated strings.
-        page_size_css: Target page layout rules (e.g., 'A4' or custom cm scale).
+        input_html_path: Instrumented workspace HTML.
+        output_html_path: Where the printable HTML is written.
+        translations: Segment id -> translated text.
+        page_size_css: Optional explicit CSS size for every page (e.g. 'A4').
     """
     with open(input_html_path, "r", encoding="utf-8") as f:
         html_content = f.read()
 
-    translations_json = json.dumps(translations, ensure_ascii=False)
+    # "</" must not appear raw inside a <script> block
+    translations_json = json.dumps(translations, ensure_ascii=False).replace("</", "<\\/")
 
-    page_size_style = f"""
-    <style>
-    @page {{
-        size: {page_size_css};
-        margin: 0;
-    }}
-    body {{
-        margin: 0;
-        padding: 0;
-    }}
-    </style>
-    """
+    if page_size_css:
+        page_size_style = (f"<style>@page {{ size: {page_size_css}; margin: 0; }} "
+                           f"body {{ margin: 0; padding: 0; }}</style>")
+    else:
+        page_size_style = build_page_size_css(html_content)
 
     automated_hook_script = f"""
     <script>
@@ -123,84 +179,154 @@ def apply_translations_offline(
         document.querySelectorAll('[id^="glass-overlay-t-"]').forEach(function(glass) {{
             glass.style.display = 'none';
         }});
-        
         for (var transId in cliTranslations) {{
             if (window.applyTranslation) {{
                 window.applyTranslation(transId, cliTranslations[transId]);
             }}
         }}
-        
         document.querySelectorAll('.shimmer-line').forEach(function(el) {{
             el.classList.remove('shimmer-line');
         }});
+        if (window.harmonizeAllPages) window.harmonizeAllPages();
+        var tip = document.getElementById('rt-bilingual-tooltip');
+        if (tip) tip.remove();
     }});
     </script>
     """
 
-    optimized_html = html_content.replace("</head>", f"{page_size_style}\n</head>")
-    optimized_html = optimized_html.replace("</body>", f"{automated_hook_script}\n</body>")
+    optimized_html = html_content.replace("</head>", f"{page_size_style}\n</head>", 1)
+    idx = optimized_html.rfind("</body>")
+    if idx != -1:
+        optimized_html = optimized_html[:idx] + automated_hook_script + "\n" + optimized_html[idx:]
+    else:
+        optimized_html += automated_hook_script
 
     with open(output_html_path, "w", encoding="utf-8") as f:
         f.write(optimized_html)
 
 
-
 def resolve_pdf_renderer() -> Optional[str]:
     """
-    Orchestrates the dual-layer Chromium resolver.
-    Attempts to locate a system-installed browser first. If missing,
-    automatically downloads and extracts the lightweight stable
-    'chrome-headless-shell' as an isolated local fallback.
+    Resolves the headless PDF renderer.
 
-    Returns:
-        Optional[str]: Absolute path to a valid Chromium-based binary, 
-                       or None if resolution and download both failed.
+    1. Explicit override (ROCKTRANSLATE_BROWSER / settings).
+    2. A previously downloaded chrome-headless-shell (pinned version: the most
+       reproducible output, independent of the user's browser updates).
+    3. An installed Chrome / Edge / Chromium / Brave.
+    4. Automatic download of chrome-headless-shell into the user runtime dir.
     """
-    # 1. Look for a system-installed browser (0MB overhead)
+    from .downloader import check_and_download_headless_shell, find_downloaded_headless_shell
+
+    override = os.environ.get("ROCKTRANSLATE_BROWSER")
+    if override and os.path.isfile(override):
+        return override
+
+    cached = find_downloaded_headless_shell()
+    if cached:
+        return cached
+
     system_browser = find_system_chromium_browser()
     if system_browser:
         return system_browser
 
-    # 2. Fallback to automated chrome-headless-shell downloader
     try:
-        from .downloader import check_and_download_headless_shell
         return check_and_download_headless_shell()
     except Exception:
-        # Fallback to resolve direct relative imports in CLI/API execution loops
-        try:
-            from rocktranslate.core.downloader import check_and_download_headless_shell
-            return check_and_download_headless_shell()
-        except Exception:
-            return None
+        return None
 
-            
 
-def print_html_to_vector_pdf(browser_path: str, input_html_path: str, output_pdf_path: str) -> bool:
-    """Executes a headless background process using the resolved browser to print HTML to PDF.
+PRINT_TIMEOUT_SECONDS = 300
 
-    Args:
-        browser_path: Path to the discovered Chromium-based browser executable.
-        input_html_path: Path to the completed offline translated HTML document.
-        output_pdf_path: Path where the high-fidelity output vector PDF will be written.
+
+def print_html_to_vector_pdf(browser_path: str, input_html_path: str, output_pdf_path: str,
+                             timeout: float = PRINT_TIMEOUT_SECONDS) -> bool:
+    """Prints an HTML file to a vector PDF with a headless Chromium.
+
+    Robustness: isolated temporary profile (no clash with the user's open
+    browser), --no-sandbox when running as root (Docker/CI), hard timeout, and
+    a check that the PDF was really written.
 
     Returns:
         True if the PDF was generated successfully, False otherwise.
     """
+    import tempfile
+    from loguru import logger
+
     if not os.path.exists(input_html_path):
         return False
-        
-    cmd = [
-        browser_path,
-        "--headless",
-        "--disable-gpu",
-        "--no-margins",               
-        "--no-pdf-header-footer",
-        f"--print-to-pdf={os.path.abspath(output_pdf_path)}",
-        os.path.abspath(input_html_path)
-    ]
-    
-    try:
-        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    output_abs = os.path.abspath(output_pdf_path)
+    out_dir = os.path.dirname(output_abs)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+    if os.path.exists(output_abs):
+        try:
+            os.remove(output_abs)
+        except OSError:
+            pass
+
+    is_shell = "headless-shell" in os.path.basename(browser_path).lower()
+    with tempfile.TemporaryDirectory(prefix="rocktranslate-chrome-") as profile_dir:
+        cmd = [
+            browser_path,
+            "--headless" if is_shell else "--headless=new",
+            "--disable-gpu",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-extensions",
+            f"--user-data-dir={profile_dir}",
+            "--no-margins",
+            "--no-pdf-header-footer",
+            "--print-to-pdf-no-header",
+            f"--print-to-pdf={output_abs}",
+        ]
+        if hasattr(os, "geteuid") and os.geteuid() == 0:
+            cmd.append("--no-sandbox")
+        cmd.append(Path(os.path.abspath(input_html_path)).as_uri())
+
+        try:
+            proc = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            logger.error(f"Headless browser timed out after {timeout:.0f}s while printing.")
+            return False
+        except OSError as e:
+            logger.error(f"Could not start the headless browser '{browser_path}': {e}")
+            return False
+
+    ok = os.path.exists(output_abs) and os.path.getsize(output_abs) > 0
+    if not ok:
+        tail = (proc.stderr or b"").decode("utf-8", "replace").strip().splitlines()[-3:]
+        logger.error(f"Headless printing failed (exit {proc.returncode}): {' | '.join(tail)}")
+    return ok
+
+
+def print_html_with_fallback(input_html_path: str, output_pdf_path: str,
+                             browser_path: Optional[str] = None,
+                             timeout: Optional[float] = None) -> bool:
+    """
+    Prints with the resolved browser; if that fails or hangs (some full
+    Chrome builds stall in --print-to-pdf mode on servers), retries once with
+    the pinned chrome-headless-shell, downloading it if needed.
+    """
+    from loguru import logger
+    from .downloader import check_and_download_headless_shell
+
+    browser = browser_path or resolve_pdf_renderer()
+    if timeout is None:
+        try:
+            size_mb = os.path.getsize(input_html_path) / 1e6
+        except OSError:
+            size_mb = 10
+        timeout = min(PRINT_TIMEOUT_SECONDS, 60 + 4 * size_mb)
+
+    if browser and print_html_to_vector_pdf(browser, input_html_path, output_pdf_path, timeout=timeout):
         return True
-    except subprocess.CalledProcessError:
+
+    if browser and "headless-shell" in os.path.basename(browser).lower():
         return False
+
+    logger.warning("System browser could not print; falling back to chrome-headless-shell...")
+    shell = check_and_download_headless_shell()
+    if not shell:
+        return False
+    return print_html_to_vector_pdf(shell, input_html_path, output_pdf_path, timeout=PRINT_TIMEOUT_SECONDS)

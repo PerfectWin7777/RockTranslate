@@ -1,297 +1,169 @@
 """
-RockTranslate — Standalone Command Line Interface (CLI) Entry Point
+RockTranslate — Command Line Interface
 Path: src/rocktranslate/cli.py
 
-This module implements the lightweight, Qt-free CLI execution engine. It handles
-asynchronous batching, offline HTML DOM translated text injection via BeautifulSoup,
-and headless system browser-based print-to-PDF compilation.
+    rocktranslate paper.pdf -l French -m deepseek/deepseek-flash --pages 1-3
+    rocktranslate doctor
 
-Author: RockTranslate Contributors
 License: MIT License
-Version: 1.0.0
 """
 
+import argparse
+import json
 import os
 import sys
-import re
-import json
-import shutil
-import argparse
-import tempfile
-import subprocess
-from typing import Dict, List, Optional, Any
-from bs4 import BeautifulSoup
 
-# ── DYNAMIC SYSTEM PATH RESOLUTION ──
-# Resolves search paths so that subscripts run directly without ModuleNotFound errors.
-current_dir = os.path.dirname(os.path.abspath(__file__))  # src/rocktranslate
-src_dir = os.path.dirname(current_dir)                    # src
-project_root = os.path.dirname(src_dir)                   # Project root
+from loguru import logger
 
-if src_dir not in sys.path:
-    sys.path.insert(0, src_dir)
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-# ────────────────────────────────────
-
-# ── RESILIENT LOGGING FALLBACK ──
-# Falls back to standard logging if loguru is not installed in the system environment
-try:
-    from loguru import logger
-except ImportError:
-    import logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
-    )
-    logger = logging.getLogger("RockTranslate-CLI")
-
-# Absolute package imports from the rocktranslate package
-from .core.constants import (
-    DEFAULT_ASSETS_DIR,
-    THRESHOLD_PX,
-    SLIDING_CONTEXT_MAX_SIZE,
-    MAX_SEGMENTS_PER_BATCH,
-    MAX_RETRIES,
-)
+from . import __version__
 from .core.config_manager import config_db
-from .core.html_transformer import convert_pdf_to_html, instrument_html
-from .core.chunker import build_batches, Batch
-from .core.llm_client import LLMClient
-from .core.pdf_metadata import get_pdf_metadata
-from .core.renderer import (
-    resolve_pdf_renderer,
-    apply_translations_offline,
-    print_html_to_vector_pdf,
-)
-
-# Only import winreg on Windows platforms to query installed internet browser registries
-if sys.platform == "win32":
-    import winreg
-else:
-    winreg = None
+from .core.constants import DEFAULT_PARALLEL_REQUESTS, DEFAULT_PROVIDERS, DEFAULT_TEMPERATURE
 
 
+def _default_model() -> str:
+    """Model saved in the GUI settings, else the first model of the first provider."""
+    provider = config_db.get("APIConfig", "provider", "")
+    cfg = DEFAULT_PROVIDERS.get(provider)
+    if cfg:
+        model = config_db.get("APIConfig", f"last_model_{provider}", cfg["models"][0])
+        prefix = cfg.get("prefix", "")
+        return model if (not prefix or model.startswith(prefix)) else f"{prefix}{model}"
+    from .core.constants import DEFAULT_MODEL
+    return DEFAULT_MODEL
+
+
+def _saved_keys() -> dict:
+    raw = config_db.get("APIConfig", "api_keys_by_provider", {})
+    try:
+        return json.loads(raw) if isinstance(raw, str) else (raw or {})
+    except ValueError:
+        return {}
+
+
+def _key_for_model(model: str, keys: dict):
+    from .core.llm_client import LLMClient
+    env_key = LLMClient._get_api_key_from_env(model)
+    if env_key:
+        return env_key
+    for name, cfg in DEFAULT_PROVIDERS.items():
+        prefix = cfg.get("prefix", "")
+        if prefix and model.startswith(prefix):
+            return keys.get(name)
+    return None
+
+
+def run_doctor() -> int:
+    """Checks every external dependency and prints actionable fixes."""
+    from .core.downloader import check_and_download_pdf2htmlex, check_and_download_pdfjs
+    from .core.renderer import resolve_pdf_renderer
+
+    ok = True
+    print(f"RockTranslate {__version__} — environment check\n")
+    print(f"  Python            : {sys.version.split()[0]} ({sys.executable})")
+    print(f"  Config directory  : {config_db.config_dir}")
+
+    exe = check_and_download_pdf2htmlex()
+    print(f"  pdf2htmlEX        : {exe or 'MISSING'}")
+    ok &= bool(exe)
+
+    viewer = check_and_download_pdfjs()
+    print(f"  PDF.js (GUI only) : {viewer or 'MISSING'}")
+
+    browser = resolve_pdf_renderer()
+    print(f"  PDF renderer      : {browser or 'MISSING'}")
+    ok &= bool(browser)
+
+    try:
+        import webview  # noqa: F401
+        print("  GUI (pywebview)   : installed")
+    except ImportError:
+        print('  GUI (pywebview)   : not installed (pip install "rocktranslate[gui]")')
+
+    keys = _saved_keys()
+    found = [name for name, cfg in DEFAULT_PROVIDERS.items()
+             if keys.get(name) or (cfg.get("key_env") and os.getenv(cfg["key_env"]))]
+    print(f"  API keys          : {', '.join(found) if found else 'none configured'}")
+
+    print("\nResult:", "ready" if ok else "some components are missing (see above)")
+    return 0 if ok else 1
 
 
 def main() -> None:
-    """Primary CLI execution routine.
+    if len(sys.argv) > 1 and sys.argv[1] == "doctor":
+        sys.exit(run_doctor())
 
-    Parses arguments, executes layout conversions, batches segments, 
-    manages translations, and prints high-fidelity vector PDFs headlessly.
-    """
     parser = argparse.ArgumentParser(
-        description="RockTranslate CLI: High-fidelity layout-preserved PDF document translator.",
+        prog="rocktranslate",
+        description="RockTranslate: layout-preserving PDF translator.",
         formatter_class=argparse.RawTextHelpFormatter,
-        epilog="""
-        Usage Examples:
-        1. Translate to French (default) using the default Gemini model:
-            rocktranslate article_scientifique.pdf -l French
-
-        2. Translate to Spanish and save to a custom output file:
-            rocktranslate paper.pdf -l Spanish -o report_es.pdf
-
-        3. Translate to German using OpenAI with an explicit API key:
-            rocktranslate document.pdf -m openai/gpt-5.6-terra -k YOUR_OPENAI_KEY -l German
-
-        4. Run fully local translation using Ollama (no API key required):
-            rocktranslate document.pdf -m ollama/llama4 -l French
-        """
-    )
-    
-    parser.add_argument(
-        "input", 
-        help="Path to the source scientific/academic PDF file to translate."
-    )
-    parser.add_argument(
-        "-l", "--lang", 
-        default="French", 
-        help=(
-            "Target language for the translated document (default: French).\n"
-            "Supports any language accepted by the model (e.g., French, Spanish, German, Japanese)."
-        )
-    )
-    parser.add_argument(
-        "-o", "--output", 
-        help="Custom output path for the translated PDF. Default: '[input]_translated.pdf'"
-    )
-    parser.add_argument(
-        "-m", "--model", 
-        help=(
-            "Target LLM model router string (default: gemini/gemini-3.8-flash).\n"
-            "Format: [provider]/[model_name]\n"
+        epilog=(
             "Examples:\n"
-            "  - gemini/gemini-3.8-flash\n"
-            "  - openai/gpt-5.6-terra\n"
-            "  - anthropic/claude-5-sonnet\n"
-            "  - ollama/llama4 (for local execution)"
-        )
+            "  rocktranslate paper.pdf -l French\n"
+            "  rocktranslate paper.pdf -l Spanish -o paper_es.pdf --pages 1-3\n"
+            "  rocktranslate paper.pdf -m deepseek/deepseek-flash --parallel 6\n"
+            "  rocktranslate paper.pdf -m ollama/llama4 --base-url http://localhost:11434\n"
+            "  rocktranslate doctor          # check pdf2htmlEX, browser, keys\n"
+        ),
     )
-    parser.add_argument(
-        "-k", "--api-key", 
-        help=(
-            "Override/provide the API key for your selected translation provider.\n"
-            "If omitted, the CLI automatically retrieves keys from your system variables\n"
-            "or local '.env' file (e.g., GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY)."
-        )
-    )
-    parser.add_argument(
-        "-t", "--temp", 
-        type=float, 
-        help="Model generation temperature (0.0 to 2.0). Lower is more precise and consistent."
-    )
-    
+    parser.add_argument("input", help="Source PDF file.")
+    parser.add_argument("-l", "--lang", default="French", help="Target language (default: French).")
+    parser.add_argument("-o", "--output", help="Output PDF (default: <input>_translated.pdf).")
+    parser.add_argument("-m", "--model", help="LiteLLM model route, e.g. deepseek/deepseek-flash.")
+    parser.add_argument("-k", "--api-key", help="API key (default: provider env variable or GUI settings).")
+    parser.add_argument("-t", "--temp", type=float, default=None,
+                        help=f"Temperature (default: {DEFAULT_TEMPERATURE}).")
+    parser.add_argument("-p", "--pages", help="Page range to translate, e.g. '1-3, 5'.")
+    parser.add_argument("--parallel", type=int, default=DEFAULT_PARALLEL_REQUESTS,
+                        help=f"Concurrent LLM requests (default: {DEFAULT_PARALLEL_REQUESTS}).")
+    parser.add_argument("--base-url", help="Custom API base URL (Ollama, proxies...).")
+    parser.add_argument("--password", help="Password of a protected PDF.")
+    parser.add_argument("--keep-html", help="Also save the translated HTML to this path.")
+    parser.add_argument("--version", action="version", version=f"rocktranslate {__version__}")
     args = parser.parse_args()
-    
-    # Ensure input file exists and is a PDF
-    if not os.path.exists(args.input) or not args.input.lower().endswith(".pdf"):
+
+    if not os.path.isfile(args.input) or not args.input.lower().endswith(".pdf"):
         logger.error(f"Invalid input PDF path: {args.input}")
         sys.exit(1)
 
-    logger.info("Inspecting system environment for headless browser engines...")
-    # Smart dual-layer resolver: System browser first, automatic download fallback second
-    browser_path = resolve_pdf_renderer()
-    if not browser_path:
-        logger.error(
-            "No compatible Chromium-based browser (Chrome, Edge, or Chromium) was found.\n"
-            "A system browser is required to export high-fidelity vector PDFs in CLI mode.\n"
-            "Failed to resolve or download a compatible Chromium rendering engine.\n"
-            "Please check your internet connection or install Google Chrome/Microsoft Edge manually."
-        )
-        sys.exit(1)
-        
-    logger.info(f"Discovered browser: '{os.path.basename(browser_path)}'")
-
-   # Load configuration parameters
-    temp = args.temp if args.temp is not None else float(config_db.get("TranslationConfig", "temperature", 1.0))
-    max_retries = int(config_db.get("TranslationConfig", "max_retries", MAX_RETRIES))
-    max_batch_size = int(config_db.get("TranslationConfig", "max_segments_per_batch", MAX_SEGMENTS_PER_BATCH))
-
-    # Parse API settings and credentials
-    api_settings = config_db.get("APIConfig", "api_keys_by_provider", {})
-    try:
-        keys_dict = json.loads(api_settings) if isinstance(api_settings, str) else api_settings
-    except Exception:
-        keys_dict = {}
-
-    # Resolve the correct target model
-    model_name = args.model
-    if not model_name:
-        provider = config_db.get("APIConfig", "provider", "Google Gemini")
-        model_name = config_db.get("APIConfig", f"last_model_{provider}", "gemini-3.1-flash-lite")
-        if provider == "Google Gemini" and not model_name.startswith("gemini/"):
-            model_name = f"gemini/{model_name}"
-
-    # Resolve API Key credentials from argument, environment, or saved configurations
-    api_key = args.api_key
-    if not api_key:
-        api_key = os.getenv("GEMINI_API_KEY") or keys_dict.get("Google Gemini", "")
-
-    # Skip key enforcement only for local Ollama deployments
-    if not api_key and "ollama" not in model_name.lower():
-        logger.error(f"Missing API Key for model: {model_name}. Specify -k or configure the GEMINI_API_KEY environment variable.")
+    keys = _saved_keys()
+    model = args.model or _default_model()
+    api_key = args.api_key or _key_for_model(model, keys)
+    if not api_key and "ollama" not in model.lower():
+        logger.error(f"No API key for '{model}'. Use -k or set the provider's environment variable.")
         sys.exit(1)
 
-    logger.info(f"Processing document: '{os.path.basename(args.input)}'")
-    logger.info(f"LLM Target: '{model_name}' | Language: '{args.lang}' | Temperature: {temp}")
+    temperature = args.temp if args.temp is not None else float(
+        config_db.get("TranslationConfig", "temperature", DEFAULT_TEMPERATURE))
 
-    # Use a secure temporary directory to prevent messy residues on the file system
-    with tempfile.TemporaryDirectory() as temp_dir:
-        raw_html_path = os.path.join(temp_dir, "raw.html")
-        workspace_html_path = os.path.join(temp_dir, "workspace.html")
-        translated_html_path = os.path.join(temp_dir, "translated.html")
+    from .api import RockTranslator
+    translator = RockTranslator(
+        model=model, api_key=api_key, target_lang=args.lang, temperature=temperature,
+        custom_base_url=args.base_url, all_keys=keys, parallel=args.parallel,
+        glossary=config_db.get("TranslationConfig", "custom_glossary", "") or None,
+    )
 
-        # Step 1: Execute pdf2htmlEX layout conversion
-        logger.info("Extracting physical PDF layout coordinates (pdf2htmlEX)...")
-        convert_pdf_to_html(args.input, DEFAULT_ASSETS_DIR)
-        
-        # Resolve path for raw output generated by pdf2htmlEX
-        pdf_dir = os.path.dirname(os.path.abspath(args.input))
-        pdf_basename = os.path.splitext(os.path.basename(args.input))[0]
-        generated_raw = os.path.join(pdf_dir, f"{pdf_basename}_raw.html")
-        
-        if not os.path.exists(generated_raw):
-            logger.error("Geometric conversion failed.")
-            sys.exit(1)
-            
-        shutil.move(generated_raw, raw_html_path)
+    def progress(done: int, total: int) -> None:
+        sys.stderr.write(f"\r[rocktranslate] batches {done}/{total}")
+        sys.stderr.flush()
+        if done == total:
+            sys.stderr.write("\n")
 
-        # Step 2: Semantic HTML DOM instrumentation
-        logger.info("Segmenting DOM structures into translatable blocks...")
-        original_texts, tid_to_page = instrument_html(raw_html_path, workspace_html_path)
+    report = translator.translate_document(
+        args.input, args.output, pages=args.pages, progress=progress,
+        keep_html=args.keep_html, password=args.password,
+    )
 
-        # Step 3: Group elements into token-controlled payload packages
-        logger.info("Building optimized translation batches...")
-        batches = build_batches(original_texts, model_name)
-        total_batches = len(batches)
-
-        # Dynamically calculate page dimension configurations
-        metadata = get_pdf_metadata(args.input)
-        page_size_raw = metadata.get("page_size", "")  # e.g., "[21.00 x 29.70 cm]"
-        
-        match = re.search(r'\[([\d\.]+)\s*x\s*([\d\.]+)\s*cm\]', page_size_raw)
-        if match:
-            width_cm = float(match.group(1))
-            height_cm = float(match.group(2))
-            page_size_css = f"{width_cm}cm {height_cm}cm"
-        else:
-            page_size_css = "A4"
-
-        # Step 4: Run LiteLLM Translation Worker Client
-        client = LLMClient(
-            model=model_name,
-            api_key=api_key,
-            target_lang=args.lang,
-            all_keys=keys_dict
-        )
-
-        translated_results: Dict[str, str] = {}
-        
-        # Identify non-translatable text indices (e.g. math formulas, page metrics)
-        trans_ids = set()
-        for b in batches:
-            trans_ids.update(b.ids)
-            
-        # Instantly bypass translation for non-prose segments to protect token quotas
-        skipped_ids = set(original_texts.keys()) - trans_ids
-        for skip_id in skipped_ids:
-            translated_results[skip_id] = original_texts[skip_id]
-
-        logger.info(f"Translating {len(trans_ids)} segment(s) across {total_batches} batch(es)...")
-        
-        for idx, batch in enumerate(batches):
-            sys.stdout.write(f"\r[CLI] Progress: Batch {idx + 1}/{total_batches}...")
-            sys.stdout.flush()
-            
-            results = client.translate_batch(batch.segments)
-            if results is None:
-                print("\n")
-                logger.error("Translation was interrupted due to connection failures.")
-                sys.exit(1)
-                
-            for res in results:
-                seg_id = res.get("id")
-                translated_text = res.get("translated")
-                if seg_id and translated_text:
-                    translated_results[seg_id] = translated_text
-
-        sys.stdout.write("\n")
-        logger.info("Translation batches completed successfully.")
-
-        # Step 5: Inject translated strings back into the HTML DOM structure
-        logger.info("Rebuilding HTML DOM with translation overlays...")
-        apply_translations_offline(workspace_html_path, translated_html_path, translated_results, page_size_css)
-
-        # Step 6: Render final vector PDF using headless system browser
-        output_pdf = args.output or os.path.join(pdf_dir, f"{pdf_basename}_translated.pdf")
-        logger.info("Headless Chromium vector printing in progress...")
-        
-        if print_html_to_vector_pdf(browser_path, translated_html_path, output_pdf):
-            logger.info(f"Success! Translated vector PDF saved at: '{output_pdf}'")
-        else:
-            logger.error("Vector PDF printing failed.")
-            sys.exit(1)
+    summary = (f"{report.segments_translated}/{report.segments_total} segments, "
+               f"{report.batches_total} batches, {report.seconds:.1f}s, "
+               f"{report.prompt_tokens + report.completion_tokens} tokens, ~${report.cost_usd:.4f}")
+    if report.success:
+        logger.info(f"Done: {report.output_path} ({summary})")
+        sys.exit(0)
+    if report.output_path and os.path.exists(report.output_path) and report.batches_failed:
+        logger.warning(f"Partial result: {report.output_path} — {report.error} ({summary})")
+        sys.exit(2)
+    logger.error(report.error or "Translation failed.")
+    sys.exit(1)
 
 
 if __name__ == "__main__":

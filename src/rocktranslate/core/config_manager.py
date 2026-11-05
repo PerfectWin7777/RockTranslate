@@ -111,6 +111,16 @@ class ConfigManager:
         self.data[section][key] = value
         self._save()
 
+    def get_runtime_dir(self) -> Path:
+        """
+        Returns a user-writable directory for downloaded engines (pdf2htmlEX,
+        chrome-headless-shell). Never inside site-packages, which is often
+        read-only (system Python, shared virtualenvs).
+        """
+        runtime_dir = self.config_dir / "runtime"
+        runtime_dir.mkdir(parents=True, exist_ok=True)
+        return runtime_dir
+
     def get_cache_dir(self) -> Path:
         """
         Returns the application cache directory (created on demand), used to

@@ -15,13 +15,7 @@ Version: 1.1.0
 import os
 import sys
 import datetime
-import socket
 import threading
-import http.server
-import socketserver
-import http.server
-import socketserver
-from urllib.parse import urlparse, parse_qs, unquote
 from loguru import logger
 
 # Safe dynamic import check to prevent crash if pywebview was not installed via extras
@@ -59,72 +53,10 @@ if src_parent_dir not in sys.path:
 
 from rocktranslate.core.constants import DEFAULT_ASSETS_DIR
 from rocktranslate.core.web_api import RockTranslateAPI
-
-
-def find_free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
-def start_local_server(port: int, directory: str):
-    """Launches a simple HTTP server locked to assets but supporting absolute files streaming."""
-    class SafeHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, directory=directory, **kwargs)
-
-        def do_GET(self):
-            # ── INTERCEPT ABSOLUTE FILES QUERIES ──
-            # Allows the Web UI to stream any local PDF/HTML safely over same-origin
-            if self.path.startswith("/local-file"):
-                parsed = urlparse(self.path)
-                params = parse_qs(parsed.query)
-                
-                if "path" in params:
-                    file_path = unquote(params["path"][0])
-                    
-                    if os.path.exists(file_path):
-                        self.send_response(200)
-                        
-                        # Set proper content-types to trigger browser encoders
-                        if file_path.lower().endswith(".pdf"):
-                            self.send_header("Content-Type", "application/pdf")
-                        elif file_path.lower().endswith(".html") or file_path.lower().endswith(".htm"):
-                            self.send_header("Content-Type", "text/html; charset=utf-8")
-                        else:
-                            self.send_header("Content-Type", "application/octet-stream")
-                            
-                        self.send_header("Access-Control-Allow-Origin", "*")
-                        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-                        
-                        # Read and stream the file bytes
-                        try:
-                            with open(file_path, "rb") as f:
-                                content = f.read()
-                            self.send_header("Content-Length", str(len(content)))
-                            self.end_headers()
-                            self.wfile.write(content)
-                            return
-                        except Exception as e:
-                            self.send_error(500, f"Error reading file: {e}")
-                            return
-                
-                self.send_error(404, "File path missing or invalid")
-                return
-
-            # Default behavior for serving static UI assets
-            super().do_GET()
-
-        def end_headers(self):
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
-            super().end_headers()
-
-    handler = SafeHTTPRequestHandler
-    socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(("127.0.0.1", port), handler) as httpd: 
-        logger.info(f"Local assets server running at: http://localhost:{port}")
-        httpd.serve_forever()
+from rocktranslate.core.config_manager import config_db
+from rocktranslate.core.local_server import (
+    SESSION_TOKEN, allow_directory, find_free_port, start_local_server
+)
 
 
 def main() -> None:
@@ -155,12 +87,16 @@ def main() -> None:
     logger.info("Initializing RockTranslate Web UI lifecycle...")
 
     port = find_free_port()
+    # Only the workspace cache (and documents explicitly opened) can be streamed
+    allow_directory(str(config_db.get_cache_dir()))
+    server_ready = threading.Event()
     server_thread = threading.Thread(
         target=start_local_server, 
-        args=(port, DEFAULT_ASSETS_DIR), 
+        args=(port, DEFAULT_ASSETS_DIR, server_ready), 
         daemon=True
     )
     server_thread.start()
+    server_ready.wait(timeout=5)
 
     api = RockTranslateAPI()
 
@@ -192,7 +128,7 @@ def main() -> None:
     # 2. Create the main workspace window (hidden on load)
     window = webview.create_window(
         title="RockTranslate",
-        url=f"http://127.0.0.1:{port}/ui/index.html",
+        url=f"http://127.0.0.1:{port}/ui/index.html?t={SESSION_TOKEN}",
         width=1440,
         height=900,
         min_size=(1024, 768),
@@ -217,8 +153,8 @@ def main() -> None:
     def on_window_loaded() -> None:
         # Calculate elapsed time since program startup
         elapsed = (datetime.datetime.now() - start_time).total_seconds()
-        # Enforce a remaining delay to guarantee a total of 10.0s (min 0.1s)
-        remaining_delay = max(0.1, 15.0 - elapsed)
+        # Keep the splash visible just long enough to avoid a flash (min 0.1s)
+        remaining_delay = max(0.1, 1.5 - elapsed)
         
         def reveal_main_window():
             try:
