@@ -6,7 +6,10 @@
 ; Highly optimized to pack our lightweight pywebview distribution recursively.
 
 #define MyAppName "RockTranslate"
-#define MyAppVersion "2.0.5"
+; The CI passes /DMyAppVersion=<version from __init__.py>; local builds use this default
+#ifndef MyAppVersion
+  #define MyAppVersion "2.0.5"
+#endif
 #define MyAppPublisher "RockTranslate Contributors"
 #define MyAppURL "https://github.com/PerfectWin7777/RockTranslate"
 #define MyAppExeName "RockTranslate.exe"

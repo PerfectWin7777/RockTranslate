@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, second, main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        include:
+          - os: windows-latest
+            python: "3.12"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . pywebview pytest cryptography
+      - name: Regression suite (LLM always stubbed, no API cost)
+        run: python -m pytest dev_tools/test_v205_core.py -q
+
+  package:
+    name: Build & check the Python package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          twine check dist/*
+      - name: The wheel must ship the GUI, PDF.js and fonts
+        run: |
+          python - <<'PY'
+          import glob, sys, zipfile
+          wheel = glob.glob("dist/*.whl")[0]
+          names = set(zipfile.ZipFile(wheel).namelist())
+          required = [
+              "rocktranslate/assets/ui/index.html",
+              "rocktranslate/assets/ui/js/theme.js",
+              "rocktranslate/assets/pdfjs/build/pdf.js",
+              "rocktranslate/assets/pdfjs/build/pdf.worker.js",
+              "rocktranslate/assets/pdfjs/web/viewer.html",
+              "rocktranslate/core/geometry.py",
+          ]
+          missing = [r for r in required if r not in names]
+          leaked = [n for n in names if "pdf2htmlEX" in n]
+          print(f"{wheel}: {len(names)} files")
+          if missing or leaked:
+              print("missing:", missing, "\nunexpected:", leaked[:5])
+              sys.exit(1)
+          PY
+      - name: Smoke test of the installed wheel
+        run: |
+          python -m venv /tmp/wheel-venv
+          /tmp/wheel-venv/bin/pip install dist/*.whl
+          /tmp/wheel-venv/bin/rocktranslate --version
+          /tmp/wheel-venv/bin/python -c "import rocktranslate, os; from rocktranslate.core.constants import DEFAULT_ASSETS_DIR as d; assert os.path.isfile(os.path.join(d, 'ui', 'index.html')); print('assets OK', rocktranslate.__version__)"

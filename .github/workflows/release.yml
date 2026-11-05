@@ -1,0 +1,132 @@
+name: Build & Release
+
+# second -> builds the Windows installer + Python package (downloadable artifacts, for testing)
+# main   -> same build, then publishes GitHub Release vX.Y.Z (once per version)
+#           and, when the repository variable PUBLISH_TO_PYPI is "true", publishes to PyPI.
+on:
+  push:
+    branches: [second, main]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          VERSION=$(python3 -c "import re;print(re.search(r'__version__\s*=\s*\"([^\"]+)\"', open('src/rocktranslate/__init__.py').read()).group(1))")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "RockTranslate $VERSION"
+
+  windows-installer:
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[gui]" pyinstaller
+      - name: Build the standalone app (PyInstaller)
+        run: python dev_tools/build_app.py
+      - name: Check the bundle
+        shell: pwsh
+        run: |
+          $exe = "dist_desktop/RockTranslate/RockTranslate.exe"
+          if (-not (Test-Path $exe)) { throw "RockTranslate.exe missing" }
+          $index = Get-ChildItem -Recurse -Filter index.html dist_desktop/RockTranslate | Where-Object { $_.FullName -match "assets\\ui" }
+          if (-not $index) { throw "UI assets missing from the bundle" }
+          $engine = Get-ChildItem -Recurse -Filter pdf2htmlEX.exe dist_desktop/RockTranslate
+          if (-not $engine) { throw "pdf2htmlEX.exe missing from the bundle" }
+      - name: Build the installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+            $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          }
+          & $iscc "/DMyAppVersion=${{ needs.version.outputs.version }}" dev_tools/installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RockTranslate_Setup_v${{ needs.version.outputs.version }}
+          path: dist_installer/RockTranslate_Setup_v${{ needs.version.outputs.version }}.exe
+          if-no-files-found: error
+
+  python-dist:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-dist
+          path: dist/*
+          if-no-files-found: error
+
+  github-release:
+    if: github.ref == 'refs/heads/main'
+    needs: [version, windows-installer, python-dist]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      created: ${{ steps.release.outputs.created }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Create the release once per version
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          TAG="v$VERSION"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists: nothing to publish."
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Release notes = the matching section of CHANGELOG.md
+          awk -v v="$VERSION" '$0 ~ "^## "v {f=1; next} /^## / && f {exit} f' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "RockTranslate $VERSION" > notes.md
+          gh release create "$TAG" --target "$GITHUB_SHA" --title "RockTranslate $TAG" --notes-file notes.md \
+            artifacts/RockTranslate_Setup_v$VERSION/*.exe artifacts/python-dist/*
+          echo "created=true" >> "$GITHUB_OUTPUT"
+
+  pypi:
+    # Enable with: Settings > Secrets and variables > Actions > Variables > PUBLISH_TO_PYPI = true
+    # and configure a "Trusted Publisher" for this repository on pypi.org (no token needed).
+    if: github.ref == 'refs/heads/main' && vars.PUBLISH_TO_PYPI == 'true' && needs.github-release.outputs.created == 'true'
+    needs: [github-release]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
