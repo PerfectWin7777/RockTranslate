@@ -14,6 +14,7 @@ import webview
 from typing import Optional
 import webbrowser
 from loguru import logger
+from .config_manager import config_db
 
 # Import our decoupled mixins from the api package folder
 from .api import HistoryApiMixin, ConfigApiMixin, TranslationApiMixin
@@ -35,6 +36,18 @@ class RockTranslateAPI(HistoryApiMixin, ConfigApiMixin, TranslationApiMixin):
             self.start_background_model_sync()
         except Exception as e:
             logger.warning(f"Failed to start background model sync: {e}")
+
+    # ── APPEARANCE ──
+    def get_ui_theme(self) -> str:
+        """Saved appearance: 'light', 'dark' or 'system'."""
+        mode = str(config_db.get("SystemConfig", "ui_theme", "system") or "system")
+        return mode if mode in ("light", "dark", "system") else "system"
+
+    def save_ui_theme(self, mode: str) -> bool:
+        if mode not in ("light", "dark", "system"):
+            return False
+        config_db.set("SystemConfig", "ui_theme", mode)
+        return True
 
     # ── EXPOSED TRANSLATION ENDPOINTS ──
     def start_translation(self) -> None:

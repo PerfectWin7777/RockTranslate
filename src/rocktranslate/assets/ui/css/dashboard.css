@@ -26,15 +26,15 @@
     align-items: center;
     justify-content: center;
     background-color: var(--bg-secondary);
-    border: 2px dashed #cbd5e0;
-    border-radius: 12px;
+    border: 1.5px dashed var(--rt-border-strong);
+    border-radius: var(--rt-radius-lg);
     padding: 40px;
     transition: border-color 0.2s ease-in-out, background-color 0.2s ease-in-out;
 }
 
 .drop-panel.dragover {
     border-color: var(--accent-blue);
-    background-color: #f0f6ff;
+    background-color: var(--rt-accent-soft);
 }
 
 .logo-container {
@@ -43,27 +43,31 @@
 }
 
 .logo-container img {
-    max-width: 480px;
+    border-radius: var(--rt-radius-lg);
+    box-shadow: var(--rt-shadow-md);
+    max-width: 420px;
     height: auto;
     object-fit: contain;
 }
 
 .dashboard-title {
-    font-size: 20px;
-    color: var(--text-muted);
+    font-size: 19px;
+    color: var(--rt-text-2);
     margin-bottom: 20px;
-    font-weight: normal;
+    font-weight: 400;
+    letter-spacing: -0.01em;
     text-align: center;
 }
 
 .open-file-btn {
     background-color: var(--accent-blue);
-    color: white;
-    font-weight: bold;
+    color: var(--rt-text-on-accent);
+    font-weight: 600;
     border: none;
-    border-radius: 6px;
-    padding: 12px 30px;
+    border-radius: var(--rt-radius-sm);
+    padding: 10px 26px;
     font-size: 13px;
+    box-shadow: var(--rt-shadow-sm);
     cursor: pointer;
     transition: background-color 0.2s;
     outline: none;
@@ -75,8 +79,8 @@
 
 .connection-status {
     margin-top: 20px;
-    font-size: 11px;
-    font-weight: bold;
+    font-size: 12px;
+    font-weight: 500;
     text-align: center;
 }
 
@@ -94,17 +98,18 @@
     height: 100%;
     background-color: var(--bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: 12px;
+    border-radius: var(--rt-radius-lg);
     padding: 20px;
     display: flex;
     flex-direction: column;
 }
 
 .recent-title {
-    font-size: 16px;
-    font-weight: bold;
-    color: var(--text-primary);
-    margin-bottom: 15px;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--rt-text);
+    margin-bottom: 14px;
 }
 
 .recent-list-scroll {
@@ -128,16 +133,16 @@
     align-items: center;
     background-color: var(--bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: 6px;
-    padding: 10px;
+    border-radius: var(--rt-radius-md);
+    padding: 10px 12px;
     gap: 12px;
     cursor: pointer;
     transition: background-color 0.15s, border-color 0.15s;
 }
 
 .recent-card:hover {
-    background-color: #f7fafc;
-    border-color: var(--accent-blue);
+    background-color: var(--rt-hover);
+    border-color: var(--rt-accent);
 }
 
 .recent-card-icon {
@@ -151,16 +156,16 @@
 }
 
 .recent-card-name {
-    font-size: 11px;
-    font-weight: bold;
-    color: var(--text-primary);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--rt-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
 .recent-card-path {
-    font-size: 9px;
+    font-size: 11px;
     color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;

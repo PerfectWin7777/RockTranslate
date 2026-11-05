@@ -197,6 +197,16 @@
 
                 <div class="dropdown-divider"></div>
 
+                <div class="dropdown-item" @click="$store.theme.set($store.theme.resolved === 'dark' ? 'light' : 'dark'); closeAll()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark" x-text="$store.theme.resolved === 'dark' ? '✓' : ''"></span>
+                        <span x-text="$store.i18n.translate('item_theme_toggle')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+Shift+D</span>
+                </div>
+
+                <div class="dropdown-divider"></div>
+
                 <div class="dropdown-item" @click="setLayoutMode('both'); closeAll()">
                     <span class="dropdown-label">
                         <span class="dropdown-checkmark" x-text="layoutMode === 'both' ? '✓' : ''"></span>

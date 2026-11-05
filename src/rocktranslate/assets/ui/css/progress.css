@@ -1,28 +1,21 @@
 /**
- * RockTranslate — Asynchronous Dual-Progress Panel Stylesheet
+ * RockTranslate — Translation progress panel
  * Path: src/rocktranslate/assets/ui/css/progress.css
- * 
- * Styles the global (blue) and local (green) progress bars and their ETA labels.
- * 
- * Author: RockTranslate Contributors
- * License: MIT License
- * Version: 1.0.0
  */
 
 #progress-container {
     position: fixed;
-    bottom: 30px;
-    /* Anchors cleanly right above the bottom status bar */
+    bottom: var(--rt-statusbar-h);
     left: 0;
     width: 100vw;
-    height: 90px;
-    background-color: #14151f;
-    border-top: 1px solid #2d313f;
+    height: var(--rt-progress-h);
+    background-color: var(--rt-surface);
+    border-top: 1px solid var(--rt-border);
     display: flex;
     flex-direction: column;
     justify-content: center;
-    padding: 10px 15px;
-    gap: 12px;
+    padding: 8px 16px;
+    gap: 9px;
     z-index: 1400;
 }
 
@@ -35,71 +28,47 @@
 .progress-label-row {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: baseline;
 }
 
 .progress-left-text {
-    font-size: 11px;
+    font-size: 11.5px;
     font-weight: 500;
-    color: #cbd5e1;
+    color: var(--rt-text);
 }
 
 .progress-right-text {
     font-size: 11px;
-    color: var(--text-muted);
+    color: var(--rt-text-3);
+    font-variant-numeric: tabular-nums;
 }
 
 .progress-bar-track {
     width: 100%;
-    height: 6px;
-    background-color: #1e2130;
-    border-radius: 3px;
+    height: 4px;
+    background-color: var(--rt-sunken);
+    border-radius: 4px;
     overflow: hidden;
 }
 
 .progress-bar-chunk {
     height: 100%;
-    border-radius: 3px;
+    border-radius: 4px;
     width: 0%;
-    transition: width 0.15s ease-out;
+    transition: width 0.25s ease-out;
 }
 
 .progress-bar-chunk.blue {
-    background-color: var(--accent-blue);
+    background-color: var(--rt-accent);
 }
 
 .progress-bar-chunk.green {
-    background-color: var(--accent-green);
-    height: 5px;
-    /* Local segments bar is slightly thinner matching progress_panel.py */
+    background-color: var(--rt-success);
 }
 
-
-/* ── SLIDE TRANSITION ANIMATION FOR ALPINE.JS ── */
-.progress-enter {
-    transition: transform 0.25s ease-out, opacity 0.25s ease-out;
-}
-
-.progress-enter-start {
-    transform: translateY(100%);
-    opacity: 0;
-}
-
-.progress-enter-end {
-    transform: translateY(0);
-    opacity: 1;
-}
-
-.progress-leave {
-    transition: transform 0.2s ease-in, opacity 0.2s ease-in;
-}
-
-.progress-leave-start {
-    transform: translateY(0);
-    opacity: 1;
-}
-
-.progress-leave-end {
-    transform: translateY(100%);
-    opacity: 0;
-}
+.progress-enter { transition: transform 0.22s ease-out, opacity 0.22s ease-out; }
+.progress-enter-start { transform: translateY(100%); opacity: 0; }
+.progress-enter-end { transform: translateY(0); opacity: 1; }
+.progress-leave { transition: transform 0.18s ease-in, opacity 0.18s ease-in; }
+.progress-leave-start { transform: translateY(0); opacity: 1; }
+.progress-leave-end { transform: translateY(100%); opacity: 0; }

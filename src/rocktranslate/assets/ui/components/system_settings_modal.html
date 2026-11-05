@@ -18,6 +18,20 @@
         <div class="modal-body">
             <div class="settings-form">
 
+                <!-- Appearance (applies instantly, like macOS) -->
+                <div class="form-row">
+                    <label class="form-label" x-text="$store.i18n.translate('appearance_lbl')"></label>
+                    <div class="form-value">
+                        <div class="rt-segmented" role="radiogroup">
+                            <template x-for="m in ['light', 'dark', 'system']" :key="m">
+                                <button type="button" role="radio" :aria-checked="$store.theme.mode === m"
+                                    :class="{ active: $store.theme.mode === m }" @click="$store.theme.set(m)"
+                                    x-text="$store.i18n.translate('theme_' + m)"></button>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Clear Cache on Exit Row -->
                 <div class="form-row">
                     <label class="form-label" x-text="$store.i18n.translate('system_cache_lifecycle')"></label>
@@ -65,8 +79,7 @@
         <div class="modal-actions" style="gap: 10px;">
             <button class="modal-btn-close" @click="$store.modals.close()"
                 x-text="$store.i18n.translate('cancel_btn')"></button>
-            <button class="modal-btn-close" @click="save()"
-                style="background-color: var(--accent-blue); color: white; border-color: var(--accent-blue);"
+            <button class="modal-btn-close modal-btn-primary" @click="save()"
                 x-text="$store.i18n.translate('save_btn')"></button>
         </div>
 

@@ -15,6 +15,14 @@ document.addEventListener('alpine:init', () => {
 
         translations: {
             en: {
+                waiting_for_translation: "Waiting for translation…",
+                appearance_lbl: "Appearance",
+                theme_light: "Light",
+                theme_dark: "Dark",
+                theme_system: "System",
+                trans_parallel_lbl: "Concurrent requests",
+                trans_parallel_tip: "Number of batches translated at the same time (1-16). Higher is faster; lower if your provider rate-limits you.",
+                item_theme_toggle: "Toggle Dark Mode",
                 model_custom_ph: "Paste a model ID (e.g. openrouter/anthropic/claude-…)…",
                 model_use_btn: "Use",
                 model_custom_hint: "Paste any model ID from your provider console (OpenRouter, Google AI Studio…) and press Use — the provider prefix is added automatically if missing.",
@@ -67,7 +75,7 @@ document.addEventListener('alpine:init', () => {
                 item_issues: "Report an Issue",
 
                 // Active Model Indicator
-                model_indicator_prefix: "AI MODEL ACTIVE   |   🤖 {provider}: {model}",
+                model_indicator_prefix: "{provider} · {model}",
 
                 // Common Dashboard components
                 drag_drop_title: "Drag & Drop your scientific PDF here",
@@ -260,6 +268,14 @@ document.addEventListener('alpine:init', () => {
                 
             },
             fr: {
+                waiting_for_translation: "En attente de traduction…",
+                appearance_lbl: "Apparence",
+                theme_light: "Clair",
+                theme_dark: "Sombre",
+                theme_system: "Système",
+                trans_parallel_lbl: "Requêtes simultanées",
+                trans_parallel_tip: "Nombre de lots traduits en même temps (1-16). Plus élevé = plus rapide ; réduisez si votre fournisseur limite le débit.",
+                item_theme_toggle: "Basculer le mode sombre",
                 model_custom_ph: "Collez un ID de modèle (ex. openrouter/anthropic/claude-…)…",
                 model_use_btn: "Utiliser",
                 model_custom_hint: "Collez n'importe quel ID de modèle depuis la console de votre fournisseur (OpenRouter, Google AI Studio…) puis Utiliser — le préfixe du fournisseur est ajouté automatiquement s'il manque.",
@@ -284,7 +300,7 @@ document.addEventListener('alpine:init', () => {
 
                 // Translation Menu items
                 item_start_trans: "Démarrer la traduction",
-                item_stop_trans: "Arreter la traduction",
+                item_stop_trans: "Arrêter la traduction",
                 item_trans_range: "Traduire des pages spécifiques...",
                 item_api_config: "Configuration de l'API & des modèles...",
                 item_target_lang: "Langue cible",
@@ -312,7 +328,7 @@ document.addEventListener('alpine:init', () => {
                 item_issues: "Signaler un problème",
 
                 // Active Model Indicator
-                model_indicator_prefix: "MODÈLE D'IA ACTIF   |   🤖 {provider} : {model}",
+                model_indicator_prefix: "{provider} · {model}",
 
                 // Common Dashboard components
                 drag_drop_title: "Glissez & Déposez votre PDF scientifique ici",
@@ -497,6 +513,14 @@ document.addEventListener('alpine:init', () => {
             },
 
             es: {
+                waiting_for_translation: "Esperando traducción…",
+                appearance_lbl: "Apariencia",
+                theme_light: "Claro",
+                theme_dark: "Oscuro",
+                theme_system: "Sistema",
+                trans_parallel_lbl: "Solicitudes simultáneas",
+                trans_parallel_tip: "Número de lotes traducidos a la vez (1-16). Más alto = más rápido; reduzca si su proveedor limita la tasa.",
+                item_theme_toggle: "Alternar modo oscuro",
                 // Top-level menu headers
                 menu_file: "Archivo",
                 menu_translation: "Traducción",
@@ -544,7 +568,7 @@ document.addEventListener('alpine:init', () => {
                 item_issues: "Reportar un problema",
 
                 // Active Model Indicator
-                model_indicator_prefix: "MODELO IA ACTIVO   |   🤖 {provider}: {model}",
+                model_indicator_prefix: "{provider} · {model}",
 
                 // Common Dashboard components
                 drag_drop_title: "Arrastre y suelte su PDF científico aquí",
@@ -727,6 +751,14 @@ document.addEventListener('alpine:init', () => {
             },
 
             de: {
+                waiting_for_translation: "Warte auf Übersetzung…",
+                appearance_lbl: "Erscheinungsbild",
+                theme_light: "Hell",
+                theme_dark: "Dunkel",
+                theme_system: "System",
+                trans_parallel_lbl: "Gleichzeitige Anfragen",
+                trans_parallel_tip: "Anzahl gleichzeitig übersetzter Stapel (1-16). Höher = schneller; verringern, wenn Ihr Anbieter drosselt.",
+                item_theme_toggle: "Dunkelmodus umschalten",
                 model_custom_ph: "Modell-ID einfügen (z. B. openrouter/anthropic/claude-…)…",
                 model_use_btn: "Verwenden",
                 model_custom_hint: "Füge eine beliebige Modell-ID aus der Konsole deines Anbieters ein (OpenRouter, Google AI Studio…) und klicke Verwenden — das Anbieter-Präfix wird bei Bedarf automatisch ergänzt.",
@@ -779,7 +811,7 @@ document.addEventListener('alpine:init', () => {
                 item_issues: "Problem melden",
 
                 // Active Model Indicator
-                model_indicator_prefix: "AKTIVES KI-MODELL   |   🤖 {provider}: {model}",
+                model_indicator_prefix: "{provider} · {model}",
 
                 // Common Dashboard components
                 drag_drop_title: "Ziehen Sie Ihr wissenschaftliches PDF hierher",

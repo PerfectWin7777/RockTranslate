@@ -88,6 +88,7 @@ function translationSettingsController() {
             max_segments_per_batch: 60,
             threshold_px: 12.0,
             max_retries: 4,
+            parallel_requests: 4,
             custom_glossary: ''
         },
 

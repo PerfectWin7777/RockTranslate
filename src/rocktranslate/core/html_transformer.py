@@ -1007,7 +1007,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 
                 var text_p = document.createElement('p');
                 text_p.style.cssText = "color:#1e293b; font-size:14px; font-weight:600; margin:0; font-family: sans-serif;";
-                text_p.textContent = "Waiting for translation...";
+                text_p.textContent = window.RT_WAITING_TEXT || "Waiting for translation...";
                 
                 inner.appendChild(loader);
                 inner.appendChild(text_p);

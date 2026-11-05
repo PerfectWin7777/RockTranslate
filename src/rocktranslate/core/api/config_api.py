@@ -26,6 +26,7 @@ from ..constants import (
     MAX_SEGMENTS_PER_BATCH,
     MAX_RETRIES,
     DEFAULT_TEMPERATURE,
+    DEFAULT_PARALLEL_REQUESTS,
 )
 
 # Tokens identifying non-chat models (audio, embeddings, moderators…) that are
@@ -224,6 +225,7 @@ class ConfigApiMixin:
             "max_segments_per_batch": config_db.get("TranslationConfig", "max_segments_per_batch", MAX_SEGMENTS_PER_BATCH),
             "threshold_px": config_db.get("TranslationConfig", "threshold_px", THRESHOLD_PX),
             "max_retries": config_db.get("TranslationConfig", "max_retries", MAX_RETRIES),
+            "parallel_requests": config_db.get("TranslationConfig", "parallel_requests", DEFAULT_PARALLEL_REQUESTS),
             "custom_glossary": config_db.get("TranslationConfig", "custom_glossary", "")
         }
 
@@ -242,7 +244,9 @@ class ConfigApiMixin:
             config_db.set("TranslationConfig", "sliding_context_size", int(settings.get("sliding_context_size", 5)))
             config_db.set("TranslationConfig", "max_segments_per_batch", int(settings.get("max_segments_per_batch", 60)))
             config_db.set("TranslationConfig", "threshold_px", float(settings.get("threshold_px", 12.0)))
-            config_db.set("TranslationConfig", "max_retries", int(settings.get("max_retries", 4))),
+            config_db.set("TranslationConfig", "max_retries", int(settings.get("max_retries", 4)))
+            config_db.set("TranslationConfig", "parallel_requests",
+                          max(1, min(16, int(settings.get("parallel_requests", DEFAULT_PARALLEL_REQUESTS)))))
             config_db.set("TranslationConfig", "custom_glossary", str(settings.get("custom_glossary", "")).strip()) 
             return {"status": "success"}
         except Exception as error:

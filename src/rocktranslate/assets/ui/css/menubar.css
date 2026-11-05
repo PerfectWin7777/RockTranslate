@@ -1,23 +1,20 @@
 /**
- * RockTranslate — Horizontal Desktop Menu Bar Stylesheet
+ * RockTranslate — Menu bar & dropdown menus
  * Path: src/rocktranslate/assets/ui/css/menubar.css
- * 
- * Styles the top-level horizontal bar, floating checkable items, and cascading submenus.
- * 
- * Author: RockTranslate Contributors
- * License: MIT License
- * Version: 1.0.0
+ * macOS-style: translucent bar, rounded floating menus, inset highlight rows.
  */
 
 #menubar-container {
-    height: 30px;
+    height: var(--rt-menubar-h);
     width: 100%;
-    background-color: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-color);
+    background-color: var(--rt-chrome);
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
+    border-bottom: 1px solid var(--rt-border);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 10px;
+    padding: 0 8px;
     position: relative;
     z-index: 1000;
 }
@@ -25,85 +22,108 @@
 .menu-left-items {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 2px;
 }
 
 .menu-item {
     position: relative;
-    font-size: 12px;
-    color: var(--text-primary);
-    cursor: pointer;
+    font-size: 13px;
+    color: var(--rt-text);
+    cursor: default;
     padding: 4px 10px;
-    border-radius: 4px;
+    border-radius: var(--rt-radius-xs);
     user-select: none;
-    transition: background-color 0.12s;
+    transition: background-color 0.1s;
 }
 
 .menu-item:hover,
 .menu-item.active {
-    background-color: #edf2f7;
+    background-color: var(--rt-hover);
 }
 
-/* Dropdown list container */
+.menu-item.active {
+    background-color: var(--rt-pressed);
+}
+
+.dropdown-menu,
+.dropdown-submenu .dropdown-menu-sub,
+.dropdown-submenu .dropdown-menu-sub-recent-files {
+    background-color: var(--rt-surface);
+    border: 1px solid var(--rt-border);
+    box-shadow: var(--rt-shadow-lg);
+    border-radius: var(--rt-radius-md);
+    padding: 5px;
+}
+
 .dropdown-menu {
     position: absolute;
-    top: 100%;
+    top: calc(100% + 4px);
     left: 0;
-    min-width: 260px;
-    background-color: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-    border-radius: 6px;
-    padding: 4px 0;
-    margin-top: 2px;
+    min-width: 270px;
     display: flex;
     flex-direction: column;
     z-index: 1100;
+    animation: menu-pop 0.12s ease-out;
 }
 
-/* Base dropdown list item */
+@keyframes menu-pop {
+    from { opacity: 0; transform: translateY(-3px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 .dropdown-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 14px;
-    font-size: 12px;
-    color: var(--text-primary);
-    cursor: pointer;
-    transition: background-color 0.12s;
+    min-height: 26px;
+    padding: 4px 10px;
+    border-radius: var(--rt-radius-xs);
+    font-size: 13px;
+    color: var(--rt-text);
+    cursor: default;
     text-decoration: none;
     position: relative;
 }
 
 .dropdown-item:hover {
-    background-color: var(--accent-blue);
-    color: #ffffff;
+    background-color: var(--rt-accent);
+    color: var(--rt-text-on-accent);
 }
 
 .dropdown-item.disabled {
-    color: var(--text-muted);
+    color: var(--rt-text-3);
+    opacity: 0.6;
     cursor: not-allowed;
     background-color: transparent !important;
 }
 
-/* Dynamic checkable item spacing and bullet positioning */
 .dropdown-label {
     display: flex;
     align-items: center;
     gap: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .dropdown-checkmark {
-    font-weight: bold;
+    font-weight: 600;
     font-size: 11px;
     width: 12px;
     display: inline-block;
+    color: var(--rt-accent);
+}
+
+.dropdown-item:hover .dropdown-checkmark {
+    color: inherit;
 }
 
 .dropdown-shortcut {
-    font-size: 10px;
-    color: var(--text-muted);
-    padding-left: 24px;
+    font-size: 12px;
+    color: var(--rt-text-3);
+    padding-left: 28px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
 }
 
 .dropdown-item:hover .dropdown-shortcut {
@@ -112,65 +132,55 @@
 
 .dropdown-divider {
     height: 1px;
-    background-color: var(--border-color);
-    margin: 4px 0;
+    background-color: var(--rt-separator);
+    margin: 5px 8px;
 }
 
-/* ── MULTI-LEVEL CASCADING SUBMENUS ── */
 .dropdown-submenu {
     position: relative;
 }
 
-/* Hidden container holding nested options */
-.dropdown-submenu .dropdown-menu-sub {
-    display: none;
-    position: absolute;
-    top: 0;
-    left: 100%;
-    min-width: 200px;
-    background-color: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-    border-radius: 6px;
-    padding: 4px 0;
-    margin-left: 2px;
-    z-index: 1200;
-}
-
-/* Display nested list on parent hovered states */
-.dropdown-submenu:hover .dropdown-menu-sub {
-    display: flex;
-    flex-direction: column;
-}
-
-
+.dropdown-submenu .dropdown-menu-sub,
 .dropdown-submenu .dropdown-menu-sub-recent-files {
     display: none;
     position: absolute;
-    top: 0;
-    left: 100%;
-    min-width: 400px;
-    background-color: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-    border-radius: 6px;
-    padding: 4px 0;
-    margin-left: 2px;
+    top: -6px;
+    left: calc(100% + 2px);
+    min-width: 210px;
     z-index: 1200;
 }
 
-/* Display nested list on parent hovered states */
+.dropdown-submenu .dropdown-menu-sub-recent-files {
+    min-width: 400px;
+}
+
+.dropdown-submenu:hover .dropdown-menu-sub,
 .dropdown-submenu:hover .dropdown-menu-sub-recent-files {
     display: flex;
     flex-direction: column;
 }
-/* ── TOP-RIGHT CORNER LABEL: Model Indicator ── */
+
+.menu-model-indicator::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--rt-success);
+}
+
 .menu-model-indicator {
-    font-size: 11px;
-    font-weight: bold;
-    color: #2b6cb0;
-    font-family: 'Segoe UI', sans-serif;
-    margin-right: 15px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--rt-text-2);
+    background: var(--rt-sunken);
+    border: 1px solid var(--rt-border);
+    border-radius: 999px;
+    padding: 3px 10px;
+    margin-right: 6px;
     user-select: none;
     pointer-events: none;
+    white-space: nowrap;
 }

@@ -309,6 +309,7 @@ function workspaceController() {
             pdfFrame.onload = function () {
                 const iframeWin = pdfFrame.contentWindow;
                 const iframeDoc = iframeWin.document;
+                if (window.rtApplyThemeToFrames) window.rtApplyThemeToFrames();
 
                 // Forward physical keyboard shortcuts up to the main application context
                 iframeDoc.addEventListener('keydown', (e) => {
@@ -368,6 +369,14 @@ function workspaceController() {
             htmlFrame.onload = function () {
                 const rightDocWindow = htmlFrame.contentWindow;
                 const rightDoc = rightDocWindow.document;
+                if (window.rtApplyThemeToFrames) window.rtApplyThemeToFrames();
+
+                // Localize the in-document waiting overlays
+                try {
+                    const waiting = Alpine.store('i18n').translate('waiting_for_translation');
+                    rightDocWindow.RT_WAITING_TEXT = waiting;
+                    rightDoc.querySelectorAll('[id^="glass-overlay-t-"] p').forEach(p => { p.textContent = waiting; });
+                } catch (err) { }
 
                 // Restore translations already known to the backend (previous session,
                 // or a workspace reload) so the right pane never loses finished work.

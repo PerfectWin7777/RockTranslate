@@ -10,7 +10,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RockTranslate</title>
 
+    <!-- Theme resolved before first paint (no light/dark flash) -->
+    <script>
+        (function () {
+            var mode = 'system';
+            try { mode = localStorage.getItem('rt-theme') || 'system'; } catch (e) { }
+            var dark = mode === 'dark' || (mode === 'system' && window.matchMedia &&
+                window.matchMedia('(prefers-color-scheme: dark)').matches);
+            document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+        })();
+    </script>
+
     <!-- Global & Component Styling Rules -->
+    <link rel="stylesheet" href="css/theme.css">
     <link rel="stylesheet" href="css/global.css">
     <link rel="stylesheet" href="css/menubar.css">
     <link rel="stylesheet" href="css/dashboard.css">
@@ -25,6 +37,7 @@
 
     <!-- Central Translation State Store -->
     <script src="js/i18n.js"></script>
+    <script src="js/theme.js"></script>
 
     <!-- Component JS Controllers -->
     <script src="js/menubar.js"></script>
@@ -53,7 +66,7 @@
 
     <!-- 2. Core Viewport Switcher Router -->
     <div id="main-viewports"
-        :style="`height: calc(100vh - ${showProgressPanel && currentScreen === 'workspace' ? '150px' : '60px'}); width: 100vw;`"
+        :style="`height: calc(100vh - var(--rt-menubar-h) - var(--rt-statusbar-h) - ${showProgressPanel && currentScreen === 'workspace' ? 'var(--rt-progress-h)' : '0px'}); width: 100vw;`"
         style="transition: height 0.2s ease-out;">
 
         <!-- Welcome Screen Viewport -->
@@ -319,10 +332,15 @@
                         const html = await response.text();
 
                         const mountPoint = document.getElementById(elementId);
+                        // Alpine v3 initializes inserted x-data trees through its
+                        // MutationObserver (there is no Alpine.process API in v3).
                         mountPoint.innerHTML = html;
 
-                        if (window.Alpine) {
-                            window.Alpine.process(mountPoint);
+                        // macOS users expect ⌘ glyphs in menus (shortcuts accept Cmd already)
+                        if (/Mac/i.test(navigator.platform || navigator.userAgent)) {
+                            mountPoint.querySelectorAll('.dropdown-shortcut').forEach(el => {
+                                el.textContent = el.textContent.replace(/Ctrl\+Shift\+/g, '⇧⌘').replace(/Ctrl\+/g, '⌘');
+                            });
                         }
                     } catch (error) {
                         console.error(`[Shell] Error mounting ${componentPath}:`, error);
@@ -496,6 +514,13 @@
                 if (isCmdOrCtrl) {
                     let actionName = null;
                     const key = e.key.toLowerCase();
+
+                    if (e.shiftKey && key === 'd') {
+                        e.preventDefault();
+                        const t = Alpine.store('theme');
+                        t.set(t.resolved === 'dark' ? 'light' : 'dark');
+                        return;
+                    }
 
                     if (key === 'o') {
                         e.preventDefault();

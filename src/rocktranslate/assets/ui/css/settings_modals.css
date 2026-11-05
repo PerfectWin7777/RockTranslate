@@ -25,8 +25,8 @@
 .form-label {
     width: 40%;
     font-size: 11px;
-    font-weight: bold;
-    color: #4a5568;
+    font-weight: 500;
+    color: var(--rt-text-2);
     user-select: none;
 }
 
@@ -42,7 +42,7 @@
     width: 100%;
     background-color: var(--bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: 4px;
+    border-radius: var(--rt-radius-sm);
     padding: 6px 10px;
     font-family: inherit;
     font-size: 12px;
@@ -54,7 +54,8 @@
 
 .form-value input[type="text"]:focus,
 .form-value input[type="number"]:focus {
-    border-color: var(--accent-blue);
+    border-color: var(--rt-accent);
+    box-shadow: 0 0 0 3px var(--rt-focus);
 }
 
 /* Inline browse button layout */
@@ -65,13 +66,13 @@
 }
 
 .btn-browse {
-    background-color: #edf2f7;
-    border: 1px solid #cbd5e0;
-    border-radius: 4px;
-    color: #4a5568;
+    background-color: var(--rt-surface);
+    border: 1px solid var(--rt-border-strong);
+    border-radius: var(--rt-radius-sm);
+    color: var(--rt-text-2);
     padding: 0 14px;
     font-size: 11px;
-    font-weight: bold;
+    font-weight: 500;
     cursor: pointer;
     transition: background-color 0.15s, border-color 0.15s;
     outline: none;
@@ -80,8 +81,8 @@
 }
 
 .btn-browse:hover {
-    background-color: #e2e8f0;
-    border-color: #cbd5e0;
+    background-color: var(--rt-hover);
+    border-color: var(--rt-border-strong);
 }
 
 /* Custom checkbox configurations */
@@ -115,7 +116,7 @@
 .prop-tab {
     padding: 8px 16px;
     font-size: 11px;
-    font-weight: bold;
+    font-weight: 500;
     color: var(--text-muted);
     cursor: pointer;
     border: 1px solid transparent;
@@ -128,7 +129,7 @@
 
 .prop-tab:hover {
     color: var(--text-primary);
-    background-color: #f7fafc;
+    background-color: var(--rt-hover);
 }
 
 .prop-tab.active {
@@ -154,8 +155,8 @@
 .meta-label {
     width: 180px;
     font-size: 12px;
-    font-weight: bold;
-    color: #4a5568;
+    font-weight: 500;
+    color: var(--rt-text-2);
     user-select: none;
 }
 
@@ -174,24 +175,24 @@
     display: flex;
     align-items: flex-start;
     gap: 10px;
-    background-color: #fffbeb;
+    background-color: var(--rt-warning-soft);
     /* Jaune ambré très doux */
-    border: 1px solid #fef3c7;
-    border-radius: 8px;
+    border: 1px solid transparent;
+    border-radius: var(--rt-radius-md);
     padding: 12px 16px;
     margin-top: 14px;
 }
 
 .warning-icon {
     font-size: 15px;
-    color: #d97706;
+    color: var(--rt-warning);
     /* Orange chaud */
     line-height: 1;
 }
 
 .warning-text {
     font-size: 11px;
-    color: #b45309;
+    color: var(--rt-text);
     line-height: 1.5;
     font-weight: 500;
 }

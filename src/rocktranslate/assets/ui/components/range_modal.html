@@ -20,7 +20,7 @@
 
                 <!-- Instruction Panel Card -->
                 <div
-                    style="background-color: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-bottom: 5px;">
+                    style="background-color: var(--rt-surface-2); border: 1px solid var(--border-color); border-radius: var(--rt-radius-md); padding: 16px; margin-bottom: 5px;">
                     <h3
                         style="font-size: 12px; font-weight: bold; color: var(--text-primary); margin: 0 0 10px 0; display: flex; align-items: center; gap: 6px;">
                         <span>📖</span> <span x-text="$store.i18n.translate('range_syntax_guide')"></span>
@@ -58,8 +58,7 @@
         <div class="modal-actions" style="gap: 10px;">
             <button class="modal-btn-close" @click="$store.modals.close()"
                 x-text="$store.i18n.translate('cancel_btn')"></button>
-            <button class="modal-btn-close" @click="submit()"
-                style="background-color: var(--accent-blue); color: white; border-color: var(--accent-blue);"
+            <button class="modal-btn-close modal-btn-primary" @click="submit()"
                 x-text="$store.i18n.translate('translate_btn')"></button>
         </div>
 

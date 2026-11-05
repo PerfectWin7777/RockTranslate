@@ -64,9 +64,7 @@
                 <!-- GitHub support and star button -->
                 <button type="button" class="modal-btn-close"
                     @click="window.pywebview.api.open_external_link('https://github.com/PerfectWin7777/RockTranslate')"
-                    style="margin-bottom: 8px; background-color: #f6f8fa; border-color: #d0d7de; color: #24292f; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 11px; transition: all 0.15s ease;"
-                    onmouseover="this.style.backgroundColor='#2ea44f'; this.style.borderColor='#2ea44f'; this.style.color='#ffffff';"
-                    onmouseout="this.style.backgroundColor='#f6f8fa'; this.style.borderColor='#d0d7de'; this.style.color='#24292f';">
+                    style="margin-bottom: 8px; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 11px;">
                     ⭐ Star on GitHub
                 </button>
 
@@ -84,7 +82,7 @@
 
         <!-- Hidden easter egg overlay (shown only after 5 rapid clicks on the name) -->
         <div x-show="easterEggActive" x-transition x-cloak
-            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.98); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; z-index: 10;"
+            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: var(--rt-surface); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; z-index: 10;"
             @click.away="easterEggActive = false">
 
             <div style="font-size: 36px; margin-bottom: 12px;">🛡️</div>
@@ -106,8 +104,7 @@
                 VERIFICATION KEY: RT-OWNER-PerfectWin-7777
             </div>
 
-            <button type="button" class="modal-btn-close"
-                style="background-color: var(--accent-blue); color: white; border-color: var(--accent-blue);"
+            <button type="button" class="modal-btn-close modal-btn-primary"
                 @click="easterEggActive = false">
                 Close Verification Panel
             </button>

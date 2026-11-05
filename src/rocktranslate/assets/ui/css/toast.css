@@ -28,11 +28,12 @@
 .toast-card {
     pointer-events: auto;
     /* Re-enable clicks on the cards themselves */
-    background-color: var(--bg-secondary);
-    border-left: 4px solid var(--accent-blue);
-    padding: 12px 20px;
-    border-radius: 6px;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+    background-color: var(--rt-surface);
+    border: 1px solid var(--rt-border);
+    border-left: 3px solid var(--rt-accent);
+    padding: 11px 16px;
+    border-radius: var(--rt-radius-md);
+    box-shadow: var(--rt-shadow-lg);
     display: flex;
     align-items: flex-start;
     gap: 12px;
@@ -54,13 +55,14 @@
 }
 
 .toast-icon {
-    font-size: 25px;
-    font-weight: bold;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.3;
     display: inline-block;
 }
 
 .toast-message {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     white-space: pre-line;
     color: var(--text-primary);
@@ -86,12 +88,12 @@
 }
 
 .toast-card.warning {
-    border-left-color: #dd6b20;
+    border-left-color: var(--rt-warning);
     /* Orange Warning */
 }
 
 .toast-card.warning .toast-icon {
-    color: #dd6b20;
+    color: var(--rt-warning);
 }
 
 .toast-card.info {

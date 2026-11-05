@@ -1,0 +1,204 @@
+/**
+ * RockTranslate — Design tokens (light & dark themes)
+ * Path: src/rocktranslate/assets/ui/css/theme.css
+ *
+ * Every color, radius, shadow and font of the UI comes from these tokens.
+ * Light: neutral macOS-like greys. Dark: graphite, CAD-tool style (high
+ * contrast for long sessions). The active theme is the `data-theme`
+ * attribute of <html>, resolved before first paint (see index.html).
+ *
+ * License: MIT License
+ */
+
+:root {
+    color-scheme: light;
+
+    /* Surfaces */
+    --rt-bg: #f5f5f7;
+    --rt-surface: #ffffff;
+    --rt-surface-2: #fafafb;
+    --rt-sunken: #ececf0;
+    --rt-chrome: rgba(248, 248, 250, 0.88);
+    --rt-canvas: #e4e4e9;
+    --rt-hover: rgba(0, 0, 0, 0.05);
+    --rt-pressed: rgba(0, 0, 0, 0.09);
+    --rt-overlay: rgba(20, 20, 24, 0.32);
+
+    /* Lines */
+    --rt-border: #e2e2e7;
+    --rt-border-strong: #cfcfd6;
+    --rt-separator: rgba(0, 0, 0, 0.08);
+
+    /* Text */
+    --rt-text: #1d1d1f;
+    --rt-text-2: #4a4a50;
+    --rt-text-3: #86868b;
+    --rt-text-on-accent: #ffffff;
+
+    /* Accents & states */
+    --rt-accent: #0a66e8;
+    --rt-accent-hover: #0857c6;
+    --rt-accent-soft: rgba(10, 102, 232, 0.10);
+    --rt-focus: rgba(10, 102, 232, 0.38);
+    --rt-success: #1e9e57;
+    --rt-success-soft: rgba(30, 158, 87, 0.12);
+    --rt-warning: #b86200;
+    --rt-warning-soft: rgba(255, 159, 10, 0.14);
+    --rt-danger: #d92d20;
+    --rt-danger-hover: #b8241a;
+    --rt-danger-soft: rgba(217, 45, 32, 0.10);
+
+    /* Shape & depth */
+    --rt-radius-xs: 4px;
+    --rt-radius-sm: 6px;
+    --rt-radius-md: 10px;
+    --rt-radius-lg: 14px;
+    --rt-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+    --rt-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.10), 0 1px 3px rgba(0, 0, 0, 0.06);
+    --rt-shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08);
+
+    /* Typography */
+    --rt-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI",
+        Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --rt-font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+
+    /* Layout metrics (keep in sync with #main-viewports in index.html) */
+    --rt-menubar-h: 32px;
+    --rt-statusbar-h: 28px;
+    --rt-progress-h: 64px;
+
+    /* Legacy names still used by components */
+    --bg-primary: var(--rt-bg);
+    --bg-secondary: var(--rt-surface);
+    --border-color: var(--rt-border);
+    --text-primary: var(--rt-text);
+    --text-muted: var(--rt-text-3);
+    --accent-blue: var(--rt-accent);
+    --accent-blue-hover: var(--rt-accent-hover);
+    --accent-green: var(--rt-success);
+    --accent-red: var(--rt-danger);
+}
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+
+    --rt-bg: #1b1b1d;
+    --rt-surface: #242427;
+    --rt-surface-2: #2b2b2f;
+    --rt-sunken: #151517;
+    --rt-chrome: rgba(36, 36, 39, 0.90);
+    --rt-canvas: #121214;
+    --rt-hover: rgba(255, 255, 255, 0.07);
+    --rt-pressed: rgba(255, 255, 255, 0.12);
+    --rt-overlay: rgba(0, 0, 0, 0.55);
+
+    --rt-border: #37373b;
+    --rt-border-strong: #4a4a50;
+    --rt-separator: rgba(255, 255, 255, 0.08);
+
+    --rt-text: #f2f2f5;
+    --rt-text-2: #c6c6cc;
+    --rt-text-3: #8d8d94;
+    --rt-text-on-accent: #ffffff;
+
+    --rt-accent: #3d8bff;
+    --rt-accent-hover: #5c9dff;
+    --rt-accent-soft: rgba(61, 139, 255, 0.18);
+    --rt-focus: rgba(61, 139, 255, 0.50);
+    --rt-success: #34c76f;
+    --rt-success-soft: rgba(52, 199, 111, 0.16);
+    --rt-warning: #ffaa33;
+    --rt-warning-soft: rgba(255, 170, 51, 0.16);
+    --rt-danger: #ff5b4f;
+    --rt-danger-hover: #ff7b71;
+    --rt-danger-soft: rgba(255, 91, 79, 0.16);
+
+    --rt-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.40);
+    --rt-shadow-md: 0 6px 18px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.35);
+    --rt-shadow-lg: 0 22px 56px rgba(0, 0, 0, 0.60), 0 2px 10px rgba(0, 0, 0, 0.40);
+}
+
+/* Theme switches are instant everywhere except where a transition is wanted */
+:root.rt-theme-switching *,
+:root.rt-theme-switching *::before,
+:root.rt-theme-switching *::after {
+    transition: none !important;
+}
+
+/* ── Shared controls ──────────────────────────────────────────────────── */
+
+.rt-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 14px;
+    border-radius: var(--rt-radius-sm);
+    border: 1px solid var(--rt-border-strong);
+    background: var(--rt-surface);
+    color: var(--rt-text);
+    font: 500 12.5px/1 var(--rt-font);
+    cursor: pointer;
+    transition: background-color 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s;
+    outline: none;
+    white-space: nowrap;
+}
+
+.rt-btn:hover { background: var(--rt-hover); }
+.rt-btn:active { background: var(--rt-pressed); }
+.rt-btn:focus-visible { box-shadow: 0 0 0 3px var(--rt-focus); }
+
+.rt-btn-primary {
+    background: var(--rt-accent);
+    border-color: var(--rt-accent);
+    color: var(--rt-text-on-accent);
+}
+
+.rt-btn-primary:hover { background: var(--rt-accent-hover); border-color: var(--rt-accent-hover); }
+
+.rt-btn-danger {
+    background: var(--rt-danger);
+    border-color: var(--rt-danger);
+    color: #fff;
+}
+
+.rt-btn-danger:hover { background: var(--rt-danger-hover); border-color: var(--rt-danger-hover); }
+
+:focus-visible {
+    outline: 2px solid var(--rt-focus);
+    outline-offset: 1px;
+}
+
+/* Segmented control (theme picker) */
+.rt-segmented {
+    display: inline-flex;
+    padding: 2px;
+    gap: 2px;
+    background: var(--rt-sunken);
+    border: 1px solid var(--rt-border);
+    border-radius: var(--rt-radius-sm);
+}
+
+.rt-segmented button {
+    border: none;
+    background: transparent;
+    color: var(--rt-text-2);
+    font: 500 12px/1 var(--rt-font);
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.rt-segmented button.active {
+    background: var(--rt-surface);
+    color: var(--rt-text);
+    box-shadow: var(--rt-shadow-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}
