@@ -70,15 +70,19 @@ def _download_and_extract(url: str, dest_dir: str, zip_name: str) -> bool:
     try:
         logger.info(f"Downloading external assets from: {url}")
         
-        # Safe command-line download progress tracker
+        # Progress through the logger every 10% (no raw console writes: the
+        # frozen GUI has no stdout, and writes from a daemon thread crashed
+        # the interpreter at shutdown)
+        last_step = [-1]
+
         def progress_callback(block_count: int, block_size: int, total_size: int) -> None:
             if total_size > 0:
-                percent = int(block_count * block_size * 100 / total_size)
-                sys.stdout.write(f"\r[Downloader] Progress: {min(percent, 100)}%")
-                sys.stdout.flush()
+                percent = min(100, int(block_count * block_size * 100 / total_size))
+                if percent // 10 != last_step[0]:
+                    last_step[0] = percent // 10
+                    logger.info(f"Download progress: {percent}%")
 
         urllib.request.urlretrieve(url, zip_path, reporthook=progress_callback)
-        sys.stdout.write("\n")  # Release console line carriage
         
         logger.info("Extracting archive archive content...")
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:

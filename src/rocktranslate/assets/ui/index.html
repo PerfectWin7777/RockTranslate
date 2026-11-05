@@ -111,7 +111,9 @@
         </button>
         <div id="stop-stage-text"
             x-text="$store.trans.stage === 'preparing'
-                ? $store.i18n.translate('prep_overlay_pages', { current: $store.trans.prepCurrent, total: $store.trans.prepTotal })
+                ? ($store.trans.prepTotal > 0
+                    ? $store.i18n.translate('prep_overlay_pages', { current: $store.trans.prepCurrent, total: $store.trans.prepTotal })
+                    : $store.i18n.translate('prep_overlay_title'))
                 : $store.i18n.translate('trans_running_stage')"></div>
     </div>
 

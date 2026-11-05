@@ -59,16 +59,17 @@ _PROBE = """
 
 
 def _browser() -> Optional[str]:
+    """
+    Only a dedicated, already-present headless engine is used: an installed
+    desktop Chrome may hang in headless mode (seen on Windows and Linux) and a
+    download must never delay a translation. No engine -> estimates are used.
+    """
     env = os.environ.get("ROCKTRANSLATE_BROWSER")
     if env and os.path.isfile(env):
         return env
     try:
         from .downloader import find_downloaded_headless_shell
-        shell = find_downloaded_headless_shell()
-        if shell:
-            return shell
-        from .renderer import resolve_pdf_renderer
-        return resolve_pdf_renderer()
+        return find_downloaded_headless_shell()
     except Exception:
         return None
 
@@ -78,7 +79,7 @@ def _browser() -> Optional[str]:
 _FAILED_BROWSERS: set = set()
 
 
-def measure_line_boxes(raw_html_path: str, timeout: float = 90.0) -> Optional[List[List[Box]]]:
+def measure_line_boxes(raw_html_path: str, timeout: Optional[float] = None) -> Optional[List[List[Box]]]:
     """
     Exact boxes of every div.t, per page, in document order.
     Returns None if measuring is unavailable or fails (callers then fall back).
@@ -86,25 +87,19 @@ def measure_line_boxes(raw_html_path: str, timeout: float = 90.0) -> Optional[Li
     if os.environ.get("ROCKTRANSLATE_NO_GEOMETRY"):
         return None
     browser = _browser()
-    if browser in _FAILED_BROWSERS:
-        browser = None
-    if browser:
-        result = _measure_with(browser, raw_html_path, timeout)
-        if result is not None:
-            return result
-        _FAILED_BROWSERS.add(browser)
-    if browser is None or "headless-shell" not in os.path.basename(browser).lower():
+    if not browser or browser in _FAILED_BROWSERS:
+        return None
+    if timeout is None:
         try:
-            from .downloader import check_and_download_headless_shell
-            shell = check_and_download_headless_shell()
-        except Exception:
-            shell = None
-        if shell and shell not in _FAILED_BROWSERS:
-            result = _measure_with(shell, raw_html_path, timeout)
-            if result is not None:
-                return result
-            _FAILED_BROWSERS.add(shell)
-    return None
+            with open(raw_html_path, "r", encoding="utf-8", errors="ignore") as f:
+                pages = f.read().count('class="pf ')
+        except OSError:
+            pages = 10
+        timeout = min(120.0, 20.0 + 1.5 * pages)
+    result = _measure_with(browser, raw_html_path, timeout)
+    if result is None:
+        _FAILED_BROWSERS.add(browser)
+    return result
 
 
 def _measure_with(browser: str, raw_html_path: str, timeout: float) -> Optional[List[List[Box]]]:
@@ -124,8 +119,12 @@ def _measure_with(browser: str, raw_html_path: str, timeout: float) -> Optional[
                    "file://" + os.path.abspath(page).replace(os.sep, "/")]
             if hasattr(os, "geteuid") and os.geteuid() == 0:
                 cmd.insert(1, "--no-sandbox")
-            proc = subprocess.run(cmd, capture_output=True, timeout=timeout)
-        dom = proc.stdout.decode("utf-8", "replace")
+            from .proc import run_with_timeout
+            code, out, _err = run_with_timeout(cmd, timeout)
+            if code is None:
+                logger.warning(f"Geometry pass timed out after {timeout:.0f}s; using estimates.")
+                return None
+        dom = out.decode("utf-8", "replace")
         m = re.search(r'<pre id="rt-geometry">([^<]*)</pre>', dom)
         if not m:
             logger.warning("Geometry pass produced no measurements; using estimates.")

@@ -33,6 +33,7 @@ from .chunker import should_translate
 # Safe imports supporting both standard package modules and direct scripts
 from .constants import DEFAULT_ASSETS_DIR, ACCENTS_TO_IGNORE, THRESHOLD_PX
 from .downloader import check_and_download_pdf2htmlex, pdf2htmlex_data_dir
+from .proc import kill_tree
 
 # Seconds without any stderr output before the conversion is considered hung.
 # A total time limit would kill legitimate long conversions of large documents,
@@ -194,8 +195,7 @@ def convert_pdf_to_html(
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 logger.error(f"pdf2htmlEX conversion exceeded the {timeout}s total budget on: {pdf_filename}")
-                process.kill()
-                process.wait(timeout=5)
+                kill_tree(process)
                 return None
             wait_budget = min(wait_budget, remaining)
 
@@ -207,8 +207,7 @@ def convert_pdf_to_html(
         while time.monotonic() < stall_deadline:
             if check_cancelled is not None and check_cancelled():
                 logger.info("pdf2htmlEX conversion cancelled by caller. Terminating the process.")
-                process.kill()
-                process.wait(timeout=5)
+                kill_tree(process)
                 _remove_quietly(partial_html_path)
                 return None
             try:
@@ -223,8 +222,7 @@ def convert_pdf_to_html(
                 f"pdf2htmlEX stalled for {stall_timeout}s without output on: {pdf_filename}. "
                 "Terminating the hung process."
             )
-            process.kill()
-            process.wait(timeout=5)
+            kill_tree(process)
             _remove_quietly(partial_html_path)
             LAST_CONVERSION_ERROR["message"] = f"pdf2htmlEX stalled for {stall_timeout:.0f}s (unsupported fonts?)"
             # TODO: If local compilation fails or times out, implement an automatic fallback

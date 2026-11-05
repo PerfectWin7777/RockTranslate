@@ -151,10 +151,18 @@ def main() -> None:
         if done == total:
             sys.stderr.write("\n")
 
-    report = translator.translate_document(
-        args.input, args.output, pages=args.pages, progress=progress,
-        keep_html=args.keep_html, password=args.password,
-    )
+    try:
+        report = translator.translate_document(
+            args.input, args.output, pages=args.pages, progress=progress,
+            keep_html=args.keep_html, password=args.password,
+        )
+    except KeyboardInterrupt:
+        logger.warning("Interrupted.")
+        sys.exit(130)
+    except Exception as e:
+        logger.exception(f"Unexpected error: {e}")
+        logger.error("Please report this with the log above: https://github.com/PerfectWin7777/RockTranslate/issues")
+        sys.exit(1)
 
     summary = (f"{report.segments_translated}/{report.segments_total} segments, "
                f"{report.batches_total} batches, {report.seconds:.1f}s, "

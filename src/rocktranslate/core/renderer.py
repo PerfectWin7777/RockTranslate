@@ -318,19 +318,20 @@ def print_html_to_vector_pdf(browser_path: str, input_html_path: str, output_pdf
             cmd.append("--no-sandbox")
         cmd.append(Path(os.path.abspath(input_html_path)).as_uri())
 
+        from .proc import run_with_timeout
         try:
-            proc = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=timeout)
-        except subprocess.TimeoutExpired:
-            logger.error(f"Headless browser timed out after {timeout:.0f}s while printing.")
-            return False
+            code, _out, err = run_with_timeout(cmd, timeout)
         except OSError as e:
             logger.error(f"Could not start the headless browser '{browser_path}': {e}")
+            return False
+        if code is None:
+            logger.error(f"Headless browser timed out after {timeout:.0f}s while printing.")
             return False
 
     ok = os.path.exists(output_abs) and os.path.getsize(output_abs) > 0
     if not ok:
-        tail = (proc.stderr or b"").decode("utf-8", "replace").strip().splitlines()[-3:]
-        logger.error(f"Headless printing failed (exit {proc.returncode}): {' | '.join(tail)}")
+        tail = (err or b"").decode("utf-8", "replace").strip().splitlines()[-3:]
+        logger.error(f"Headless printing failed (exit {code}): {' | '.join(tail)}")
     return ok
 
 
