@@ -11,8 +11,8 @@
 
 <p align="center">
   <!-- High-visibility dynamic download badge -->
-  <a href="https://github.com/PerfectWin7777/RockTranslate/releases/download/v2.0.2/RockTranslate_Setup_v2.0.2.exe">
-    <img src="https://img.shields.io/badge/Download-Windows%20GUI%20Installer%20v2.0.2-blue?style=for-the-badge&logo=windows&logoColor=white" alt="Download Windows GUI Installer" />
+  <a href="https://github.com/PerfectWin7777/RockTranslate/releases/download/v2.0.5/RockTranslate_Setup_v2.0.5.exe">
+    <img src="https://img.shields.io/badge/Download-Windows%20GUI%20Installer%20v2.0.5-blue?style=for-the-badge&logo=windows&logoColor=white" alt="Download Windows GUI Installer" />
   </a>
 </p>
 
@@ -24,7 +24,7 @@
 
 ---
 
-### 📥 [Click here to download the standalone Windows Desktop GUI Installer v2.0.2 (.exe)](https://github.com/PerfectWin7777/RockTranslate/releases/download/v2.0.2/RockTranslate_Setup_v2.0.2.exe)
+### 📥 [Click here to download the standalone Windows Desktop GUI Installer v2.0.5 (.exe)](https://github.com/PerfectWin7777/RockTranslate/releases/download/v2.0.5/RockTranslate_Setup_v2.0.5.exe)
 
 ---
 
@@ -153,7 +153,7 @@ A responsive desktop application featuring:
 *   Real-time zoom sliders and page navigation.
 *   Visual shimmer skeleton loaders and real-time status bars [1, 2].
 
-### 📥 [Click here to download the standalone Windows Desktop GUI Installer v2.0.2 (.exe)](https://github.com/PerfectWin7777/RockTranslate/releases/download/v2.0.2/RockTranslate_Setup_v2.0.2.exe)
+### 📥 [Click here to download the standalone Windows Desktop GUI Installer v2.0.5 (.exe)](https://github.com/PerfectWin7777/RockTranslate/releases/download/v2.0.5/RockTranslate_Setup_v2.0.5.exe)
 
 ### B. Command-Line Interface (CLI)
 A lightweight execution engine that can be run globally from the terminal once installed [3].

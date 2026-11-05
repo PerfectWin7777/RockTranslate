@@ -19,6 +19,7 @@ import urllib.request
 from loguru import logger
 from typing import Dict, Any, Optional, List, Set
 from ..config_manager import config_db
+from ... import __version__ as _APP_VERSION
 from ..constants import (
     DEFAULT_PROVIDERS,
     THRESHOLD_PX,
@@ -429,7 +430,7 @@ class ConfigApiMixin:
         try:
             req = urllib.request.Request(
                 _REMOTE_MODEL_DB_URL,
-                headers={"User-Agent": "RockTranslate/2.0.2"}
+                headers={"User-Agent": f"RockTranslate/{_APP_VERSION}"}
             )
             with urllib.request.urlopen(req, timeout=_REMOTE_SYNC_TIMEOUT_SECONDS) as response:
                 content = response.read().decode("utf-8", errors="ignore")
@@ -481,7 +482,7 @@ class ConfigApiMixin:
         Raises on network failure (the caller treats that as 'keep fallback').
         """
         prefix = str(DEFAULT_PROVIDERS.get(provider, {}).get("prefix", ""))
-        req = urllib.request.Request(_REMOTE_MODEL_DB_URL, headers={"User-Agent": "RockTranslate/2.0.2"})
+        req = urllib.request.Request(_REMOTE_MODEL_DB_URL, headers={"User-Agent": f"RockTranslate/{_APP_VERSION}"})
         with urllib.request.urlopen(req, timeout=_REMOTE_SYNC_TIMEOUT_SECONDS) as response:
             data = json.loads(response.read().decode("utf-8", errors="ignore"))
         if not isinstance(data, dict):
