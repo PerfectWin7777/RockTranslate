@@ -23,15 +23,27 @@ jobs:
           - os: windows-latest
             python: "3.12"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      # Python 3.9 (end of life) is no longer shipped on GitHub runners: uv provides it
+      - uses: actions/setup-python@v6
+        if: matrix.python != '3.9'
         with:
           python-version: ${{ matrix.python }}
           cache: pip
+      - uses: astral-sh/setup-uv@v6
+        if: matrix.python == '3.9'
+        with:
+          python-version: "3.9"
+          activate-environment: true
       - name: Install
+        shell: bash
         run: |
-          python -m pip install --upgrade pip
-          pip install -e . pywebview pytest cryptography
+          if [ "${{ matrix.python }}" = "3.9" ]; then
+            uv pip install -e . pywebview pytest cryptography
+          else
+            python -m pip install --upgrade pip
+            pip install -e . pywebview pytest cryptography
+          fi
       - name: Regression suite (LLM always stubbed, no API cost)
         run: python -m pytest dev_tools/test_v205_core.py -q
 
@@ -39,8 +51,8 @@ jobs:
     name: Build & check the Python package
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Build sdist and wheel
