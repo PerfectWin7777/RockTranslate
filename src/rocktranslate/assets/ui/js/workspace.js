@@ -544,7 +544,13 @@ function workspaceController() {
                     if (originalHtml !== null && originalHtml !== undefined) {
                         // 1. Restore the original styled HTML with correct font families
                         span.innerHTML = originalHtml;
-                        span.classList.remove('shimmer-line');
+                        if (span.hasAttribute('data-orig-class')) {
+                            span.className = span.getAttribute('data-orig-class');
+                            span.removeAttribute('data-orig-class');
+                        }
+                        span.classList.remove('shimmer-line', 'translated');
+                        span.style.removeProperty('word-spacing');
+                        span.style.removeProperty('letter-spacing');
 
                         // 2. Reset the scale matrices of the parent container div.t
                         const divT = span.closest('div.t');
@@ -554,6 +560,10 @@ function workspaceController() {
                             divT.style.transform = `matrix(${sxOrig},0,0,${syOrig},0,0)`;
 
                             // Remove temporary width metrics to force clean recalculations for the next language
+                            divT.style.removeProperty('left');
+                            divT.removeAttribute('data-orig-left');
+                            divT.removeAttribute('data-orig-pleft');
+                            divT.removeAttribute('data-fit');
                             divT.removeAttribute('data-orig-sw');
                             divT.removeAttribute('data-sx-orig');
                             divT.removeAttribute('data-sy-orig');

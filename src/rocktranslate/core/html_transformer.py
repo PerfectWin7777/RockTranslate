@@ -405,7 +405,7 @@ SYMBOL_GLYPH_FIXES = str.maketrans({"ð": "(", "Þ": ")", "¼": "=", "þ": "+"})
 
 # Bump whenever instrument_html output changes: cached workspaces built by an
 # older pipeline are then re-instrumented from the cached raw HTML.
-PIPELINE_VERSION = 4
+PIPELINE_VERSION = 7
 
 
 def parse_font_sizes(soup: BeautifulSoup) -> Dict[str, float]:
@@ -449,6 +449,164 @@ def detect_symbol_font_classes(soup: BeautifulSoup) -> Set[str]:
     }
 
 
+_LIST_START_RE = re.compile(r"^\s*(?:[•●▪◦·∙‣\-–—]|\(?\d{1,2}[.)]|\(?[a-zA-Z][.)])\s")
+# "[12] ..." starts a new entry only inside a reference list (a citation at
+# the start of a prose line, e.g. "[36] to show ...", must not break the paragraph)
+_REF_START_RE = re.compile(r"^\s*\[\d+\]\s")
+
+
+def group_lines_into_paragraphs(lines: List[Dict[str, Any]], texts: Dict[str, str]) -> List[List[Dict[str, Any]]]:
+    """
+    Groups single-segment lines of a page into paragraphs, from geometry only:
+
+    - same font size and vertical scale (justified lines may each have their
+      own horizontal stretch matrix),
+    - regular baseline step between 0.9 and 1.9 em, consistent inside a block,
+    - common left edge (the first line may be indented, up to 4 em),
+    - a new paragraph starts at list markers or after a clearly short line.
+
+    Several paragraphs stay open at once (one per column), so documents whose
+    lines pdf2htmlEX emits row by row across columns are handled too. Pieces on
+    the same baseline right after a line (footnote markers, text after an
+    inline formula) are absorbed into it. Returns prose blocks of 2+ lines.
+    """
+    # Only starts of long prose lines define columns (table cells are short).
+    xs = [l["x"] for l in lines if l.get("x") is not None
+          and len(re.sub(r"</?[a-z_0-9]+>", "", "".join(texts.get(g, "") for g, _ in l["spans"]))) >= 30]
+    column_edges = sorted({round(x, 1) for x in xs if sum(1 for o in xs if abs(o - x) <= 1.5) >= 4})
+
+    def on_other_column_edge(line: Dict[str, Any], prev: Dict[str, Any]) -> bool:
+        tol = 0.5 * max(line["em"], 1.0)
+        return any(abs(line["x"] - e) <= tol and abs(prev["x"] - e) > tol for e in column_edges)
+
+    def eligible(line: Dict[str, Any]) -> bool:
+        return (len(line["spans"]) == 1 and line["x"] is not None and line["y"] is not None
+                and line["em"] > 0 and bool(texts.get(line["spans"][0][0], "").strip()))
+
+    closed: List[Dict[str, Any]] = []
+    active: List[Dict[str, Any]] = []      # {"lines", "step", "left"}
+    last_slot: Optional[Dict[str, Any]] = None
+
+    def close(block: Dict[str, Any]) -> None:
+        active.remove(block)
+        closed.append(block)
+
+    def same_column(block: Dict[str, Any], line: Dict[str, Any]) -> bool:
+        ref = block["left"] if block["left"] is not None else block["lines"][0]["x"]
+        return -4.0 * line["em"] <= line["x"] - ref <= 4.0 * line["em"]
+
+    def continues(block: Dict[str, Any], line: Dict[str, Any]) -> bool:
+        prev = block["lines"][-1]
+        em = line["em"]
+        dy = prev["y"] - line["y"]
+        if not (line["fs"] == prev["fs"] and _same_scale(line, prev) and abs(line["em"] - prev["em"]) < 0.05 * em):
+            return False
+        if not (0.9 * em <= dy <= 1.9 * em and (block["step"] is None or abs(dy - block["step"]) <= 0.2 * em)):
+            return False
+        if block["left"] is None:
+            if not (-0.6 * em <= prev["x"] - line["x"] <= 4.0 * em):
+                return False
+        elif abs(line["x"] - block["left"]) > 0.6 * em:
+            return False
+        text = texts.get(line["spans"][0][0], "")
+        first_text = texts.get(block["lines"][0]["spans"][0][0], "")
+        if _LIST_START_RE.match(text) or (_REF_START_RE.match(text) and _REF_START_RE.match(first_text)):
+            return False
+        lengths = [_visual_len(l, texts) for l in block["lines"]]
+        if len(lengths) >= 2:
+            earlier = sorted(lengths[:-1])
+            if lengths[-1] < 0.6 * earlier[len(earlier) // 2]:
+                return False
+        return True
+
+    for line in lines:
+        has_text = line.get("x") is not None and line.get("y") is not None and line.get("em", 0) > 0 and any(
+            texts.get(g, "").strip() for g, _ in line["spans"])
+        if not eligible(line) and not has_text:
+            if line.get("x") is not None:
+                for block in [b for b in active if same_column(b, line)]:
+                    close(block)
+            continue
+
+        # Same visual line as a recent slot (footnote marker, inline math, text
+        # emitted after it): absorbed into that slot instead of breaking the block.
+        candidates = ([last_slot] if last_slot is not None else []) + [
+            l for blk in active for l in blk["lines"][-3:] if l is not last_slot]
+        host = None
+        for prev in candidates:
+            est_end = prev["x"] + 0.6 * prev["em"] * _visual_len(prev, texts)
+            if (abs(prev["y"] - line["y"]) <= 0.6 * prev["em"] and line["x"] > prev["x"]
+                    and line["x"] <= est_end + 1.5 * prev["em"]
+                    and not on_other_column_edge(line, prev)
+                    and line["em"] <= prev["em"] * 1.05):
+                host = prev
+                break
+        if host is not None:
+            smaller = line["em"] < 0.85 * host["em"]
+            line["sup"] = smaller and line["y"] >= host["y"] - 0.05 * host["em"]
+            line["sub"] = smaller and not line["sup"]
+            host.setdefault("pieces", []).append(line)
+            continue
+
+        if not eligible(line):
+            for block in [b for b in active if same_column(b, line)]:
+                close(block)
+            last_slot = None
+            continue
+
+        target = next((b for b in reversed(active) if continues(b, line)), None)
+        if target is not None:
+            prev = target["lines"][-1]
+            if target["step"] is None:
+                target["step"] = prev["y"] - line["y"]
+            if target["left"] is None:
+                target["left"] = line["x"]
+            target["lines"].append(line)
+        else:
+            for block in [b for b in active if same_column(b, line)]:
+                close(block)
+            active.append({"lines": [line], "step": None, "left": None})
+        last_slot = line
+
+    closed.extend(active)
+    paragraphs = [b["lines"] for b in closed if len(b["lines"]) >= 2]
+    paragraphs.sort(key=lambda para: lines.index(para[0]))
+
+    # Blocks of short lines (author lists, addresses, labels) are not prose:
+    # reflowing them would merge items that must stay on separate lines.
+    prose = []
+    for para in paragraphs:
+        lens = sorted(_visual_len(l, texts) for l in para)
+        if lens[len(lens) // 2] >= 30:
+            prose.append(para)
+    return prose
+
+
+def _same_scale(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
+    return abs(a.get("sy", 1.0) - b.get("sy", 1.0)) <= 0.02 * max(a.get("sy", 1.0), b.get("sy", 1.0))
+
+
+def _visual_len(line: Dict[str, Any], texts: Dict[str, str]) -> int:
+    """Characters on the visual line (slot + absorbed pieces), tags excluded."""
+    raw = texts.get(line["spans"][0][0], "") + "".join(
+        texts.get(g, "") for p in line.get("pieces", []) for g, _ in p["spans"])
+    return len(re.sub(r"</?[a-z_0-9]+>", "", raw))
+
+
+def join_paragraph_lines(lines: List[str]) -> str:
+    """Joins line texts, repairing end-of-line hyphenation ("trans-" + "lation")."""
+    out = ""
+    for raw in lines:
+        text = raw.strip()
+        if not out:
+            out = text
+        elif re.search(r"[A-Za-zÀ-ÿ]-$", out) and text[:1].islower():
+            out = out[:-1] + text
+        else:
+            out = out + " " + text
+    return out
+
+
 def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str, str], Dict[str, int]]:
     """
     Instruments the raw HTML layout by applying the high-fidelity scaled grouping algorithm.
@@ -480,6 +638,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
     original_texts_map: Dict[str, str] = {}
     tid_to_page: Dict[str, int] = {}
     idx: List[int] = [0]
+    para_idx: List[int] = [0]
 
     for page_idx, page_el in enumerate(pages_list):
         # 1. Collect all raw line containers on this page
@@ -503,11 +662,12 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
 
         # 3. Preserve the native DOM reading order from pdf2htmlEX to support multi-column layouts
         sorted_div_t = div_t_elements
-
+        page_lines: List[Dict[str, Any]] = []
 
         for div_t in sorted_div_t:
             # Determine line scaling factors (scaleX, scaleY)
             classes = div_t.get("class", [])
+            line_spans: List[Tuple[str, Any]] = []
             sx_orig, sy_orig = 1.0, 1.0
             for cls in classes:
                 if cls in matrix_map:
@@ -553,6 +713,29 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
             # Re-bind processing contents to our perfectly flattened line nodes
             children = flattened_children
             div_t.clear()
+
+            div_t_text_preview = " ".join(
+                (c.get_text() if hasattr(c, "get_text") else str(c)) for c in children
+                if not (getattr(c, "name", None) == "span" and c.get("class") and any(k.startswith("_") for k in c.get("class")))
+            )
+            # Justified-line detection: several wide gaps of near-equal width on
+            # one line are stretched word spaces, not table column cuts.
+            wide_gaps: List[float] = []
+            for ch in children:
+                ch_classes = ch.get("class") if hasattr(ch, "get") else None
+                if isinstance(ch_classes, str):
+                    ch_classes = ch_classes.split()
+                if getattr(ch, "name", None) == "span" and ch_classes and any(c.startswith("_") for c in ch_classes):
+                    w = next((spacer_map[c[1:]] for c in ch_classes if c.startswith("_") and c[1:] in spacer_map), 0.0)
+                    w *= sx_orig
+                    if w >= min(threshold_px, 0.8 * em_px if em_px else threshold_px):
+                        wide_gaps.append(w)
+            line_words = div_t_text_preview.split()
+            wordy = bool(line_words) and sum(1 for w in line_words if re.search(r"[A-Za-zÀ-ÿ]{2,}", w)) >= 0.8 * len(line_words)
+            justified_line = (
+                em_px > 0 and len(wide_gaps) >= 3 and wordy
+                and max(wide_gaps) <= 1.3 * min(wide_gaps) and max(wide_gaps) < 2.5 * em_px
+            )
 
             current_group_text: List[str] = []
             current_group_elements: List[Any] = []
@@ -619,6 +802,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     group_span["data-orig-html"] = group_span.decode_contents()
 
                     div_t.append(group_span)
+                    line_spans.append((gid, group_span))
                     idx[0] += 1
                 else:
                     # Fallback for empty spaces or layout floats
@@ -668,7 +852,22 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     # --- SCALED WIDTH CALCULATION (Core geometry fix) ---
                     scaled_width = width * sx_orig
 
-                    if abs(scaled_width) >= threshold_px:  # Uses the user-defined threshold px
+                    # A wide gap right after a sentence end inside prose is the
+                    # double space of justified (LaTeX) text, not a table column:
+                    # splitting there broke paragraphs and sentences mid-way.
+                    sentence_gap = (
+                        em_px > 0 and 0 < scaled_width < 3.0 * em_px
+                        and re.search(r"[.?!:;,)\]]\s*$", "".join(current_group_text) or "") is not None
+                        and len("".join(current_group_text).strip()) > 3
+                    )
+                    # Gaps narrower than 1 em, or regular gaps of a justified line,
+                    # are word spaces whatever the column threshold.
+                    word_gap = em_px > 0 and 0 < scaled_width and (
+                        scaled_width < 1.0 * em_px or (justified_line and scaled_width < 2.5 * em_px))
+                    if sentence_gap or word_gap:
+                        current_group_elements.append(child)
+                        current_group_text.append(" ")
+                    elif abs(scaled_width) >= threshold_px:  # Uses the user-defined threshold px
                         # Case 1: Structural spacing -> Commit active group and append Red Cut marker
                         commit_group()
                         div_t.append(child)
@@ -714,6 +913,48 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                         current_group_elements.append(child)
 
             commit_group()
+
+            page_lines.append({
+                "spans": line_spans,
+                "x": next((x_map[c] for c in classes if c in x_map), None),
+                "y": next((y_map[c] for c in classes if c in y_map), None),
+                "fs": line_fs_cls,
+                "m": next((c for c in classes if c in matrix_map), None),
+                "sy": abs(sy_orig or 1.0),
+                "em": em_px,
+            })
+
+        # ── PARAGRAPH RECONSTRUCTION (DeepL-style reflow) ──
+        for para in group_lines_into_paragraphs(page_lines, original_texts_map):
+            pid = f"p-{para_idx[0]}"
+            para_idx[0] += 1
+            texts = []
+            for line_no, line in enumerate(para):
+                gid, span = line["spans"][0]
+                line_text = original_texts_map.pop(gid)
+                tid_to_page.pop(gid, None)
+                span["data-para"] = pid
+                span["data-para-line"] = str(line_no)
+                for piece in line.get("pieces", []):
+                    piece_texts = []
+                    for p_gid, p_span in piece["spans"]:
+                        piece_texts.append(original_texts_map.pop(p_gid, "").strip())
+                        tid_to_page.pop(p_gid, None)
+                        p_span["data-para"] = pid
+                        p_span["data-para-line"] = str(line_no)
+                        p_span["data-para-absorbed"] = "1"
+                    p_text = " ".join(t for t in piece_texts if t)
+                    if piece.get("sup"):
+                        line_text = line_text.rstrip() + f"<sup>{p_text}</sup>"
+                    elif piece.get("sub"):
+                        line_text = line_text.rstrip() + f"<sub>{p_text}</sub>"
+                    elif p_text[:1] in ",.;:)]":
+                        line_text = line_text.rstrip() + p_text
+                    else:
+                        line_text = line_text.rstrip() + " " + p_text
+                texts.append(line_text)
+            original_texts_map[pid] = join_paragraph_lines(texts)
+            tid_to_page[pid] = page_idx
 
     # ── 2. EMBED GLASS OVERLAYS ON ALL PAGES ──
     for p_idx, page in enumerate(pages_list):
@@ -769,6 +1010,9 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
     style_tag = soup.new_tag("style")
     style_tag.string = """
         #sidebar { display: none !important; }
+        /* pdf2htmlEX lazily hides off-screen pages (display:none): their lines
+           would have no geometry for the paragraph reflow. Keep them rendered. */
+        .pc { display: block !important; }
         #page-container { left: 0 !important; margin: 0 auto !important; }
 
         span[data-trans-id].translated {
@@ -836,8 +1080,303 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
     # ── 4. INJECT CLIENT JAVASCRIPT ACTIONS (DOM streams & dynamic page resets) ──
     script_tag = soup.new_tag("script")
     script_tag.string = r"""
+
+        // ══════════════════════════════════════════════════════════════════
+        // PARAGRAPH REFLOW (DeepL-style): a paragraph is translated as ONE text,
+        // then its words are redistributed over the ORIGINAL line slots with a
+        // single horizontal compression for the whole block, justified when the
+        // source paragraph was justified. Inline <color_HEX>, <sup>, <sub>,
+        // <b>, <i> tags are rendered as styled runs (never parsed as HTML).
+        // ══════════════════════════════════════════════════════════════════
+        var rtCanvas = null;
+        function rtCtx() {
+            if (!rtCanvas) rtCanvas = document.createElement('canvas');
+            return rtCanvas.getContext('2d');
+        }
+
+        // Original geometry of a line, in PAGE coordinates (unzoomed CSS px).
+        // pdf2htmlEX nests lines in clip boxes (div.c) for many publisher PDFs,
+        // so offsetLeft is relative to the clip box: page rects are used instead.
+        function rtCacheGeometry(divT) {
+            if (!divT.hasAttribute('data-orig-sw')) {
+                var span = divT.querySelector('span[data-trans-id]');
+                var sx0 = parseFloat((span && span.getAttribute('data-sx')) || '1');
+                var sy0 = parseFloat((span && span.getAttribute('data-sy')) || '1');
+                divT.style.transform = 'matrix(' + sx0 + ',0,0,' + sy0 + ',0,0)';
+                divT.setAttribute('data-orig-sw', divT.scrollWidth);
+                divT.setAttribute('data-sx-orig', sx0);
+                divT.setAttribute('data-sy-orig', sy0);
+            }
+            if (!divT.hasAttribute('data-orig-pleft')) {
+                var page = divT.closest('.pf') || document.body;
+                var pr = page.getBoundingClientRect();
+                var k = (page.offsetWidth && pr.width) ? pr.width / page.offsetWidth : 1;
+                var r = divT.getBoundingClientRect();
+                divT.setAttribute('data-orig-pleft', (r.left - pr.left) / k);
+                divT.setAttribute('data-orig-left', divT.offsetLeft);
+            }
+            var sw = parseFloat(divT.getAttribute('data-orig-sw'));
+            var sxo = parseFloat(divT.getAttribute('data-sx-orig'));
+            var pleft = parseFloat(divT.getAttribute('data-orig-pleft'));
+            return { left: pleft, right: pleft + sw * sxo, sw: sw, offsetLeft: parseFloat(divT.getAttribute('data-orig-left')),
+                     sx: sxo, sy: parseFloat(divT.getAttribute('data-sy-orig')) };
+        }
+
+        // Splits translated text into styled words: [{parts:[{t, st}], space}]
+        function rtTokenize(text) {
+            var tokens = [], cur = null, style = {}, stack = [];
+            var re = /<(\/?)(color_([0-9a-fA-F]{6})|color(?:_\w+)?|sup|sub|b|i)>/g, last = 0, m;
+            var pieces = [];
+            while ((m = re.exec(text)) !== null) {
+                if (m.index > last) pieces.push({ t: text.slice(last, m.index), st: Object.assign({}, style) });
+                var closing = m[1] === '/', tag = m[2];
+                if (!closing) {
+                    stack.push(Object.assign({}, style));
+                    if (m[3]) style.color = '#' + m[3];
+                    else if (tag === 'sup') style.sup = true;
+                    else if (tag === 'sub') style.sub = true;
+                    else if (tag === 'b') style.b = true;
+                    else if (tag === 'i') style.i = true;
+                } else {
+                    style = stack.length ? stack.pop() : {};
+                }
+                last = re.lastIndex;
+            }
+            if (last < text.length) pieces.push({ t: text.slice(last), st: Object.assign({}, style) });
+
+            var pendingSpace = false;
+            pieces.forEach(function (p) {
+                p.t.split(/(\s+)/).forEach(function (chunk) {
+                    if (!chunk) return;
+                    if (/^\s+$/.test(chunk)) { pendingSpace = true; cur = null; return; }
+                    if (!cur || pendingSpace) {
+                        cur = { parts: [], space: pendingSpace && tokens.length > 0 };
+                        tokens.push(cur);
+                        pendingSpace = false;
+                    }
+                    cur.parts.push({ t: chunk, st: p.st });
+                });
+            });
+            return tokens;
+        }
+
+        function rtFontFor(span, st) {
+            var cs = getComputedStyle(span);
+            var size = parseFloat(cs.fontSize) * ((st && (st.sup || st.sub)) ? 0.7 : 1);
+            var weight = (st && st.b) ? '700' : cs.fontWeight;
+            var fstyle = (st && st.i) ? 'italic' : cs.fontStyle;
+            return fstyle + ' ' + weight + ' ' + size + 'px ' + cs.fontFamily;
+        }
+
+        function rtRenderTokens(span, tokens) {
+            while (span.firstChild) span.removeChild(span.firstChild);
+            tokens.forEach(function (tok, k) {
+                if (k > 0 && tok.space) span.appendChild(document.createTextNode(' '));
+                tok.parts.forEach(function (p) {
+                    var st = p.st || {};
+                    if (!st.color && !st.sup && !st.sub && !st.b && !st.i) {
+                        span.appendChild(document.createTextNode(p.t));
+                        return;
+                    }
+                    var el = document.createElement('span');
+                    if (st.color) el.style.color = st.color;
+                    if (st.b) el.style.fontWeight = '700';
+                    if (st.i) el.style.fontStyle = 'italic';
+                    if (st.sup || st.sub) {
+                        el.style.fontSize = '70%';
+                        el.style.verticalAlign = st.sup ? 'super' : 'sub';
+                        el.style.lineHeight = '0';
+                    }
+                    el.textContent = p.t;
+                    span.appendChild(el);
+                });
+            });
+        }
+
+        var rtRelayoutTimer = null;
+        function rtRelayoutAll() {
+            clearTimeout(rtRelayoutTimer);
+            rtRelayoutTimer = setTimeout(function () {
+                var paras = window.__rtParas || {};
+                Object.keys(paras).forEach(function (pid) { window.reflowParagraph(pid, paras[pid]); });
+                if (window.harmonizeAllPages) window.harmonizeAllPages();
+            }, 30);
+        }
+        if (document.fonts && document.fonts.addEventListener) {
+            document.fonts.addEventListener('loadingdone', rtRelayoutAll);
+        }
+
+        window.reflowParagraph = function (paraId, translatedText) {
+            var all = Array.prototype.slice.call(document.querySelectorAll('[data-para="' + paraId + '"]'));
+            if (!all.length) return;
+            translatedText = String(translatedText).replace(/\s*\n\s*/g, ' ').trim();
+            var lineNo = function (s) { return parseInt(s.getAttribute('data-para-line') || '0', 10); };
+            var slots = all.filter(function (s) { return !s.hasAttribute('data-para-absorbed'); })
+                           .sort(function (a, b) { return lineNo(a) - lineNo(b); });
+            if (!slots.length) return;
+
+            // Original geometry: left edge of each slot, right edge of each visual line
+            var rights = {}, paraRight = -Infinity, sxs = [];
+            all.forEach(function (s) {
+                var g = rtCacheGeometry(s.closest('div.t'));
+                var n = lineNo(s);
+                rights[n] = Math.max(rights[n] || -Infinity, g.right);
+                paraRight = Math.max(paraRight, g.right);
+            });
+            var geo = slots.map(function (s) {
+                var g = rtCacheGeometry(s.closest('div.t'));
+                sxs.push(g.sx);
+                return g;
+            });
+            var sorted = sxs.slice().sort(function (a, b) { return a - b; });
+            var sxBase = sorted[Math.floor(sorted.length / 2)];
+
+            // Common right edge = median of the full lines' right edges (all but
+            // the last line). The max was fooled by lines ending with an
+            // invisible trailing spacer, which widened the whole block.
+            var lineRights = slots.map(function (s) { return rights[lineNo(s)]; });
+            var fullRights = (lineRights.length > 1 ? lineRights.slice(0, -1) : lineRights).slice().sort(function (a, b) { return a - b; });
+            var medianRight = fullRights[Math.floor(fullRights.length / 2)];
+            paraRight = Math.min(paraRight, Math.max(medianRight, lineRights[lineRights.length - 1] || medianRight));
+            var paraLeft = Math.min.apply(null, geo.map(function (g) { return g.left; }));
+            var paraWidth = Math.max(1, paraRight - paraLeft);
+
+            // Justified source? (non-last lines reach the common right edge)
+            var full = 0;
+            for (var i = 0; i < slots.length - 1; i++) {
+                if (rights[lineNo(slots[i])] >= paraRight - 0.02 * paraWidth) full++;
+            }
+            var justified = slots.length >= 2 && full >= Math.max(1, Math.ceil(0.6 * (slots.length - 1)));
+
+            // One font for the whole block: the font carrying the most characters
+            // in the source paragraph (not the first line's, which may start
+            // with an italic or bold word).
+            var ffWeight = {}, ffSpan = {};
+            all.forEach(function (s) {
+                var cls = (s.getAttribute('data-orig-class') || s.className);
+                var ff = (cls.match(/\bff[0-9a-f]+\b/) || ['_'])[0];
+                var tmp = new DOMParser().parseFromString(s.getAttribute('data-orig-html') || '', 'text/html');
+                var n = ((tmp.body && tmp.body.textContent) || '').length;
+                ffWeight[ff] = (ffWeight[ff] || 0) + n;
+                if (!ffSpan[ff] && !s.hasAttribute('data-para-absorbed')) ffSpan[ff] = s;
+            });
+            var bestFf = Object.keys(ffWeight).sort(function (a, b) { return ffWeight[b] - ffWeight[a]; })[0];
+            var fontSpan = ffSpan[bestFf] || slots[0];
+            var ctx = rtCtx();
+            var tokens = rtTokenize(translatedText);
+            var fontPx = parseFloat(getComputedStyle(fontSpan).fontSize) || 16;
+            ctx.font = rtFontFor(fontSpan, null);
+            // Embedded fonts load lazily and document.fonts.check() is not
+            // reliable for them: every laid-out paragraph is recorded and laid
+            // out again whenever a font finishes loading (see rtFontsSettled).
+            window.__rtParas = window.__rtParas || {};
+            window.__rtParas[paraId] = translatedText;
+            var spaceW = ctx.measureText(' ').width;
+            var gap = Math.max(spaceW, 0.25 * fontPx);
+            tokens.forEach(function (tok) {
+                tok.w = 0;
+                tok.parts.forEach(function (p) {
+                    ctx.font = rtFontFor(fontSpan, p.st);
+                    p.w = ctx.measureText(p.t).width;
+                    tok.w += p.w;
+                });
+            });
+
+            // Largest uniform compression c (<= 1) letting the words fit in the slots
+            function layout(c) {
+                var lines = [], idx = 0;
+                for (var s = 0; s < slots.length; s++) {
+                    var cap = (paraRight - geo[s].left) / (sxBase * c) * 0.995;
+                    var line = { tokens: [], width: 0, cap: cap };
+                    while (idx < tokens.length) {
+                        var tok = tokens[idx];
+                        var add = (line.tokens.length && tok.space ? gap : 0) + tok.w;
+                        if (line.tokens.length && line.width + add > cap) break;
+                        line.tokens.push(tok);
+                        line.width += add;
+                        idx++;
+                    }
+                    lines.push(line);
+                }
+                return { lines: lines, rest: tokens.slice(idx) };
+            }
+            var c = 1.0, plan = layout(c);
+            while (plan.rest.length && c > 0.6) {
+                c = Math.round((c - 0.02) * 100) / 100;
+                plan = layout(c);
+            }
+            if (plan.rest.length) {      // still too long: keep every word, last line overflows
+                var lastLine = plan.lines[plan.lines.length - 1];
+                lastLine.tokens = lastLine.tokens.concat(plan.rest);
+            }
+            var lastUsed = -1;
+            plan.lines.forEach(function (l, k) { if (l.tokens.length) lastUsed = k; });
+
+            var commonFfs = bestFf && bestFf !== '_' ? bestFf : null;
+            // Shrink proportionally (like a smaller font) rather than squeezing
+            // glyphs horizontally; below 0.82 the extra reduction is horizontal only.
+            var cy = Math.max(c, 0.82);
+            slots.forEach(function (span, s) {
+                var divT = span.closest('div.t');
+                var line = plan.lines[s];
+                if (!span.hasAttribute('data-orig-class')) span.setAttribute('data-orig-class', span.className);
+                if (commonFfs) {
+                    span.className = span.className.replace(/\bff[0-9a-f]+\b/g, '').trim() + ' ' + commonFfs;
+                }
+                rtRenderTokens(span, line.tokens);
+                span.classList.add('translated');
+                span.classList.remove('shimmer-line');
+                var ws = gap - spaceW;
+                var gaps = 0;
+                line.tokens.forEach(function (t, k) { if (k > 0 && t.space) gaps++; });
+                if (justified && s < lastUsed && gaps > 0) {
+                    var extra = (line.cap - line.width) / gaps;
+                    if (extra > 0 && extra < 1.6 * fontPx) ws += extra;
+                }
+                span.style.setProperty('word-spacing', ws + 'px', 'important');
+                span.style.setProperty('letter-spacing', 'normal', 'important');
+                divT.style.transform = 'matrix(' + (sxBase * c) + ',0,0,' + (geo[s].sy * cy) + ',0,0)';
+                divT.removeAttribute('data-fit');
+                // Safety: never spill past the paragraph's right edge
+                var shown = divT.scrollWidth * sxBase * c;
+                var allowed = paraRight - geo[s].left;
+                if (shown > allowed * 1.01 && shown > 0) {
+                    divT.style.transform = 'matrix(' + (sxBase * c * allowed / shown) + ',0,0,' + (geo[s].sy * cy) + ',0,0)';
+                }
+            });
+            all.forEach(function (span) {
+                if (span.hasAttribute('data-para-absorbed')) {
+                    while (span.firstChild) span.removeChild(span.firstChild);
+                    span.classList.add('translated');
+                    span.classList.remove('shimmer-line');
+                }
+            });
+        };
+
+        // Single lines: re-center a translated line that was centered on its page
+        // (titles, headings, captions), instead of leaving it flush left.
+        function rtRecenterIfCentered(divT, span) {
+            var page = divT.closest('.pf');
+            if (!page) return;
+            // Only lone lines (titles, headings): never a table row or a line with several cells
+            if (divT.querySelectorAll('span[data-trans-id]').length !== 1) return;
+            var g = rtCacheGeometry(divT);
+            var pageW = page.offsetWidth;
+            var origW = g.sw * g.sx;
+            var center = g.left + origW / 2;
+            if (origW > 0.85 * pageW || Math.abs(center - pageW / 2) > 0.02 * pageW) return;
+            var m = /matrix\(([-\d.e]+)/.exec(divT.style.transform || '');
+            var curSx = m ? parseFloat(m[1]) : g.sx;
+            var newW = divT.scrollWidth * curSx;
+            divT.style.left = (g.offsetLeft + (origW - newW) / 2) + 'px';
+        }
+
         window.applyTranslation = function(transId, translatedText) {
             try {
+                if (String(transId).indexOf('p-') === 0) {
+                    window.reflowParagraph(transId, translatedText);
+                    return;
+                }
                 // Find the target translation span using its unique routing ID
                 var span = document.querySelector('[data-trans-id="' + transId + '"]');
                 if (!span) return;
@@ -906,9 +1445,11 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     var newSx = sx * (origSW / newSW);
                     // Cap horizontal scaling to prevent unnecessary stretching of short text
                     newSx = Math.min(newSx, sx);
-                    divT.style.transform = 'matrix(' + newSx + ',0,0,' + sy + ',0,0)';
+                    var ratio = newSx / sx;
+                    divT.style.transform = 'matrix(' + newSx + ',0,0,' + (sy * Math.max(ratio, 0.82)) + ',0,0)';
                     divT.setAttribute('data-fit', String(newSx / sx));
                 }
+                rtRecenterIfCentered(divT, span);
                 var pageEl = divT.closest('.pf');
                 if (pageEl) window.scheduleHarmonize(pageEl);
             } catch (e) {
@@ -943,7 +1484,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                         var ratio = Math.min(own, target);
                         var sx = parseFloat(d.getAttribute('data-sx-orig'));
                         var sy = parseFloat(d.getAttribute('data-sy-orig'));
-                        d.style.transform = 'matrix(' + (sx * ratio) + ',0,0,' + sy + ',0,0)';
+                        d.style.transform = 'matrix(' + (sx * ratio) + ',0,0,' + (sy * Math.max(ratio, 0.82)) + ',0,0)';
                     });
                 });
             } catch (e) { console.error('harmonizePage', e); }

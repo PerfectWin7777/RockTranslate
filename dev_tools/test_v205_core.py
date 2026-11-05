@@ -492,3 +492,51 @@ def test_run_usage_is_recorded_and_streamed(tmp_path, monkeypatch):
     assert stats["totals"]["segments"] == 12
     assert stats["totals"]["prompt_tokens"] > 0
     assert stats["last_run"]["model"] == "stub/model"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. Paragraph reconstruction (DeepL-style reflow)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _line(gid, x, y, em=13.0, fs="fs2", sy=0.325):
+    return {"spans": [(gid, None)], "x": x, "y": y, "fs": fs, "m": "m0", "sy": sy, "em": em}
+
+
+def test_paragraph_grouping_two_columns_row_order():
+    from rocktranslate.core.html_transformer import group_lines_into_paragraphs, join_paragraph_lines
+    texts, lines = {}, []
+    # Two columns emitted row by row (left, right, left, right...)
+    for i in range(6):
+        texts[f"L{i}"] = f"left column sentence number {i} with enough words to be prose"
+        texts[f"R{i}"] = f"right column sentence number {i} with enough words to be prose"
+        lines.append(_line(f"L{i}", 60.0, 800 - i * 15.5))
+        lines.append(_line(f"R{i}", 400.0, 800 - i * 15.5))
+    paras = group_lines_into_paragraphs(lines, texts)
+    ids = [[l["spans"][0][0] for l in p] for p in paras]
+    assert ids == [[f"L{i}" for i in range(6)], [f"R{i}" for i in range(6)]]
+    assert join_paragraph_lines(["a long hyphen-", "ated word trans-", "lation"]) == "a long hyphenated word translation"
+
+
+def test_paragraph_grouping_breaks_and_absorbs():
+    from rocktranslate.core.html_transformer import group_lines_into_paragraphs
+    texts = {
+        "a": "First paragraph line one has plenty of words in it here",
+        "b": "first paragraph line two keeps going with more words",
+        "c": "first paragraph line three continues the very same idea",
+        "sup": "1",
+        "d": "short end.",
+        "e": "Second paragraph starts after the short line above here",
+        "f": "second paragraph continues with a second line of text",
+        "g": "• a bullet item that must start a new block of text",
+        "h": "and the bullet item continues on this following line",
+    }
+    lines = [_line("a", 60, 800), _line("b", 60, 784.5), _line("c", 60, 769), _line("sup", 300, 772, em=9.1),
+             _line("d", 60, 753.5), _line("e", 60, 738), _line("f", 60, 722.5),
+             _line("g", 60, 707), _line("h", 60, 691.5)]
+    paras = group_lines_into_paragraphs(lines, texts)
+    ids = [[l["spans"][0][0] for l in p] for p in paras]
+    assert ["a", "b", "c", "d"] in ids          # the footnote marker does not break it
+    assert ["e", "f"] in ids                    # new paragraph after the short line
+    assert ["g", "h"] in ids                    # bullet starts a new block
+    host = next(l for p in paras for l in p if l["spans"][0][0] == "c")
+    assert host["pieces"][0]["sup"] is True

@@ -194,6 +194,15 @@ def apply_translations_offline(
             el.classList.remove('shimmer-line');
         }});
         if (window.harmonizeAllPages) window.harmonizeAllPages();
+        // Load every embedded face, then lay paragraphs out again with real metrics
+        if (document.fonts) {{
+            document.fonts.forEach(function (f) {{ try {{ f.load(); }} catch (e) {{}} }});
+            document.fonts.ready.then(function () {{
+                var paras = window.__rtParas || {{}};
+                Object.keys(paras).forEach(function (pid) {{ window.reflowParagraph(pid, paras[pid]); }});
+                if (window.harmonizeAllPages) window.harmonizeAllPages();
+            }});
+        }}
         var tip = document.getElementById('rt-bilingual-tooltip');
         if (tip) tip.remove();
     }});
@@ -284,6 +293,8 @@ def print_html_to_vector_pdf(browser_path: str, input_html_path: str, output_pdf
             "--no-margins",
             "--no-pdf-header-footer",
             "--print-to-pdf-no-header",
+            # Let deferred work finish (font loading, paragraph re-layout) before printing
+            "--virtual-time-budget=15000",
             f"--print-to-pdf={output_abs}",
         ]
         if hasattr(os, "geteuid") and os.geteuid() == 0:
