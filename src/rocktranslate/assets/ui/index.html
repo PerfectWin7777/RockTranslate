@@ -160,8 +160,13 @@
                 message: '',
                 resolvePromise: null,
 
+                mode: 'confirm',
+                inputValue: '',
+                inputType: 'text',
+
                 //invoke an asynchronous confirmation request
                 confirm(message, title = 'RockTranslate') {
+                    this.mode = 'confirm';
                     this.message = message;
                     this.title = title;
                     this.isOpen = true;
@@ -170,14 +175,28 @@
                     });
                 },
 
+                // Asynchronous text/password prompt: resolves the string, or null if cancelled
+                prompt(message, title = 'RockTranslate', { password = false } = {}) {
+                    this.mode = 'prompt';
+                    this.inputType = password ? 'password' : 'text';
+                    this.inputValue = '';
+                    this.message = message;
+                    this.title = title;
+                    this.isOpen = true;
+                    setTimeout(() => { const el = document.getElementById('rt-dialog-input'); if (el) el.focus(); }, 60);
+                    return new Promise((resolve) => {
+                        this.resolvePromise = resolve;
+                    });
+                },
+
                 handleConfirm() {
                     this.isOpen = false;
-                    if (this.resolvePromise) this.resolvePromise(true);
+                    if (this.resolvePromise) this.resolvePromise(this.mode === 'prompt' ? this.inputValue : true);
                 },
 
                 handleCancel() {
                     this.isOpen = false;
-                    if (this.resolvePromise) this.resolvePromise(false);
+                    if (this.resolvePromise) this.resolvePromise(this.mode === 'prompt' ? null : false);
                 }
             });
 
@@ -185,6 +204,17 @@
 
 
 
+
+        // Password-protected PDF: ask, then let the backend retry the opening
+        window.addEventListener('request-pdf-password', async (e) => {
+            const i18n = Alpine.store('i18n');
+            const detail = e.detail || {};
+            const msg = (detail.retry ? i18n.translate('pdf_password_wrong') + ' ' : '') + i18n.translate('pdf_password_msg');
+            const pw = await Alpine.store('dialogs').prompt(msg, i18n.translate('pdf_password_title'), { password: true });
+            if (pw !== null && pw !== undefined && window.pywebview && window.pywebview.api) {
+                window.pywebview.api.open_protected_pdf(detail.pdfPath, pw);
+            }
+        });
 
         window.showStatusMessage = function (text) {
             window.dispatchEvent(new CustomEvent('update-status-text', { detail: { text: text } }));
@@ -575,10 +605,13 @@
     <div x-show="$store.dialogs.isOpen" class="dialog-overlay" x-cloak style="display: none;">
         <div class="dialog-card" @click.away="$store.dialogs.handleCancel()">
             <div class="dialog-title">
-                <span style="color: var(--accent-blue); font-size: 16px;">💎</span>
+                <span style="color: var(--accent-blue); font-size: 16px;" x-text="$store.dialogs.mode === 'prompt' ? '🔒' : '💎'"></span>
                 <span x-text="$store.dialogs.title"></span>
             </div>
             <div class="dialog-body-text" x-text="$store.dialogs.message"></div>
+            <input id="rt-dialog-input" class="rt-input" x-show="$store.dialogs.mode === 'prompt'"
+                :type="$store.dialogs.inputType" x-model="$store.dialogs.inputValue"
+                @keydown.enter.prevent="$store.dialogs.handleConfirm()" style="margin: -12px 0 20px 0;">
             <div class="dialog-footer-actions">
                 <button class="dialog-btn dialog-btn-cancel" @click="$store.dialogs.handleCancel()"
                     x-text="$store.i18n.translate('cancel_btn')"></button>

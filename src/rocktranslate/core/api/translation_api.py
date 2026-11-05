@@ -57,6 +57,9 @@ class TranslationApiMixin:
         self._metadata_total_pages: int = 0
         self._document_hash: Optional[str] = None
 
+        # Passwords of protected PDFs for this session only (never written to disk)
+        self._pdf_passwords: Dict[str, str] = {}
+
         # Thread synchronization: one cancellation Event per run
         self._cancel_event: threading.Event = threading.Event()
         self._current_translating_page: int = -1
@@ -90,6 +93,13 @@ class TranslationApiMixin:
         thread.start()
 
 
+    def open_protected_pdf(self, file_path: str, password: str) -> None:
+        """Exposed to the UI: retries opening a password-protected PDF."""
+        if not file_path or password is None:
+            return
+        self._pdf_passwords[os.path.abspath(file_path)] = str(password)
+        self.extract_pdf(file_path)
+
     def _run_extraction(self, pdf_path: str) -> None:
         """
         Opens a document instantly without running the pdf2htmlEX pipeline: the
@@ -118,7 +128,16 @@ class TranslationApiMixin:
             logger.info(f"Opening document (lazy mode): {pdf_path}")
 
             # Register the document bounds from lightweight metadata (no conversion)
-            metadata = get_pdf_metadata(pdf_path)
+            password = self._pdf_passwords.get(os.path.abspath(pdf_path))
+            metadata = get_pdf_metadata(pdf_path, password=password)
+            if metadata.get("needs_password"):
+                # Ask the UI for the password; open_protected_pdf() resumes the opening.
+                self._send_status_i18n("status_pdf_password_required")
+                self._send_js(
+                    "window.dispatchEvent(new CustomEvent('request-pdf-password', "
+                    f"{{ detail: {{ pdfPath: {json.dumps(pdf_path)}, retry: {json.dumps(password is not None)} }} }}))"
+                )
+                return
             total_pages = metadata.get("pages_count", 1) or 1
 
             # Reset per-document session state
@@ -291,7 +310,8 @@ class TranslationApiMixin:
         self._send_status_i18n("status_extraction_start")
         raw_html_path = convert_pdf_to_html(
             pdf_path, assets_dir, on_progress=on_pdf_progress,
-            output_dir=cache_dir, check_cancelled=cancelled or (lambda: self._stop_translation)
+            output_dir=cache_dir, check_cancelled=cancelled or (lambda: self._stop_translation),
+            user_password=self._pdf_passwords.get(os.path.abspath(pdf_path)),
         )
 
         # Cancellation requested while converting: exit gracefully

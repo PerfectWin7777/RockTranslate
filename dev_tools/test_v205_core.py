@@ -403,3 +403,46 @@ def test_applytranslation_is_xss_safe(tmp_path):
     assert result["imgs"] == 0
     assert "<img" in result["text"] and "rouge" in result["text"]
     assert result["color"] == "rgb(255, 0, 0)"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. Protected PDFs: password prompt flow (1.2)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _encrypted_pdf(path, user_password):
+    from pypdf import PdfWriter
+    w = PdfWriter()
+    w.add_blank_page(width=612, height=792)
+    w.encrypt(user_password=user_password, owner_password="owner", algorithm="AES-128")
+    w.write(str(path))
+
+
+def test_password_protected_pdf_asks_then_opens(tmp_path):
+    pytest.importorskip("cryptography")
+    from rocktranslate.core.api.translation_api import TranslationApiMixin
+    from rocktranslate.core.pdf_metadata import get_pdf_metadata
+
+    pdf = tmp_path / "locked.pdf"
+    _encrypted_pdf(pdf, "lecture")
+    assert get_pdf_metadata(str(pdf))["needs_password"] is True
+    assert get_pdf_metadata(str(pdf), password="lecture")["needs_password"] is False
+
+    nocopy = tmp_path / "nocopy.pdf"
+    _encrypted_pdf(nocopy, "")
+    meta = get_pdf_metadata(str(nocopy))
+    assert meta["encrypted"] is True and meta["needs_password"] is False
+
+    api = TranslationApiMixin()
+    api._window = FakeWindow()
+    api._run_extraction(str(pdf))
+    assert api._window.count("request-pdf-password") == 1
+    assert api._window.count("document-ready") == 0
+
+    # wrong password -> asked again with the retry flag
+    api._pdf_passwords[os.path.abspath(str(pdf))] = "nope"
+    api._run_extraction(str(pdf))
+    assert any("retry: true" in js for n, js in api._window.events if n == "request-pdf-password")
+
+    api._pdf_passwords[os.path.abspath(str(pdf))] = "lecture"
+    api._run_extraction(str(pdf))
+    assert api._window.count("document-ready") == 1

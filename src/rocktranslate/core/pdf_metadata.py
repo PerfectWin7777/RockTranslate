@@ -23,7 +23,8 @@ except ImportError:
     PdfReader = None
 
 
-def get_pdf_metadata(pdf_path: str, translation_stats: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+def get_pdf_metadata(pdf_path: str, translation_stats: Optional[Dict[str, str]] = None,
+                     password: Optional[str] = None) -> Dict[str, Any]:
     """
     Extracts physical and metadata properties of a PDF file.
 
@@ -54,6 +55,8 @@ def get_pdf_metadata(pdf_path: str, translation_stats: Optional[Dict[str, str]] 
         "keywords": "None",
         "created_date": "Unknown",
         "mod_date": "Unknown",
+        "encrypted": False,
+        "needs_password": False,
     }
     
     # 1. Inspect the binary stream header (PDF version and linearization flag)
@@ -73,6 +76,17 @@ def get_pdf_metadata(pdf_path: str, translation_stats: Optional[Dict[str, str]] 
     if PdfReader is not None:
         try:
             reader = PdfReader(pdf_path)
+            stats["encrypted"] = bool(reader.is_encrypted)
+            stats["needs_password"] = False
+            if reader.is_encrypted:
+                # Owner-password-only PDFs (copy/print restrictions) open with "".
+                try:
+                    opened = reader.decrypt(password or "")
+                except Exception:
+                    opened = 0
+                if not opened:
+                    stats["needs_password"] = True
+                    return stats
             stats["pages_count"] = len(reader.pages)
             
             # Convert default PDF media points (1/72 of an inch) to centimeters

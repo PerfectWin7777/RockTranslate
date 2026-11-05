@@ -15,6 +15,10 @@ document.addEventListener('alpine:init', () => {
 
         translations: {
             en: {
+                pdf_password_title: "Protected PDF",
+                pdf_password_msg: "This PDF requires a password to be opened. It is only kept in memory for this session.",
+                pdf_password_wrong: "Incorrect password.",
+                status_pdf_password_required: "Password required to open this PDF.",
                 waiting_for_translation: "Waiting for translation…",
                 appearance_lbl: "Appearance",
                 theme_light: "Light",
@@ -268,6 +272,10 @@ document.addEventListener('alpine:init', () => {
                 
             },
             fr: {
+                pdf_password_title: "PDF protégé",
+                pdf_password_msg: "Ce PDF demande un mot de passe pour être ouvert. Il est seulement gardé en mémoire pendant cette session.",
+                pdf_password_wrong: "Mot de passe incorrect.",
+                status_pdf_password_required: "Mot de passe requis pour ouvrir ce PDF.",
                 waiting_for_translation: "En attente de traduction…",
                 appearance_lbl: "Apparence",
                 theme_light: "Clair",
@@ -513,6 +521,10 @@ document.addEventListener('alpine:init', () => {
             },
 
             es: {
+                pdf_password_title: "PDF protegido",
+                pdf_password_msg: "Este PDF requiere una contraseña para abrirse. Solo se guarda en memoria durante esta sesión.",
+                pdf_password_wrong: "Contraseña incorrecta.",
+                status_pdf_password_required: "Se requiere contraseña para abrir este PDF.",
                 waiting_for_translation: "Esperando traducción…",
                 appearance_lbl: "Apariencia",
                 theme_light: "Claro",
@@ -751,6 +763,10 @@ document.addEventListener('alpine:init', () => {
             },
 
             de: {
+                pdf_password_title: "Geschütztes PDF",
+                pdf_password_msg: "Dieses PDF benötigt ein Passwort zum Öffnen. Es wird nur für diese Sitzung im Speicher gehalten.",
+                pdf_password_wrong: "Falsches Passwort.",
+                status_pdf_password_required: "Zum Öffnen dieses PDFs ist ein Passwort erforderlich.",
                 waiting_for_translation: "Warte auf Übersetzung…",
                 appearance_lbl: "Erscheinungsbild",
                 theme_light: "Hell",
