@@ -53,7 +53,10 @@ function progressController() {
 
             window.addEventListener('update-progress-segments', (e) => {
                 const n = (e.detail && e.detail.count) || 0;
-                this.doneSegments += n;
+                // Never past the run's total (a resumed run may stream extras)
+                this.doneSegments = this.totalSegments > 0
+                    ? Math.min(this.totalSegments, this.doneSegments + n)
+                    : this.doneSegments + n;
                 this.updateSpeedAndEta();
             });
 

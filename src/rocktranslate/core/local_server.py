@@ -42,6 +42,10 @@ _CONTENT_TYPES = {
     ".js": "application/javascript; charset=utf-8",
     ".png": "image/png",
     ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".ttf": "font/ttf",
+    ".otf": "font/otf",
     ".svg": "image/svg+xml",
     ".woff": "font/woff",
     ".woff2": "font/woff2",
@@ -107,6 +111,9 @@ def _make_handler(directory: str, port: int):
             if self.path.startswith("/local-file"):
                 self._serve_local_file()
                 return
+            if self.path.startswith("/doc/"):
+                self._serve_document_file()
+                return
             super().do_GET()
 
         def do_HEAD(self) -> None:
@@ -122,7 +129,29 @@ def _make_handler(directory: str, port: int):
                 self.send_error(403, "Invalid session token")
                 return
             raw_path = (params.get("path") or [""])[0]
-            file_path = unquote(raw_path)
+            self._send_file(unquote(raw_path))
+
+        def _serve_document_file(self) -> None:
+            """
+            /doc/<token>/<url-encoded folder>/<file>: a document page and its
+            sibling resources (page images written by pdf2htmlEX) share one URL
+            folder, so the HTML's relative references resolve naturally.
+            """
+            parts = urlparse(self.path).path.split("/")
+            # ['', 'doc', token, folder, file]
+            if len(parts) != 5:
+                self.send_error(404, "Not found")
+                return
+            token, folder, name = parts[2], unquote(parts[3]), unquote(parts[4])
+            if not secrets.compare_digest(token, SESSION_TOKEN):
+                self.send_error(403, "Invalid session token")
+                return
+            if not name or name in (".", "..") or "/" in name or "\\" in name:
+                self.send_error(403, "Invalid file name")
+                return
+            self._send_file(os.path.join(folder, name))
+
+        def _send_file(self, file_path: str) -> None:
             if not file_path or not os.path.isfile(file_path):
                 self.send_error(404, "File not found")
                 return

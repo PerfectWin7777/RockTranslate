@@ -330,6 +330,7 @@ class TranslationApiMixin:
             return False
 
         self._send_status_i18n("status_extraction_instrumenting")
+        self._send_js("window.dispatchEvent(new CustomEvent('workspace-prep-analysing'))")
         logger.info("Executing BeautifulSoup semantic tag compilation...")
 
         workspace_html_path = os.path.join(cache_dir, "workspace.html")
@@ -956,7 +957,9 @@ class TranslationApiMixin:
         temp_html_path = None
         try:
             translations = {seg_id: text for page in self._translated_pages.values() for seg_id, text in page.items()}
-            fd, temp_html_path = tempfile.mkstemp(suffix=".html", prefix="rocktranslate-export-")
+            # Written next to the workspace: its page images are relative files
+            fd, temp_html_path = tempfile.mkstemp(suffix=".html", prefix="rocktranslate-export-",
+                                                  dir=os.path.dirname(os.path.abspath(self._active_html_path)))
             os.close(fd)
             apply_translations_offline(self._active_html_path, temp_html_path, translations)
 

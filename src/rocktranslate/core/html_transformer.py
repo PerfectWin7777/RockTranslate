@@ -42,6 +42,8 @@ STALL_TIMEOUT_SECONDS = 30.0
 # Before its FIRST output line pdf2htmlEX may legitimately stay silent for a
 # long time (Windows: font cache build on a cold start).
 STARTUP_GRACE_SECONDS = 120.0
+# Bumped when the raw conversion options change (cached raw HTML is redone)
+RAW_LAYOUT_VERSION = 2
 
 # Last pdf2htmlEX failure reason (stderr tail), surfaced to the UI/CLI.
 LAST_CONVERSION_ERROR: Dict[str, str] = {"message": ""}
@@ -120,8 +122,18 @@ def convert_pdf_to_html(
         cmd_pdf_ref = pdf_filename
         cmd_output_ref = html_filename
 
-    # Bypass compilation ONLY if raw HTML is already generated and is not empty
-    if os.path.exists(output_html_path) and os.path.getsize(output_html_path) > 0:
+    # Page images are written as separate files next to the HTML (only inside a
+    # dedicated output folder): base64-embedded images made the HTML up to ~95%
+    # images, i.e. hundreds of MB for image-heavy papers, which every later step
+    # (parsing, geometry, the GUI pane, printing) had to load again.
+    external_images = bool(output_dir)
+    layout_marker = os.path.join(os.path.dirname(output_html_path),
+                                 f".{os.path.splitext(html_filename)[0]}.layout-v{RAW_LAYOUT_VERSION}")
+
+    # Bypass compilation ONLY if raw HTML is already generated, not empty, and
+    # was produced with the current conversion options.
+    if (os.path.exists(output_html_path) and os.path.getsize(output_html_path) > 0
+            and (not external_images or os.path.exists(layout_marker))):
         logger.info(f"Raw HTML already exists and is valid. Skipping compilation for: {pdf_filename}")
         return output_html_path
 
@@ -138,6 +150,8 @@ def convert_pdf_to_html(
             pass
 
     cmd: List[str] = [os.path.abspath(pdf2htmlex_exe), "--zoom", "1.3", "--no-drm", "1"]
+    if external_images:
+        cmd += ["--embed-image", "0"]
     if user_password:
         cmd += ["--user-password", user_password]
     data_dir = pdf2htmlex_data_dir(pdf2htmlex_exe)
@@ -254,6 +268,12 @@ def convert_pdf_to_html(
 
     if process.returncode == 0 and os.path.exists(partial_html_path) and os.path.getsize(partial_html_path) > 0:
         os.replace(partial_html_path, output_html_path)
+        if external_images:
+            try:
+                with open(layout_marker, "w", encoding="utf-8") as f:
+                    f.write("external page images\n")
+            except OSError:
+                pass
         logger.info("Raw HTML file generated successfully.")
         return output_html_path
 
@@ -411,7 +431,7 @@ SYMBOL_GLYPH_FIXES = str.maketrans({"ð": "(", "Þ": ")", "¼": "=", "þ": "+"})
 
 # Bump whenever instrument_html output changes: cached workspaces built by an
 # older pipeline are then re-instrumented from the cached raw HTML.
-PIPELINE_VERSION = 14
+PIPELINE_VERSION = 15
 
 
 def parse_font_sizes(soup: BeautifulSoup) -> Dict[str, float]:

@@ -136,7 +136,10 @@
                 running: false,
                 stage: 'idle', // 'idle' | 'preparing' | 'translating'
                 prepCurrent: 0,
-                prepTotal: 0
+                prepAnalysing: false,
+                prepTotal: 0,
+                // True while the right pane loads the prepared layout (large files)
+                layoutLoading: false
             });
 
             Alpine.store('modals', {
@@ -278,6 +281,14 @@
                         t.stage = 'preparing';
                         t.prepCurrent = 0;
                         t.prepTotal = 0;
+                        t.prepAnalysing = false;
+                    });
+
+                    window.addEventListener('workspace-prep-analysing', () => {
+                        const t = Alpine.store('trans');
+                        t.running = true;
+                        t.stage = 'preparing';
+                        t.prepAnalysing = true;
                     });
 
                     window.addEventListener('workspace-prep-progress', (e) => {

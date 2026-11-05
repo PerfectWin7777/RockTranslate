@@ -34,8 +34,16 @@ function workspaceController() {
         zoomFactor: 0.8,
 
         init() {
+            // The workspace component is re-mounted on every document open: drop
+            // the listeners of the previous instance, or every event is handled
+            // twice (double progress counts, stale iframe handles).
+            if (window.__rtWorkspaceListeners) window.__rtWorkspaceListeners.abort();
+            const listeners = new AbortController();
+            window.__rtWorkspaceListeners = listeners;
+            const rtOn = (target, type, fn) => target.addEventListener(type, fn, { signal: listeners.signal });
+
             // Register zoom listeners from the bottom status bar slider
-            window.addEventListener('trigger-zoom-change', (e) => {
+            rtOn(window, 'trigger-zoom-change', (e) => {
                 if (e.detail && e.detail.factor) {
                     this.zoomFactor = e.detail.factor;
                     this.applyZoom(this.zoomFactor);
@@ -43,14 +51,14 @@ function workspaceController() {
             });
 
             // Register layout switch listeners from the dropdown menu bar options
-            window.addEventListener('trigger-layout-change', (e) => {
+            rtOn(window, 'trigger-layout-change', (e) => {
                 if (e.detail && e.detail.mode) {
                     this.setPaneLayout(e.detail.mode);
                 }
             });
 
             // ── TRANSLATION WORKER COMMUNICATION INTERCEPTORS ──
-            window.addEventListener('stream-translation', (e) => {
+            rtOn(window, 'stream-translation', (e) => {
                 if (e.detail && e.detail.id && e.detail.text) {
                     const htmlFrame = document.getElementById('html-iframe');
                     if (htmlFrame && htmlFrame.contentWindow && htmlFrame.contentWindow.applyTranslation) {
@@ -60,7 +68,7 @@ function workspaceController() {
             });
 
             // Batched stream: one bridge call per LLM batch instead of two per segment
-            window.addEventListener('stream-translations', (e) => {
+            rtOn(window, 'stream-translations', (e) => {
                 const items = (e.detail && e.detail.items) || [];
                 const htmlFrame = document.getElementById('html-iframe');
                 const win = htmlFrame && htmlFrame.contentWindow;
@@ -74,9 +82,9 @@ function workspaceController() {
             // (re)loaded AFTER 'prepare-page' was sent (first run: the document is
             // prepared, then the iframe reloads), so onload replays this set.
             this.preparingPages = new Set();
-            window.addEventListener('trigger-translation-finished', () => { this.preparingPages.clear(); });
+            rtOn(window, 'trigger-translation-finished', () => { this.preparingPages.clear(); });
 
-            window.addEventListener('prepare-page', (e) => {
+            rtOn(window, 'prepare-page', (e) => {
                 if (e.detail && e.detail.page !== undefined) {
                     this.preparingPages.add(e.detail.page);
                     const htmlFrame = document.getElementById('html-iframe');
@@ -86,7 +94,7 @@ function workspaceController() {
                 }
             });
 
-            window.addEventListener('reset-page', (e) => {
+            rtOn(window, 'reset-page', (e) => {
                 if (e.detail && e.detail.page !== undefined) {
                     this.preparingPages.delete(e.detail.page);
                     const htmlFrame = document.getElementById('html-iframe');
@@ -96,7 +104,7 @@ function workspaceController() {
                 }
             });
 
-            window.addEventListener('hide-glass-overlays', (e) => {
+            rtOn(window, 'hide-glass-overlays', (e) => {
                 if (e.detail && e.detail.pages) {
                     const htmlFrame = document.getElementById('html-iframe');
                     if (htmlFrame && htmlFrame.contentWindow) {
@@ -111,7 +119,7 @@ function workspaceController() {
             });
 
             // ── CLEAR REMAINING SKELETON SHIMMERS ON COMPLETION ──
-            window.addEventListener('trigger-translation-finished', () => {
+            rtOn(window, 'trigger-translation-finished', () => {
                 const htmlFrame = document.getElementById('html-iframe');
                 if (htmlFrame && htmlFrame.contentWindow) {
                     try {
@@ -123,7 +131,7 @@ function workspaceController() {
             });
 
             // ── TRANSLATION RESET LISTENER ──
-            window.addEventListener('trigger-translation-reset', (e) => {
+            rtOn(window, 'trigger-translation-reset', (e) => {
                 const htmlFrame = document.getElementById('html-iframe');
                 if (htmlFrame && htmlFrame.contentWindow && htmlFrame.contentWindow.applyTranslation) {
                     try {
@@ -138,8 +146,8 @@ function workspaceController() {
 
 
             // Bind splitter drags globally to the document
-            document.addEventListener('mousemove', (e) => this.handleSplitterMove(e));
-            document.addEventListener('mouseup', () => this.stopSplitterDrag());
+            rtOn(document, 'mousemove', (e) => this.handleSplitterMove(e));
+            rtOn(document, 'mouseup', () => this.stopSplitterDrag());
 
             // Load the iframes immediately on initialization if paths are already present
             if (this.$data.activeFilePath) {
@@ -195,9 +203,23 @@ function workspaceController() {
                 return;
             }
 
-            if (placeholder) placeholder.style.display = 'none';
+            // Keep the preparation card up until the (possibly large) layout has
+            // actually loaded, so the pane never shows a stale or blank page.
+            const store = Alpine.store('trans');
+            if (store) store.layoutLoading = true;
+            if (placeholder) placeholder.style.display = 'flex';
+            htmlFrame.addEventListener('load', () => {
+                if (store) store.layoutLoading = false;
+                if (placeholder) placeholder.style.display = 'none';
+            }, { once: true });
 
-            const htmlUrl = `${window.location.origin}/local-file?t=${window.rtSessionToken()}&path=${encodeURIComponent(this.$data.activeHtmlPath)}`;
+            // Folder-style URL: the page's relative resources (page images) resolve
+            // next to it. Both separators are handled (Windows and POSIX paths).
+            const fullPath = this.$data.activeHtmlPath;
+            const cut = Math.max(fullPath.lastIndexOf('/'), fullPath.lastIndexOf('\\'));
+            const folder = fullPath.slice(0, cut);
+            const name = fullPath.slice(cut + 1);
+            const htmlUrl = `${window.location.origin}/doc/${window.rtSessionToken()}/${encodeURIComponent(folder)}/${encodeURIComponent(name)}`;
             htmlFrame.src = htmlUrl;
         },
 

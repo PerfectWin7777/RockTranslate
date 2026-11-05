@@ -24,16 +24,18 @@
                  pdf2htmlEX page progress, then disappears as soon as the document is ready. -->
             <div id="trans-placeholder" class="trans-placeholder" style="display:none;">
                 <div class="placeholder-card">
-                    <div class="placeholder-spinner" x-show="$store.trans.stage === 'preparing'"></div>
-                    <div class="placeholder-icon" x-show="$store.trans.stage !== 'preparing'">🌐</div>
+                    <div class="placeholder-spinner" x-show="$store.trans.stage === 'preparing' || $store.trans.layoutLoading"></div>
+                    <div class="placeholder-icon" x-show="$store.trans.stage !== 'preparing' && !$store.trans.layoutLoading">🌐</div>
                     <div class="placeholder-title"
-                        x-text="$store.trans.stage === 'preparing'
-                            ? $store.i18n.translate('prep_overlay_title')
-                            : $store.i18n.translate('workspace_lazy_title')"></div>
+                        x-text="$store.trans.layoutLoading
+                            ? $store.i18n.translate('layout_loading_title')
+                            : ($store.trans.stage === 'preparing'
+                                ? ($store.trans.prepAnalysing ? $store.i18n.translate('prep_analysing') : $store.i18n.translate('prep_overlay_title'))
+                                : $store.i18n.translate('workspace_lazy_title'))"></div>
                     <p class="placeholder-progress"
                         x-show="$store.trans.stage === 'preparing' && $store.trans.prepTotal > 0"
                         x-text="$store.i18n.translate('prep_overlay_pages', { current: $store.trans.prepCurrent, total: $store.trans.prepTotal })"></p>
-                    <p class="placeholder-text"
+                    <p class="placeholder-text" x-show="!$store.trans.layoutLoading && $store.trans.stage !== 'preparing'"
                         x-text="$store.i18n.translate('workspace_lazy_placeholder')"></p>
                 </div>
             </div>
