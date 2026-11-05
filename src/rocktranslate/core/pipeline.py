@@ -173,7 +173,8 @@ def _load_cache(path: Optional[str], original_texts: Dict[str, str]) -> Dict[str
             data = json.load(f)
         # Only reuse entries whose source text is unchanged
         return {k: v["t"] for k, v in data.get("items", {}).items()
-                if k in original_texts and v.get("s") == original_texts[k]}
+                if k in original_texts and v.get("s") == original_texts[k]
+                and should_translate(original_texts[k])}
     except (OSError, ValueError, AttributeError, KeyError):
         return {}
 
@@ -288,7 +289,9 @@ def translate_pdf(
         report.batches_total = len(batches)
         contexts = build_source_contexts(original_texts, batches, context_size)
         translatable = {i for b in batches for i in b.ids}
-        translations: Dict[str, str] = {k: v for k, v in pending_texts.items() if k not in translatable}
+        # Untranslatable segments (numbers, formulas, symbols) are NOT re-injected:
+        # their original rendering (fonts, math glyphs) stays exactly intact.
+        translations: Dict[str, str] = {}
         translations.update(cached)
 
         logger.info(f"Step 4/5: translating {len(translatable)} segments in {len(batches)} batches "
@@ -311,7 +314,10 @@ def translate_pdf(
         report.completion_tokens = client.usage["completion_tokens"]
         report.cost_usd = client.usage["cost_usd"]
 
-        if batches and failed == len(batches):
+        # Abort only when NOTHING could be translated (bad key, no network).
+        # A batch the model keeps answering incompletely must not discard the
+        # rest of the document (cached translations included).
+        if batches and failed == len(batches) and not llm_items and not cached:
             report.error = "Every translation request failed (check the API key / network)."
             report.seconds = time.monotonic() - started
             return report

@@ -70,6 +70,17 @@ def should_translate(text: str) -> bool:
     if len(text) == 1 and not text.isalpha():
         return False
 
+    # Formulas and symbol runs ("(i = 1, 2, ..., n)", "CI = (λmax − n)/(n − 1)"):
+    # too few characters belong to real words (3+ letters). A model would only
+    # reformat them (", " -> " ; " ...), never translate them.
+    plain = re.sub(r"</?[a-z_0-9]+>", "", text)
+    visible = re.sub(r"\s+", "", plain)
+    if visible:
+        wordy = sum(len(w) for w in re.findall(r"[^\W\d_]{3,}", plain))
+        has_real_word = re.search(r"[^\W\d_]{5,}", plain) is not None
+        if wordy / len(visible) < 0.3 and not has_real_word:
+            return False
+
     return True
 
 

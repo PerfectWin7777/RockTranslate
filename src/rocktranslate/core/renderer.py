@@ -137,9 +137,26 @@ def build_page_size_css(html_content: str) -> str:
     # A 0.5pt height tolerance (invisible, <0.07%) prevents it.
     heights = {k: v + 0.5 for k, v in heights.items()}
 
+    # Default size = the most frequent page size (not the first page's: a
+    # rotated landscape table page must not set the size of the whole document)
+    counts = {}
+    for m in re.finditer(r'<div[^>]+class="pf ([^"]+)"', html_content):
+        classes = m.group(1).split()
+        w = next((c for c in classes if c in widths), None)
+        h = next((c for c in classes if c in heights), None)
+        if w and h:
+            counts[(w, h)] = counts.get((w, h), 0) + 1
+    main_w, main_h = max(counts, key=counts.get) if counts else combos[0]
+
     rules = []
-    first_w, first_h = combos[0]
-    rules.append(f"@page {{ size: {widths[first_w]:.3f}pt {heights[first_h]:.3f}pt; margin: 0; }}")
+    rules.append(f"@page {{ size: {widths[main_w]:.3f}pt {heights[main_h]:.3f}pt; margin: 0; }}")
+    # Named pages only apply to boxes in normal flow: pdf2htmlEX's absolutely
+    # positioned page container silently disabled them (mixed portrait/landscape
+    # documents were printed at a single size, overflowing onto extra pages).
+    rules.append("@media print { #page-container { position: static !important; } }")
+    # pdf2htmlEX's loading indicator and our tooltip sit after the last page:
+    # printed, they produced an extra (almost) blank page.
+    rules.append("@media print { .loading-indicator, #rt-bilingual-tooltip { display: none !important; } }")
     for w, h in combos:
         name = f"rt-{w}-{h}"
         rules.append(f"@page {name} {{ size: {widths[w]:.3f}pt {heights[h]:.3f}pt; margin: 0; }}")

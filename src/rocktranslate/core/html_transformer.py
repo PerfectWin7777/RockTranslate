@@ -29,6 +29,7 @@ from bs4 import BeautifulSoup, NavigableString
 from loguru import logger
 
 from .config_manager import config_db
+from .chunker import should_translate
 # Safe imports supporting both standard package modules and direct scripts
 from .constants import DEFAULT_ASSETS_DIR, ACCENTS_TO_IGNORE, THRESHOLD_PX
 from .downloader import check_and_download_pdf2htmlex, pdf2htmlex_data_dir
@@ -405,7 +406,7 @@ SYMBOL_GLYPH_FIXES = str.maketrans({"ð": "(", "Þ": ")", "¼": "=", "þ": "+"})
 
 # Bump whenever instrument_html output changes: cached workspaces built by an
 # older pipeline are then re-instrumented from the cached raw HTML.
-PIPELINE_VERSION = 7
+PIPELINE_VERSION = 11
 
 
 def parse_font_sizes(soup: BeautifulSoup) -> Dict[str, float]:
@@ -456,6 +457,137 @@ _REF_START_RE = re.compile(r"^\s*\[\d+\]\s")
 
 
 def group_lines_into_paragraphs(lines: List[Dict[str, Any]], texts: Dict[str, str]) -> List[List[Dict[str, Any]]]:
+    """Paragraph grouping: from MEASURED geometry when available, else estimates."""
+    if lines and all(l.get("box") for l in lines):
+        return _group_measured(lines, texts)
+    return _group_estimated(lines, texts)
+
+
+def _group_measured(lines: List[Dict[str, Any]], texts: Dict[str, str]) -> List[List[Dict[str, Any]]]:
+    """
+    Paragraph grouping from the exact rendered boxes of the lines. Only
+    geometric facts are used, expressed in em of the text itself:
+
+    - same visual line: boxes overlap vertically and the horizontal gap from
+      the end of the text already on that line is at most 1 em (a table cell
+      or another column is further away, so it is never absorbed);
+    - next line of the same paragraph: same font size and vertical scale,
+      regular baseline step, same left edge (first line may be indented);
+    - a paragraph ends when a line stops clearly before the block's right
+      edge, or at a list marker; a short first line is a heading.
+    """
+    for l in lines:
+        left, right, top, bottom = l["box"]
+        l.update({"x": left, "right": right, "end": right, "top": top, "bottom": bottom, "y": -bottom})
+
+    def eligible(line: Dict[str, Any]) -> bool:
+        return (len(line["spans"]) == 1 and line["em"] > 0
+                and bool(texts.get(line["spans"][0][0], "").strip()))
+
+    def has_text(line: Dict[str, Any]) -> bool:
+        return line["em"] > 0 and any(texts.get(g, "").strip() for g, _ in line["spans"])
+
+    closed: List[Dict[str, Any]] = []
+    active: List[Dict[str, Any]] = []
+    recent: List[Dict[str, Any]] = []      # recent slot lines (absorption hosts)
+
+    def same_column(block: Dict[str, Any], line: Dict[str, Any]) -> bool:
+        ref = block["lines"][-1]
+        horizontal_overlap = min(ref["end"], line["right"]) - max(ref["x"], line["x"])
+        return horizontal_overlap > 0
+
+    def close(block: Dict[str, Any]) -> None:
+        active.remove(block)
+        closed.append(block)
+
+    def continues(block: Dict[str, Any], line: Dict[str, Any]) -> bool:
+        prev = block["lines"][-1]
+        em = line["em"]
+        dy = line["bottom"] - prev["bottom"]
+        if not (line["fs"] == prev["fs"] and _same_scale(line, prev) and abs(line["em"] - prev["em"]) < 0.05 * em):
+            return False
+        if not (0.9 * em <= dy <= 1.9 * em and (block["step"] is None or abs(dy - block["step"]) <= 0.2 * em)):
+            return False
+        if block["left"] is None:
+            if not (-0.6 * em <= prev["x"] - line["x"] <= 4.0 * em):
+                return False
+        elif abs(line["x"] - block["left"]) > 0.6 * em:
+            return False
+        text = texts.get(line["spans"][0][0], "")
+        first_text = texts.get(block["lines"][0]["spans"][0][0], "")
+        if _LIST_START_RE.match(text) or (_REF_START_RE.match(text) and _REF_START_RE.match(first_text)):
+            return False
+        if len(block["lines"]) == 1:
+            prev_text = texts.get(prev["spans"][0][0], "").strip()
+            if re.fullmatch(r"<color_[0-9a-fA-F]{6}>.*</color_[0-9a-fA-F]{6}>", prev_text) and not re.match(r"<color_", text.strip()):
+                return False
+            # A first line ending clearly before the next one is a heading
+            if abs(prev["x"] - line["x"]) <= 0.3 * em and prev["end"] < line["end"] - 3.0 * em:
+                return False
+        else:
+            # The previous line stopped before the block's right edge: paragraph end
+            block_right = max(l["end"] for l in block["lines"][:-1])
+            if prev["end"] < block_right - 2.0 * em:
+                return False
+        return True
+
+    for line in lines:
+        if not has_text(line):
+            continue
+        # Formula fragments (fractions, symbols) keep their original rendering:
+        # never a paragraph line, never absorbed into one.
+        if not should_translate("".join(texts.get(g, "") for g, _ in line["spans"])) \
+                and not (line["em"] < 0.85 * max((c["em"] for c in recent[-1:]), default=line["em"])):
+            continue
+
+        host = None
+        for cand in reversed(recent[-6:]):
+            overlap = min(cand["bottom"], line["bottom"]) - max(cand["top"], line["top"])
+            gap = line["x"] - cand["end"]
+            if (overlap >= 0.4 * min(cand["bottom"] - cand["top"], line["bottom"] - line["top"])
+                    and -1.0 * cand["em"] <= gap <= 1.0 * cand["em"]
+                    and line["em"] <= cand["em"] * 1.05):
+                host = cand
+                break
+        if host is not None:
+            smaller = line["em"] < 0.85 * host["em"]
+            line["sup"] = smaller and line["bottom"] <= host["bottom"] - 0.1 * host["em"]
+            line["sub"] = smaller and not line["sup"] and line["top"] >= host["top"] + 0.25 * host["em"]
+            host.setdefault("pieces", []).append(line)
+            host["end"] = max(host["end"], line["right"])
+            continue
+
+        if not eligible(line):
+            for block in [b for b in active if same_column(b, line)]:
+                close(block)
+            continue
+
+        target = next((b for b in reversed(active) if continues(b, line)), None)
+        if target is not None:
+            prev = target["lines"][-1]
+            if target["step"] is None:
+                target["step"] = line["bottom"] - prev["bottom"]
+            if target["left"] is None:
+                target["left"] = line["x"]
+            target["lines"].append(line)
+        else:
+            for block in [b for b in active if same_column(b, line)]:
+                close(block)
+            active.append({"lines": [line], "step": None, "left": None})
+        recent.append(line)
+
+    closed.extend(active)
+    paragraphs = [b["lines"] for b in closed if len(b["lines"]) >= 2]
+    paragraphs.sort(key=lambda para: lines.index(para[0]))
+    prose = []
+    for para in paragraphs:
+        lens = sorted(_visual_len(l, texts) for l in para)
+        if lens[len(lens) // 2] >= 30:
+            prose.append(para)
+    return prose
+
+
+def _group_estimated(lines: List[Dict[str, Any]], texts: Dict[str, str]) -> List[List[Dict[str, Any]]]:
     """
     Groups single-segment lines of a page into paragraphs, from geometry only:
 
@@ -475,9 +607,15 @@ def group_lines_into_paragraphs(lines: List[Dict[str, Any]], texts: Dict[str, st
           and len(re.sub(r"</?[a-z_0-9]+>", "", "".join(texts.get(g, "") for g, _ in l["spans"]))) >= 30]
     column_edges = sorted({round(x, 1) for x in xs if sum(1 for o in xs if abs(o - x) <= 1.5) >= 4})
 
+    # Table columns: cell starts aligned to the pixel on 3+ lines of the page
+    all_xs = [l["x"] for l in lines if l.get("x") is not None]
+    aligned_edges = sorted({round(x, 1) for x in all_xs if sum(1 for o in all_xs if abs(o - x) <= 1.0) >= 3})
+
     def on_other_column_edge(line: Dict[str, Any], prev: Dict[str, Any]) -> bool:
         tol = 0.5 * max(line["em"], 1.0)
-        return any(abs(line["x"] - e) <= tol and abs(prev["x"] - e) > tol for e in column_edges)
+        if any(abs(line["x"] - e) <= tol and abs(prev["x"] - e) > tol for e in column_edges):
+            return True
+        return any(abs(line["x"] - e) <= 1.0 and abs(prev["x"] - e) > 1.0 for e in aligned_edges)
 
     def eligible(line: Dict[str, Any]) -> bool:
         return (len(line["spans"]) == 1 and line["x"] is not None and line["y"] is not None
@@ -510,6 +648,16 @@ def group_lines_into_paragraphs(lines: List[Dict[str, Any]], texts: Dict[str, st
             return False
         text = texts.get(line["spans"][0][0], "")
         first_text = texts.get(block["lines"][0]["spans"][0][0], "")
+        # Headings glued to the paragraph below: a fully colored line, or a
+        # short, non-indented first line (a real first line is full width).
+        if len(block["lines"]) == 1:
+            prev_text = texts.get(prev["spans"][0][0], "").strip()
+            if re.fullmatch(r"<color_[0-9a-fA-F]{6}>.*</color_[0-9a-fA-F]{6}>", prev_text) and not re.match(r"<color_", text.strip()):
+                return False
+            if (abs(prev["x"] - line["x"]) <= 0.3 * em
+                    and _visual_len(prev, texts) < 0.7 * _visual_len(line, texts)
+                    and not re.search(r"[,;:]$", re.sub(r"</?[a-z_0-9]+>", "", prev_text))):
+                return False
         if _LIST_START_RE.match(text) or (_REF_START_RE.match(text) and _REF_START_RE.match(first_text)):
             return False
         lengths = [_visual_len(l, texts) for l in block["lines"]]
@@ -628,6 +776,10 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
     spacer_map: Dict[str, float] = parse_spacer_widths(soup)
     color_map:  Dict[str, str] = parse_color_classes(soup)
     x_map, y_map = parse_position_classes(soup)
+
+    # Exact rendered geometry of every line (None -> estimate-based fallback)
+    from .geometry import measure_line_boxes
+    measured_boxes = measure_line_boxes(raw_html_path)
     pages_list = soup.find_all("div", class_="pf")
     symbol_fonts: Set[str] = detect_symbol_font_classes(soup)
     font_size_map: Dict[str, float] = parse_font_sizes(soup)
@@ -663,8 +815,12 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
         # 3. Preserve the native DOM reading order from pdf2htmlEX to support multi-column layouts
         sorted_div_t = div_t_elements
         page_lines: List[Dict[str, Any]] = []
+        page_boxes = None
+        if measured_boxes is not None and page_idx < len(measured_boxes) \
+                and len(measured_boxes[page_idx]) == len(sorted_div_t):
+            page_boxes = measured_boxes[page_idx]
 
-        for div_t in sorted_div_t:
+        for line_idx, div_t in enumerate(sorted_div_t):
             # Determine line scaling factors (scaleX, scaleY)
             classes = div_t.get("class", [])
             line_spans: List[Tuple[str, Any]] = []
@@ -813,7 +969,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 current_group_elements.clear()
 
             # Iterate through DOM elements to apply scaled grouping
-            for child in children:
+            for child_pos, child in enumerate(children):
                 # child_text = child.get_text().strip() if hasattr(child, "get_text") else str(child).strip()
                 
                 # Silently skip legacy PDF floating accents
@@ -855,10 +1011,25 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     # A wide gap right after a sentence end inside prose is the
                     # double space of justified (LaTeX) text, not a table column:
                     # splitting there broke paragraphs and sentences mid-way.
+                    # Double space after a sentence end inside PROSE: the text before
+                    # ends with . ? ! (not ")" "]" "," — table cells like "(dev)" or
+                    # "top-1 err.") and the next word starts a sentence (capital).
+                    next_text = ""
+                    for nxt in children[child_pos + 1:]:
+                        n_cls = nxt.get("class") if hasattr(nxt, "get") else None
+                        if isinstance(n_cls, str):
+                            n_cls = n_cls.split()
+                        if getattr(nxt, "name", None) == "span" and n_cls and any(c.startswith("_") for c in n_cls):
+                            continue
+                        next_text = (nxt.get_text() if hasattr(nxt, "get_text") else str(nxt)).strip()
+                        if next_text:
+                            break
+                    before = "".join(current_group_text)
                     sentence_gap = (
-                        em_px > 0 and 0 < scaled_width < 3.0 * em_px
-                        and re.search(r"[.?!:;,)\]]\s*$", "".join(current_group_text) or "") is not None
-                        and len("".join(current_group_text).strip()) > 3
+                        em_px > 0 and 0 < scaled_width < 2.0 * em_px
+                        and re.search(r"[a-zà-ÿ]{2,}[.?!]\s*$", before) is not None
+                        and re.match(r"[A-ZÀ-Þ][a-zà-ÿ]", next_text) is not None
+                        and len(re.findall(r"[A-Za-zÀ-ÿ]{2,}", before)) >= 3
                     )
                     # Gaps narrower than 1 em, or regular gaps of a justified line,
                     # are word spaces whatever the column threshold.
@@ -922,6 +1093,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 "m": next((c for c in classes if c in matrix_map), None),
                 "sy": abs(sy_orig or 1.0),
                 "em": em_px,
+                "box": page_boxes[line_idx] if page_boxes else None,
             })
 
         # ── PARAGRAPH RECONSTRUCTION (DeepL-style reflow) ──
@@ -1234,6 +1406,31 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
             // Common right edge = median of the full lines' right edges (all but
             // the last line). The max was fooled by lines ending with an
             // invisible trailing spacer, which widened the whole block.
+            // Never extend past text of ANOTHER column on the same line (tables,
+            // side-by-side columns): clamp the block's right edge before it.
+            (function () {
+                var page = slots[0].closest('.pf');
+                if (!page) return;
+                var own = new Set(all.map(function (s) { return s.closest('div.t'); }));
+                var pr = page.getBoundingClientRect();
+                var k = (page.offsetWidth && pr.width) ? pr.width / page.offsetWidth : 1;
+                var limit = Infinity;
+                var rects = slots.map(function (s) { return s.closest('div.t').getBoundingClientRect(); });
+                page.querySelectorAll('div.t').forEach(function (d) {
+                    if (own.has(d) || !d.textContent.trim()) return;
+                    var r = d.getBoundingClientRect();
+                    var left = (r.left - pr.left) / k;
+                    for (var i = 0; i < rects.length; i++) {
+                        var a = rects[i];
+                        var overlapV = Math.min(a.bottom, r.bottom) - Math.max(a.top, r.top);
+                        if (overlapV > 0.5 * Math.min(a.height, r.height) && left > geo[i].left + 4) {
+                            limit = Math.min(limit, left - 4);
+                        }
+                    }
+                });
+                if (limit < Infinity && limit < paraRight) paraRight = Math.max(limit, Math.max.apply(null, geo.map(function (g) { return g.left; })) + 20);
+            })();
+
             var lineRights = slots.map(function (s) { return rights[lineNo(s)]; });
             var fullRights = (lineRights.length > 1 ? lineRights.slice(0, -1) : lineRights).slice().sort(function (a, b) { return a - b; });
             var medianRight = fullRights[Math.floor(fullRights.length / 2)];
@@ -1373,6 +1570,12 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
 
         window.applyTranslation = function(transId, translatedText) {
             try {
+                // Empty = untranslatable segment (number, formula): keep the original
+                if (translatedText === '' || translatedText === null || translatedText === undefined) {
+                    var keep = document.querySelector('[data-trans-id="' + transId + '"]');
+                    if (keep) keep.classList.remove('shimmer-line');
+                    return;
+                }
                 if (String(transId).indexOf('p-') === 0) {
                     window.reflowParagraph(transId, translatedText);
                     return;

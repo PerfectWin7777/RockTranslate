@@ -29,6 +29,8 @@ _REAL_LOCALAPPDATA = os.environ.get("LOCALAPPDATA", "")
 _TMP_HOME = tempfile.mkdtemp(prefix="rt_test_home_")
 os.environ["HOME"] = _TMP_HOME
 os.environ["LOCALAPPDATA"] = _TMP_HOME
+# Unit tests use the estimate-based layout path (no browser round-trip)
+os.environ["ROCKTRANSLATE_NO_GEOMETRY"] = "1"
 
 FIXTURE_HTML = os.path.join(
     ROOT, "src", "rocktranslate", "assets", "pdf2htmlEX", "test",
@@ -540,3 +542,41 @@ def test_paragraph_grouping_breaks_and_absorbs():
     assert ["g", "h"] in ids                    # bullet starts a new block
     host = next(l for p in paras for l in p if l["spans"][0][0] == "c")
     assert host["pieces"][0]["sup"] is True
+
+
+def _mline(gid, left, right, top, em=13.0, fs="fs2"):
+    return {"spans": [(gid, None)], "x": left, "y": None, "fs": fs, "m": "m0", "sy": 0.325, "em": em,
+            "box": (left, right, top, top + em * 0.7)}
+
+
+def test_measured_grouping_keeps_table_cells_apart():
+    from rocktranslate.core.html_transformer import group_lines_into_paragraphs
+    texts = {}
+    lines = []
+    # A table: 4 rows x 3 cells, each cell its own box, gaps of ~3 em between cells
+    for r in range(4):
+        for c, x in enumerate((60, 260, 460)):
+            gid = f"r{r}c{c}"
+            texts[gid] = f"cell text row {r} column {c} with several words inside"
+            lines.append(_mline(gid, x, x + 150, 100 + r * 16))
+    paras = group_lines_into_paragraphs(lines, texts)
+    for para in paras:
+        assert len({round(l["x"]) for l in para}) == 1, "a paragraph crossed table columns"
+        for l in para:
+            assert not l.get("pieces"), "a neighbour cell was absorbed into a line"
+
+
+def test_measured_grouping_absorbs_inline_pieces_only():
+    from rocktranslate.core.html_transformer import group_lines_into_paragraphs
+    texts = {"a": "The first line of a measured paragraph ends with a citation",
+             "cite": "[12]",
+             "b": "and the paragraph continues on the next line of the column",
+             "c": "until this last line which is long enough to be prose text",
+             "far": "Another column far away on the same baseline as line one"}
+    lines = [_mline("a", 60, 400, 100), _mline("cite", 402, 425, 100),
+             _mline("far", 470, 800, 100),
+             _mline("b", 60, 400, 116), _mline("c", 60, 380, 132)]
+    paras = group_lines_into_paragraphs(lines, texts)
+    first = next(p for p in paras if p[0]["spans"][0][0] == "a")
+    assert [l["spans"][0][0] for l in first] == ["a", "b", "c"]
+    assert [p["spans"][0][0] for p in first[0]["pieces"]] == ["cite"]

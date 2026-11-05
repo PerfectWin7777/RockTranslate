@@ -541,6 +541,9 @@ class TranslationApiMixin:
             bypassed = {k: v for k, v in untranslated_texts.items() if k not in translatable_ids}
             # Pages with nothing to send to the LLM are complete right away
             pages_with_work = {self._tid_to_page.get(i, 0) for i in translatable_ids}
+            # Untranslatable segments keep their original rendering: an empty
+            # translation marks them done without touching the DOM.
+            bypassed = {k: "" for k in bypassed}
             immediate = {k: v for k, v in bypassed.items() if self._tid_to_page.get(k, 0) not in pages_with_work}
             if immediate:
                 self._commit_translations(immediate)
@@ -745,6 +748,7 @@ class TranslationApiMixin:
                 k: v["t"] for k, v in data.get("translations", {}).items()
                 if k in self._original_texts
                 and v.get("s") == self._original_texts[k]
+                and should_translate(self._original_texts[k])
                 and k not in self._translated_pages.get(self._tid_to_page.get(k, 0), {})
             }
             if restored:
