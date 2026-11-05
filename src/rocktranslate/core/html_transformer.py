@@ -33,7 +33,7 @@ from .chunker import should_translate
 # Safe imports supporting both standard package modules and direct scripts
 from .constants import DEFAULT_ASSETS_DIR, ACCENTS_TO_IGNORE, THRESHOLD_PX
 from .downloader import check_and_download_pdf2htmlex, pdf2htmlex_data_dir
-from .proc import kill_tree
+from .proc import kill_tree, process_cpu_seconds
 
 # Seconds without any stderr output before the conversion is considered hung.
 # A total time limit would kill legitimate long conversions of large documents,
@@ -44,6 +44,10 @@ STALL_TIMEOUT_SECONDS = 30.0
 STARTUP_GRACE_SECONDS = 120.0
 # Bumped when the raw conversion options change (cached raw HTML is redone)
 RAW_LAYOUT_VERSION = 2
+# Liveness while pdf2htmlEX is silent: CPU time is sampled every few seconds;
+# a busy process is given more time, up to a hard cap of silence.
+CPU_CHECK_SECONDS = 5.0
+MAX_BUSY_SILENCE_SECONDS = 900.0
 
 # Last pdf2htmlEX failure reason (stderr tail), surfaced to the UI/CLI.
 LAST_CONVERSION_ERROR: Dict[str, str] = {"message": ""}
@@ -223,8 +227,21 @@ def convert_pdf_to_html(
         # is idle; silence across the whole budget still means the process hung.
         line: Optional[str] = None
         stalled = True
-        stall_deadline = time.monotonic() + wait_budget
+        silence_start = time.monotonic()
+        stall_deadline = silence_start + wait_budget
+        cpu_seen = process_cpu_seconds(process.pid)
+        next_cpu_check = silence_start + CPU_CHECK_SECONDS
         while time.monotonic() < stall_deadline:
+            # Silent but still burning CPU = working (a huge page image can take
+            # minutes to encode without a progress line), not hung.
+            now = time.monotonic()
+            if now >= next_cpu_check:
+                next_cpu_check = now + CPU_CHECK_SECONDS
+                cpu_now = process_cpu_seconds(process.pid)
+                if cpu_now is not None and cpu_seen is not None and cpu_now - cpu_seen >= 0.5:
+                    if now - silence_start < MAX_BUSY_SILENCE_SECONDS:
+                        stall_deadline = max(stall_deadline, now + stall_timeout)
+                cpu_seen = cpu_now if cpu_now is not None else cpu_seen
             if check_cancelled is not None and check_cancelled():
                 logger.info("pdf2htmlEX conversion cancelled by caller. Terminating the process.")
                 kill_tree(process)
@@ -239,13 +256,14 @@ def convert_pdf_to_html(
                 continue
 
         if stalled:
+            wait_budget = time.monotonic() - silence_start
             logger.error(
                 f"pdf2htmlEX stalled for {wait_budget:.0f}s without output on: {pdf_filename}. "
                 "Terminating the hung process."
             )
             kill_tree(process)
             _remove_quietly(partial_html_path)
-            LAST_CONVERSION_ERROR["message"] = f"pdf2htmlEX stalled for {wait_budget:.0f}s (unsupported fonts?)"
+            LAST_CONVERSION_ERROR["message"] = f"pdf2htmlEX stalled for {wait_budget:.0f}s (no progress, no CPU activity)"
             # TODO: If local compilation fails or times out, implement an automatic fallback
             # to a remote serverless cloud-rendering API to convert complex LaTeX documents.
             return None
