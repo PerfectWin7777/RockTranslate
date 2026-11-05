@@ -121,8 +121,11 @@ def main() -> None:
     parser.add_argument("--version", action="version", version=f"rocktranslate {__version__}")
     args = parser.parse_args()
 
+    if not os.path.isfile(args.input) and os.path.isfile(args.input + ".pdf"):
+        args.input += ".pdf"          # "paper" -> "paper.pdf"
     if not os.path.isfile(args.input) or not args.input.lower().endswith(".pdf"):
-        logger.error(f"Invalid input PDF path: {args.input}")
+        logger.error(f"Invalid input PDF path: {args.input} (file not found or not a .pdf; "
+                     "put the path in quotes if it contains spaces)")
         sys.exit(1)
 
     keys = _saved_keys()

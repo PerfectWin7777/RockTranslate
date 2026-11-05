@@ -168,12 +168,33 @@ def main() -> None:
         # Timer non bloquant s'exécutant sur le thread d'interface
         threading.Timer(remaining_delay, reveal_main_window).start()
 
+        # Drag & drop handlers need a STARTED main window (its DOM is reached
+        # through evaluate_js): binding them at webview.start() time, while the
+        # window was still hidden behind the splash, raised "Main window failed
+        # to start" and left drag & drop disabled.
+        threading.Thread(target=bind_native_events_safely, name="rocktranslate-dnd", daemon=True).start()
+
     window.events.loaded += on_window_loaded
+
+    dnd_bound = threading.Event()
+
+    def bind_native_events_safely() -> None:
+        if dnd_bound.is_set():
+            return
+        for attempt in range(5):
+            try:
+                bind_native_events(window)
+                dnd_bound.set()
+                logger.info("Drag & drop handlers bound to the main window.")
+                return
+            except Exception as e:
+                logger.warning(f"Drag & drop binding not ready yet (attempt {attempt + 1}/5): {e}")
+                threading.Event().wait(1.0)
+        logger.error("Drag & drop could not be enabled; use File > Open instead.")
 
     # Callback to register native Python-side event handlers on Webview DOM
     def bind_native_events(window):
-        
-        
+
         def on_drag(e):
             pass # No-op, simply used to prevent default browser page opening behaviors
             
@@ -194,7 +215,7 @@ def main() -> None:
     try:
         logger.info("Launching pywebview main loop...")
         # Start application on splash, with the main window context passed as master loop
-        webview.start(bind_native_events, window, 
+        webview.start(
                     #   debug=False
                       debug=not hasattr(sys, "_MEIPASS")
                       )
