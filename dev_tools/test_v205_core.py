@@ -144,8 +144,8 @@ def test_page_size_css_uses_each_page_size():
         '<div id="pf1" class="pf w0 h0"></div><div id="pf2" class="pf w1 h1"></div>'
     )
     css = build_page_size_css(html)
-    assert "@page rt-w0-h0 { size: 612.000pt 792.000pt" in css
-    assert "@page rt-w1-h1 { size: 792.000pt 612.000pt" in css
+    assert "@page rt-w0-h0 { size: 612.000pt 792.500pt" in css
+    assert "@page rt-w1-h1 { size: 792.000pt 612.500pt" in css
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -131,6 +131,12 @@ def build_page_size_css(html_content: str) -> str:
     if not combos:
         return "<style>@page { margin: 0; } body { margin: 0; padding: 0; }</style>"
 
+    # Chromium rounds page boxes down to whole device units: a fractional page
+    # height (e.g. 793.70pt for A4 at 1/72") made the content overflow by a
+    # fraction of a point and produced one blank page after every page.
+    # A 0.5pt height tolerance (invisible, <0.07%) prevents it.
+    heights = {k: v + 0.5 for k, v in heights.items()}
+
     rules = []
     first_w, first_h = combos[0]
     rules.append(f"@page {{ size: {widths[first_w]:.3f}pt {heights[first_h]:.3f}pt; margin: 0; }}")
