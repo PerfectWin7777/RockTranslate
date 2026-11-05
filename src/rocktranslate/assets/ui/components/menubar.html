@@ -237,6 +237,14 @@
             <span x-text="$store.i18n.translate('menu_settings')"></span>
 
             <div class="dropdown-menu" x-show="activeMenu === 'settings'" @click.stop x-cloak>
+                <div class="dropdown-item" @click="closeAll(); window.dispatchEvent(new CustomEvent('open-preferences', { detail: {} }))">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('prefs_menu_item')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+,</span>
+                </div>
+                <div class="dropdown-divider"></div>
                 <div class="dropdown-item" @click="triggerAction('show-trans-settings')">
                     <span class="dropdown-label">
                         <span class="dropdown-checkmark"></span>

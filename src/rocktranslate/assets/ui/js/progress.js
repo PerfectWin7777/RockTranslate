@@ -27,6 +27,11 @@ function progressController() {
         speed: 0,
         eta: '',
 
+        // Live run statistics pushed by the backend ('update-usage')
+        usage: null,
+        elapsedTick: 0,
+        _tickTimer: null,
+
         init() {
             window.addEventListener('trigger-toggle-progress', (e) => {
                 this.visible = e.detail.visible;
@@ -62,10 +67,31 @@ function progressController() {
 
             window.addEventListener('trigger-translation-start', (e) => {
                 this.startTimer(e.detail.totalSegments, e.detail.totalPages, e.detail.targetPages);
+                this.usage = null;
+                clearInterval(this._tickTimer);
+                this._tickTimer = setInterval(() => { this.elapsedTick = this.startTime ? (Date.now() - this.startTime) / 1000 : 0; }, 1000);
+            });
+
+            window.addEventListener('update-usage', (e) => {
+                this.usage = e.detail || null;
             });
 
             window.addEventListener('trigger-translation-finished', () => {
                 this.stopTimer();
+                clearInterval(this._tickTimer);
+            });
+
+            // End-of-run summary toast: time, tokens, estimated cost
+            window.addEventListener('translation-summary', (e) => {
+                const d = e.detail || {};
+                if (d.cancelled) return;
+                const i18n = Alpine.store('i18n');
+                const parts = [
+                    rtFormat.duration(d.seconds),
+                    rtFormat.tokens((d.prompt_tokens || 0) + (d.completion_tokens || 0)) + ' tokens',
+                ];
+                if (window.rtShowCost !== false) parts.push('~' + rtFormat.cost(d.cost_usd));
+                window.showToast(i18n.translate('run_summary', { details: parts.join(' · '), segments: rtFormat.int(d.segments) }), 'success', 9000);
             });
         },
 
@@ -96,6 +122,28 @@ function progressController() {
                 this.totalPages = totalPages;
             }
             this.donePages = 0;
+        },
+
+        /** One-line live statistics: elapsed · remaining · tokens · cost */
+        getUsageLine() {
+            const i18n = Alpine.store('i18n');
+            const parts = [];
+            const elapsed = this.usage ? Math.max(this.usage.elapsed, this.elapsedTick) : this.elapsedTick;
+            if (this.startTime || this.usage) parts.push('⏱ ' + rtFormat.duration(elapsed));
+            if (this.usage && this.usage.eta !== null && this.startTime) {
+                parts.push(i18n.translate('usage_remaining', { time: rtFormat.duration(this.usage.eta) }));
+            }
+            if (this.usage) {
+                parts.push(rtFormat.tokens(this.usage.promptTokens + this.usage.completionTokens) + ' tokens (' +
+                    rtFormat.tokens(this.usage.promptTokens) + ' ' + i18n.translate('usage_in') + ' / ' +
+                    rtFormat.tokens(this.usage.completionTokens) + ' ' + i18n.translate('usage_out') + ')');
+                if (window.rtShowCost !== false) parts.push('~' + rtFormat.cost(this.usage.costUsd));
+            }
+            return parts.join('   ·   ');
+        },
+
+        getModelLabel() {
+            return this.usage && this.usage.model ? this.usage.model : '';
         },
 
         stopTimer() {
@@ -175,10 +223,8 @@ function progressController() {
             const batchLabel = this.batchesTotal
                 ? i18n.translate('batch_info_msg', { done: this.batchesDone, total: this.batchesTotal })
                 : '';
-            const speedLabel = this.speed > 0
-                ? i18n.translate('speed_info_msg', { speed: this.speed.toFixed(1) })
-                : '';
-            return batchLabel && speedLabel ? `${batchLabel} | ${speedLabel}` : batchLabel || speedLabel;
+            // Speed/ETA come from the backend (see getUsageLine): batch counter only here
+            return batchLabel;
         }
     };
 }

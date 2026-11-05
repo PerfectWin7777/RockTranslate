@@ -15,7 +15,7 @@
     flex-direction: column;
     justify-content: center;
     padding: 8px 16px;
-    gap: 9px;
+    gap: 7px;
     z-index: 1400;
 }
 
@@ -72,3 +72,19 @@
 .progress-leave { transition: transform 0.18s ease-in, opacity 0.18s ease-in; }
 .progress-leave-start { transform: translateY(0); opacity: 1; }
 .progress-leave-end { transform: translateY(100%); opacity: 0; }
+
+.progress-stats-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: var(--rt-text-2);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.progress-model {
+    font-family: var(--rt-font-mono);
+    color: var(--rt-text-3);
+}

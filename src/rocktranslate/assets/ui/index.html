@@ -31,6 +31,7 @@
     <link rel="stylesheet" href="css/toast.css">
     <link rel="stylesheet" href="css/workspace.css">
     <link rel="stylesheet" href="css/progress.css">
+    <link rel="stylesheet" href="css/preferences.css">
 
     <!-- External Standalone Libraries (Offline Local Files) -->
     <script src="js/alpine.min.js" defer></script>
@@ -46,6 +47,7 @@
     <script src="js/statusbar.js"></script>
     <script src="js/workspace.js"></script>
     <script src="js/progress.js"></script>
+    <script src="js/preferences.js"></script>
 </head>
 
 <body x-data="appShell()"
@@ -54,8 +56,8 @@
     @trigger-file-picker.window="triggerFilePicker()" @trigger-toggle-translation.window="toggleTranslation()"
     @trigger-translation-range-execute.window="executeRangeTranslation($event.detail.range)"
     @trigger-show-about.window="$store.modals.open('about')"
-    @trigger-show-trans-settings.window="$store.modals.open('trans_settings')"
-    @trigger-show-system-settings.window="$store.modals.open('system_settings')"
+    @trigger-show-trans-settings.window="window.dispatchEvent(new CustomEvent('open-preferences', { detail: { section: 'translation' } }))"
+    @trigger-show-system-settings.window="window.dispatchEvent(new CustomEvent('open-preferences', { detail: { section: 'advanced' } }))"
     @trigger-show-api-config.window="$store.modals.open('api_config')"
     @trigger-show-trans-range.window="$store.modals.open('range_settings')"
     @trigger-show-properties.window="$store.modals.open('properties_modal')"
@@ -120,6 +122,7 @@
     <div id="api-config-modal-mount"></div>
     <div id="range-modal-mount"></div>
     <div id="properties-modal-mount"></div>
+    <div id="preferences-modal-mount"></div>
 
     <!-- Core App Shell Routing JavaScript Logic -->
     <script>
@@ -353,6 +356,7 @@
                     this.mountComponent('api-config-modal-mount', 'components/api_config_modal.html');
                     this.mountComponent('range-modal-mount', 'components/range_modal.html');
                     this.mountComponent('properties-modal-mount', 'components/properties_modal.html');
+                    this.mountComponent('preferences-modal-mount', 'components/preferences_modal.html');
                 },
 
                 async mountComponent(elementId, componentPath) {
@@ -544,6 +548,12 @@
                 if (isCmdOrCtrl) {
                     let actionName = null;
                     const key = e.key.toLowerCase();
+
+                    if (key === ',') {
+                        e.preventDefault();
+                        window.dispatchEvent(new CustomEvent('open-preferences', { detail: {} }));
+                        return;
+                    }
 
                     if (e.shiftKey && key === 'd') {
                         e.preventDefault();

@@ -17,10 +17,10 @@ from loguru import logger
 from .config_manager import config_db
 
 # Import our decoupled mixins from the api package folder
-from .api import HistoryApiMixin, ConfigApiMixin, TranslationApiMixin
+from .api import HistoryApiMixin, ConfigApiMixin, TranslationApiMixin, PreferencesApiMixin
 
 
-class RockTranslateAPI(HistoryApiMixin, ConfigApiMixin, TranslationApiMixin):
+class RockTranslateAPI(HistoryApiMixin, ConfigApiMixin, PreferencesApiMixin, TranslationApiMixin):
     """
     Main host API bridge communicating with JavaScript.
     Inherits methods and attributes from history, configuration, and translation components.

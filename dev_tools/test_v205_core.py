@@ -446,3 +446,49 @@ def test_password_protected_pdf_asks_then_opens(tmp_path):
     api._pdf_passwords[os.path.abspath(str(pdf))] = "lecture"
     api._run_extraction(str(pdf))
     assert api._window.count("document-ready") == 1
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. Settings window backend & usage statistics
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_preferences_are_validated_and_clamped():
+    from rocktranslate.core.api.preferences_api import PreferencesApiMixin
+    api = PreferencesApiMixin()
+    assert api.set_preference("parallel_requests", 99)["value"] == 16
+    assert api.set_preference("temperature", "0.25")["value"] == 0.25
+    assert api.set_preference("disable_reasoning", "false")["value"] is False
+    assert api.set_preference("ui_theme", "neon")["status"] == "error"
+    assert api.set_preference("unknown_key", 1)["status"] == "error"
+    assert api.set_preference("browser_path_override", "/does/not/exist")["status"] == "error"
+    prefs = api.get_preferences()
+    assert prefs["parallel_requests"] == 16 and "French" in prefs["supported_languages"]
+    api.reset_preferences()
+    assert api.get_preferences()["parallel_requests"] == 4
+
+
+def test_run_usage_is_recorded_and_streamed(tmp_path, monkeypatch):
+    from rocktranslate.core.api.preferences_api import PreferencesApiMixin
+    PreferencesApiMixin().reset_usage_stats()
+    api = _prepared_api(tmp_path)
+
+    class BilledClient(SlowClient):
+        def translate_batch(self, segments, context=None, check_cancelled=None):
+            out = super().translate_batch(segments, context, check_cancelled)
+            self.usage["requests"] += 1
+            self.usage["prompt_tokens"] += 100
+            self.usage["completion_tokens"] += 50
+            self.usage["cost_usd"] += 0.001
+            return out
+
+    monkeypatch.setattr(api, "_resolve_llm_client", lambda: BilledClient(0.0, "U"))
+    api.start_range_translation(None)
+    api._trans_thread.join(10)
+
+    assert api._window.count("update-usage") >= 1
+    assert api._window.count("translation-summary") == 1
+    stats = PreferencesApiMixin().get_usage_stats()
+    assert stats["totals"]["runs"] == 1
+    assert stats["totals"]["segments"] == 12
+    assert stats["totals"]["prompt_tokens"] > 0
+    assert stats["last_run"]["model"] == "stub/model"

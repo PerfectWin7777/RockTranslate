@@ -19,6 +19,7 @@ import shutil
 import threading
 import tempfile
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor, FIRST_COMPLETED, wait
 from typing import Dict, List, Optional, Any, Set, Tuple
 from loguru import logger
@@ -32,6 +33,7 @@ from ..llm_client import LLMClient
 from ..renderer import apply_translations_offline, print_html_with_fallback
 from ..pdf_metadata import get_pdf_metadata
 from ..local_server import allow_file
+from .preferences_api import record_run_usage
 
 
 class TranslationApiMixin:
@@ -482,6 +484,9 @@ class TranslationApiMixin:
         """
         cancelled = cancel_event.is_set
         prepared_pages: Set[int] = set()
+        run_started = time.monotonic()
+        client: Optional[LLMClient] = None
+        run_segments = 0
         try:
             self._current_translating_page = -1
             self._send_status_i18n("status_trans_init")
@@ -598,6 +603,7 @@ class TranslationApiMixin:
                             break
                         done_batches += 1
                         if results:
+                            run_segments += len(results)
                             items = {r["id"]: r["translated"] for r in results}
                             # Bypassed segments of the same pages land together with them
                             pages = {self._tid_to_page.get(i, 0) for i in items}
@@ -614,6 +620,7 @@ class TranslationApiMixin:
                         self._send_js(f"window.dispatchEvent(new CustomEvent('update-progress-page', {{ detail: {{ page: {first_page + 1} }} }}))")
                         self._send_js(f"window.dispatchEvent(new CustomEvent('update-progress-batches', {{ detail: {{ done: {done_batches}, total: {total_batches} }} }}))")
                         self._send_status_i18n("status_trans_batch_progress", {"current": done_batches, "total": total_batches})
+                        self._send_usage_update(client, run_started, done_batches, total_batches, run_segments)
                         if next_batch < total_batches and not cancelled():
                             submit_next()
             finally:
@@ -643,6 +650,18 @@ class TranslationApiMixin:
             self._send_toast_i18n("toast_trans_error", "error", duration=8000, variables={"error": str(error)})
 
         finally:
+            # Usage accounting (tokens, cost, time) + end-of-run summary for the UI
+            if client is not None and getattr(client, "usage", {}).get("requests", 0) > 0:
+                try:
+                    elapsed = time.monotonic() - run_started
+                    last = record_run_usage(client.model, client.usage, elapsed, run_segments)
+                    last["cancelled"] = bool(cancel_event.is_set())
+                    self._send_js(
+                        "window.dispatchEvent(new CustomEvent('translation-summary', "
+                        f"{{ detail: {json.dumps(last)} }}))"
+                    )
+                except Exception as e:
+                    logger.warning(f"Usage accounting failed: {e}")
             # Pages that were opened for translation but received nothing go back
             # to the waiting overlay; partially translated pages keep their text.
             for page in prepared_pages:
@@ -652,6 +671,25 @@ class TranslationApiMixin:
             self._thread_lock.release()
             # Single, guaranteed completion signal for the frontend run state
             self._send_js("window.dispatchEvent(new CustomEvent('trigger-translation-finished'))")
+
+    def _send_usage_update(self, client: Any, run_started: float, done: int, total: int, segments: int) -> None:
+        """Live run statistics: elapsed time, ETA, tokens and estimated cost."""
+        elapsed = time.monotonic() - run_started
+        eta = (elapsed / done) * (total - done) if done else None
+        usage = getattr(client, "usage", {}) or {}
+        detail = {
+            "elapsed": round(elapsed, 1),
+            "eta": round(eta, 1) if eta is not None else None,
+            "promptTokens": int(usage.get("prompt_tokens", 0)),
+            "completionTokens": int(usage.get("completion_tokens", 0)),
+            "costUsd": round(float(usage.get("cost_usd", 0.0)), 5),
+            "requests": int(usage.get("requests", 0)),
+            "batchesDone": done,
+            "batchesTotal": total,
+            "segments": segments,
+            "model": getattr(client, "model", ""),
+        }
+        self._send_js(f"window.dispatchEvent(new CustomEvent('update-usage', {{ detail: {json.dumps(detail)} }}))")
 
     def _commit_translations(self, items: Dict[str, str]) -> None:
         """Stores translations page by page and streams them to the UI in ONE call."""

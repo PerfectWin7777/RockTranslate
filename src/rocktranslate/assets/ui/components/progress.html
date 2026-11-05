@@ -13,7 +13,7 @@
         <div class="progress-label-row">
             <span class="progress-left-text"
                 x-text="$store.i18n.translate('prop_pages_progress', { done: donePages, total: totalPages })"></span>
-            <span class="progress-right-text" x-text="eta ? eta + ' | ' + getPercentText() : ''"></span>
+            <span class="progress-right-text" x-text="totalPages ? getPercentText() : ''"></span>
         </div>
         <div class="progress-bar-track">
             <div class="progress-bar-chunk blue" :style="`width: ${getPagesPercent()}%`"></div>
@@ -30,6 +30,12 @@
         <div class="progress-bar-track">
             <div class="progress-bar-chunk green" :style="`width: ${getSegmentsPercent()}%`"></div>
         </div>
+    </div>
+
+    <!-- 3. Live run statistics -->
+    <div class="progress-stats-row">
+        <span class="progress-stats" x-text="getUsageLine()"></span>
+        <span class="progress-model" x-text="getModelLabel()"></span>
     </div>
 
 </div>

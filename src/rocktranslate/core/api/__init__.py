@@ -12,3 +12,4 @@ Version: 1.0.0
 from .history_api import HistoryApiMixin
 from .config_api import ConfigApiMixin
 from .translation_api import TranslationApiMixin
+from .preferences_api import PreferencesApiMixin

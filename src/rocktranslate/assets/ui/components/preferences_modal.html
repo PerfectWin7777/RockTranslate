@@ -1,0 +1,277 @@
+<!--
+  RockTranslate — Unified Settings window (macOS System Settings style)
+  Path: src/rocktranslate/assets/ui/components/preferences_modal.html
+  Every change is validated and saved immediately (no Save button).
+-->
+
+<div id="preferences-modal-overlay" class="modal-overlay" x-data="preferencesController()"
+    x-show="$store.modals.active === 'preferences'" x-transition x-cloak
+    @open-preferences.window="openAt($event.detail && $event.detail.section)">
+    <div class="modal-card prefs-window" role="dialog" aria-modal="true" :aria-label="t('prefs_title')">
+
+        <!-- Sidebar -->
+        <aside class="prefs-sidebar">
+            <div class="prefs-sidebar-title" x-text="t('prefs_title')"></div>
+            <nav>
+                <template x-for="s in sections" :key="s.id">
+                    <button type="button" class="prefs-nav-item" :class="{ active: section === s.id }"
+                        @click="section = s.id">
+                        <span class="prefs-nav-icon" x-text="s.icon"></span>
+                        <span x-text="t(s.label)"></span>
+                    </button>
+                </template>
+            </nav>
+            <div class="prefs-sidebar-foot" x-text="'RockTranslate ' + version"></div>
+        </aside>
+
+        <!-- Content -->
+        <section class="prefs-content">
+            <header class="prefs-header">
+                <h2 x-text="t(sections.find(s => s.id === section).label)"></h2>
+                <span class="prefs-saved" :class="{ visible: savedFlash }" x-text="'✓ ' + t('prefs_saved')"></span>
+                <button type="button" class="prefs-close" @click="$store.modals.close()" :aria-label="t('close_btn')">✕</button>
+            </header>
+
+            <div class="prefs-scroll">
+
+                <!-- ── GENERAL ── -->
+                <div x-show="section === 'general'" class="prefs-group-list">
+                    <div class="prefs-group">
+                        <div class="prefs-row">
+                            <div class="prefs-row-text">
+                                <div class="prefs-label" x-text="t('prefs_target_lang')"></div>
+                                <div class="prefs-hint" x-text="t('prefs_target_lang_hint')"></div>
+                            </div>
+                            <select class="rt-input prefs-control" x-model="p.target_lang" @change="setTargetLang()">
+                                <template x-for="lang in (p.supported_languages || [])" :key="lang">
+                                    <option :value="lang" x-text="lang" :selected="lang === p.target_lang"></option>
+                                </template>
+                            </select>
+                        </div>
+                        <div class="prefs-row">
+                            <div class="prefs-row-text">
+                                <div class="prefs-label" x-text="t('prefs_ui_lang')"></div>
+                            </div>
+                            <select class="rt-input prefs-control" :value="$store.i18n.locale" @change="setUiLang($event.target.value)">
+                                <option value="en">English</option>
+                                <option value="fr">Français</option>
+                                <option value="es">Español</option>
+                                <option value="de">Deutsch</option>
+                            </select>
+                        </div>
+                        <div class="prefs-row">
+                            <div class="prefs-row-text">
+                                <div class="prefs-label" x-text="t('appearance_lbl')"></div>
+                                <div class="prefs-hint" x-text="t('prefs_appearance_hint')"></div>
+                            </div>
+                            <div class="rt-segmented" role="radiogroup">
+                                <template x-for="m in ['light', 'dark', 'system']" :key="m">
+                                    <button type="button" role="radio" :aria-checked="$store.theme.mode === m"
+                                        :class="{ active: $store.theme.mode === m }" @click="$store.theme.set(m); flash()"
+                                        x-text="t('theme_' + m)"></button>
+                                </template>
+                            </div>
+                        </div>
+                        <div class="prefs-row">
+                            <div class="prefs-row-text">
+                                <div class="prefs-label" x-text="t('prefs_show_cost')"></div>
+                                <div class="prefs-hint" x-text="t('prefs_show_cost_hint')"></div>
+                            </div>
+                            <label class="rt-switch"><input type="checkbox" x-model="p.show_cost_estimates"
+                                    @change="save('show_cost_estimates')"><span></span></label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── AI MODEL ── -->
+                <div x-show="section === 'model'" class="prefs-group-list">
+                    <div class="prefs-group">
+                        <div class="prefs-row">
+                            <div class="prefs-row-text">
+                                <div class="prefs-label" x-text="t('prefs_active_model')"></div>
+                                <div class="prefs-model-line">
+                                    <span class="prefs-dot" :class="api.configured ? 'ok' : 'bad'"></span>
+                                    <strong x-text="api.provider || '—'"></strong>
+                                    <span class="prefs-mono" x-text="api.model || ''"></span>
+                                </div>
+                                <div class="prefs-hint" x-text="api.configured ? t('prefs_key_ok') : t('prefs_key_missing')"></div>
+                            </div>
+                            <button type="button" class="rt-btn" @click="$store.modals.open('api_config')"
+                                x-text="t('prefs_change_model')"></button>
+                        </div>
+                    </div>
+
+                    <div class="prefs-group">
+                        <div class="prefs-row">
+                            <div class="prefs-row-text">
+                                <div class="prefs-label" x-text="t('prefs_temperature')"></div>
+                                <div class="prefs-hint" x-text="t('prefs_temperature_hint')"></div>
+                            </div>
+                            <div class="prefs-slider">
+                                <span class="prefs-slider-end" x-text="t('prefs_faithful')"></span>
+                                <input type="range" min="0" max="1.5" step="0.05" x-model.number="p.temperature"
+                                    @change="save('temperature')">
+                                <span class="prefs-slider-end" x-text="t('prefs_creative')"></span>
+                                <span class="prefs-value" x-text="Number(p.temperature).toFixed(2)"></span>
+                            </div>
+                        </div>
+                        <div class="prefs-row">
+                            <div class="prefs-row-text">
+                                <div class="prefs-label" x-text="t('prefs_no_reasoning')"></div>
+                                <div class="prefs-hint" x-text="t('prefs_no_reasoning_hint')"></div>
+                            </div>
+                            <label class="rt-switch"><input type="checkbox" x-model="p.disable_reasoning"
+                                    @change="save('disable_reasoning')"><span></span></label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── TRANSLATION ENGINE ── -->
+                <div x-show="section === 'translation'" class="prefs-group-list">
+                    <div class="prefs-group">
+                        <template x-for="f in numericFields" :key="f.key">
+                            <div class="prefs-row">
+                                <div class="prefs-row-text">
+                                    <div class="prefs-label" x-text="t(f.label)"></div>
+                                    <div class="prefs-hint" x-text="t(f.hint)"></div>
+                                </div>
+                                <div class="prefs-stepper">
+                                    <button type="button" @click="step(f, -1)" :aria-label="'-'">−</button>
+                                    <input type="number" :min="f.min" :max="f.max" :step="f.step"
+                                        x-model.number="p[f.key]" @change="save(f.key)">
+                                    <button type="button" @click="step(f, 1)" :aria-label="'+'">+</button>
+                                    <span class="prefs-unit" x-text="f.unit ? t(f.unit) : ''"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="prefs-group">
+                        <div class="prefs-row prefs-row-stacked">
+                            <div class="prefs-row-text">
+                                <div class="prefs-label" x-text="t('trans_glossary_lbl')"></div>
+                                <div class="prefs-hint" x-text="t('trans_glossary_tip')"></div>
+                            </div>
+                            <textarea class="rt-input rt-textarea" x-model="p.custom_glossary"
+                                @blur="save('custom_glossary')"
+                                placeholder="CNN -> CNN&#10;Transformer -> Transformeur"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── LAYOUT & ADVANCED ── -->
+                <div x-show="section === 'advanced'" class="prefs-group-list">
+                    <div class="prefs-group">
+                        <div class="prefs-row">
+                            <div class="prefs-row-text">
+                                <div class="prefs-label" x-text="t('prefs_threshold')"></div>
+                                <div class="prefs-hint" x-text="t('prefs_threshold_hint')"></div>
+                            </div>
+                            <div class="prefs-stepper">
+                                <button type="button" @click="p.threshold_px = Math.max(2, p.threshold_px - 1); save('threshold_px')">−</button>
+                                <input type="number" min="2" max="80" step="1" x-model.number="p.threshold_px" @change="save('threshold_px')">
+                                <button type="button" @click="p.threshold_px = Math.min(80, p.threshold_px + 1); save('threshold_px')">+</button>
+                                <span class="prefs-unit">px</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="prefs-group">
+                        <template x-for="f in pathFields" :key="f.key">
+                            <div class="prefs-row prefs-row-stacked">
+                                <div class="prefs-row-text">
+                                    <div class="prefs-label" x-text="t(f.label)"></div>
+                                    <div class="prefs-hint" x-text="t(f.hint)"></div>
+                                </div>
+                                <div class="browse-input-group">
+                                    <input type="text" class="rt-input" x-model="p[f.key]" :placeholder="t('prefs_auto_detect')"
+                                        @change="save(f.key)">
+                                    <button type="button" class="rt-btn" @click="browse(f)" x-text="t('system_browse_btn')"></button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="prefs-group">
+                        <div class="prefs-row">
+                            <div class="prefs-row-text">
+                                <div class="prefs-label" x-text="t('prefs_cache')"></div>
+                                <div class="prefs-hint"
+                                    x-text="t('prefs_cache_hint', { docs: cache.documents, size: cache.size_mb })"></div>
+                            </div>
+                            <button type="button" class="rt-btn" @click="clearCache()" x-text="t('prefs_clear_cache')"></button>
+                        </div>
+                        <div class="prefs-row">
+                            <div class="prefs-row-text">
+                                <div class="prefs-label" x-text="t('system_clear_cache_chk')"></div>
+                                <div class="prefs-hint" x-text="t('system_clear_cache_tip')"></div>
+                            </div>
+                            <label class="rt-switch"><input type="checkbox" x-model="p.clear_cache_on_exit"
+                                    @change="save('clear_cache_on_exit')"><span></span></label>
+                        </div>
+                        <div class="prefs-row">
+                            <div class="prefs-row-text">
+                                <div class="prefs-label" x-text="t('prefs_config_folder')"></div>
+                                <div class="prefs-hint prefs-mono" x-text="p.config_dir"></div>
+                            </div>
+                            <button type="button" class="rt-btn" @click="window.pywebview.api.open_config_folder()"
+                                x-text="t('prefs_open')"></button>
+                        </div>
+                    </div>
+
+                    <div class="prefs-actions-row">
+                        <button type="button" class="rt-btn" @click="resetDefaults()" x-text="t('prefs_reset_defaults')"></button>
+                    </div>
+                </div>
+
+                <!-- ── USAGE ── -->
+                <div x-show="section === 'usage'" class="prefs-group-list">
+                    <div class="prefs-kpis">
+                        <div class="prefs-kpi"><span x-text="t('usage_runs')"></span><strong x-text="fmtInt(usage.totals.runs)"></strong></div>
+                        <div class="prefs-kpi"><span x-text="t('usage_segments')"></span><strong x-text="fmtInt(usage.totals.segments)"></strong></div>
+                        <div class="prefs-kpi"><span x-text="t('usage_tokens')"></span><strong x-text="fmtTokens(usage.totals.prompt_tokens + usage.totals.completion_tokens)"></strong>
+                            <em x-text="fmtTokens(usage.totals.prompt_tokens) + ' ' + t('usage_in') + ' · ' + fmtTokens(usage.totals.completion_tokens) + ' ' + t('usage_out')"></em></div>
+                        <div class="prefs-kpi" x-show="p.show_cost_estimates"><span x-text="t('usage_cost')"></span><strong x-text="fmtCost(usage.totals.cost_usd)"></strong></div>
+                        <div class="prefs-kpi"><span x-text="t('usage_time')"></span><strong x-text="fmtDuration(usage.totals.seconds)"></strong></div>
+                    </div>
+
+                    <div class="prefs-group" x-show="usage.last_run">
+                        <div class="prefs-group-title" x-text="t('usage_last_run')"></div>
+                        <div class="prefs-row" x-show="usage.last_run">
+                            <div class="prefs-row-text">
+                                <div class="prefs-label prefs-mono" x-text="usage.last_run ? usage.last_run.model : ''"></div>
+                                <div class="prefs-hint" x-text="usage.last_run ? (usage.last_run.finished_at + ' · ' + fmtInt(usage.last_run.segments) + ' ' + t('usage_segments_lc') + ' · ' + fmtDuration(usage.last_run.seconds)) : ''"></div>
+                            </div>
+                            <div class="prefs-value-block">
+                                <strong x-text="usage.last_run ? fmtTokens(usage.last_run.prompt_tokens + usage.last_run.completion_tokens) + ' tokens' : ''"></strong>
+                                <span x-show="p.show_cost_estimates" x-text="usage.last_run ? fmtCost(usage.last_run.cost_usd) : ''"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="prefs-group" x-show="Object.keys(usage.by_model).length">
+                        <div class="prefs-group-title" x-text="t('usage_by_model')"></div>
+                        <template x-for="[model, m] in Object.entries(usage.by_model)" :key="model">
+                            <div class="prefs-row">
+                                <div class="prefs-row-text">
+                                    <div class="prefs-label prefs-mono" x-text="model"></div>
+                                    <div class="prefs-hint" x-text="fmtInt(m.runs) + ' ' + t('usage_runs_lc')"></div>
+                                </div>
+                                <div class="prefs-value-block">
+                                    <strong x-text="fmtTokens(m.prompt_tokens + m.completion_tokens) + ' tokens'"></strong>
+                                    <span x-show="p.show_cost_estimates" x-text="fmtCost(m.cost_usd)"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <p class="prefs-footnote" x-text="t('usage_cost_note')"></p>
+                    <div class="prefs-actions-row">
+                        <button type="button" class="rt-btn" @click="resetUsage()" x-text="t('usage_reset')"></button>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+    </div>
+</div>
