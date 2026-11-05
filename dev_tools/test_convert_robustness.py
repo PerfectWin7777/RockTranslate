@@ -38,7 +38,7 @@ try:
     t0 = time.time()
     stall_pdf = os.path.join(tmp, "stall.pdf")
     shutil.copy(src_pdf, stall_pdf)
-    result = ht.convert_pdf_to_html(stall_pdf, on_progress=None, stall_timeout=3.0)
+    result = ht.convert_pdf_to_html(stall_pdf, on_progress=None, stall_timeout=3.0, startup_grace=3.0)
     elapsed = time.time() - t0
     assert result is None, "watchdog should return None"
     assert elapsed < 15, f"watchdog took too long: {elapsed:.1f}s"

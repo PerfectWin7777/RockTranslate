@@ -99,7 +99,6 @@ class ConfigApiMixin:
         Returns:
             str: The saved language code (e.g., 'en', 'fr'). Defaults to 'en'.
         """
-        print(config_db)
         return str(config_db.get("SystemConfig", "ui_language", "en")).strip()
 
     def set_system_locale(self, locale_code: str) -> None:
@@ -110,7 +109,7 @@ class ConfigApiMixin:
             locale_code: The target language code (e.g., 'fr', 'es').
         """
         config_db.set("SystemConfig", "ui_language", str(locale_code).strip())
-        print(f"[API] Saved system UI locale preference: {locale_code}")
+        logger.info(f" Saved system UI locale preference: {locale_code}")
 
     # ── TARGET TRANSLATION LANGUAGE SYNC (Cures the silent target language gap) ──
     def set_target_language(self, language_name: str) -> None:
@@ -140,7 +139,7 @@ class ConfigApiMixin:
         """Returns the currently saved target translation language."""
         lang = config_db.get("SystemConfig", "target_lang", "French")
         # Diagnostic Log
-        print(f"[API DEBUG] get_target_language read value: '{lang}' (from file: {config_db.filepath})")
+        logger.debug(f" get_target_language read value: '{lang}' (from file: {config_db.filepath})")
         return lang
     
     def get_api_status(self) -> Dict[str, Any]:
@@ -172,7 +171,7 @@ class ConfigApiMixin:
                 "model": model
             }
         except Exception as e:
-            print(f"[API Error] Could not read API configuration status: {e}")
+            logger.warning(f" Could not read API configuration status: {e}")
             
         return {
             "active": False,
@@ -617,7 +616,7 @@ class ConfigApiMixin:
                 "isolated_configs": isolated_configs
             }
         except Exception as e:
-            print(f"[API Error] Critical bridge failure in get_api_config: {e}")
+            logger.warning(f" Critical bridge failure in get_api_config: {e}")
             return {"current_provider": "Google Gemini", "isolated_configs": {}}
 
     def save_api_config(self, config: Dict[str, Any]) -> Dict[str, str]:

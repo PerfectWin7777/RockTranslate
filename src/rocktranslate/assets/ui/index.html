@@ -230,8 +230,8 @@
         };
 
         window.showStatusMessage_i18n = function (key, variables = {}) {
-                const translated = Alpine.store('i18n').translate(key, variables);
-                window.showStatusMessage(translated);
+                // The key is kept so the message follows later language switches
+                window.dispatchEvent(new CustomEvent('update-status-text', { detail: { key: key, variables: variables } }));
         };
 
         window.showToast_i18n = function (key, type = 'info', duration = 5000, variables = {}) {

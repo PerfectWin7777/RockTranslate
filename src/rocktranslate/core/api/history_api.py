@@ -10,6 +10,7 @@ Version: 1.0.1
 """
 
 import os
+from loguru import logger
 import webview
 from typing import List, Dict, Any
 import datetime
@@ -36,7 +37,7 @@ class HistoryApiMixin:
                     })
             return verified_files
         except Exception as error:
-            print(f"[API Error] Could not read recent files JSON registry: {error}")
+            logger.warning(f" Could not read recent files JSON registry: {error}")
             return []
 
     def open_file_dialog(self) -> Dict[str, str]:
@@ -92,12 +93,23 @@ class HistoryApiMixin:
         # Send event to JS to refresh recent files across all views in real-time
         if hasattr(self, "_send_js"):
             self._send_js("window.dispatchEvent(new CustomEvent('refresh-menu-data'))")
-        print("[API] Recent files history cleared successfully.")
+        logger.info(" Recent files history cleared successfully.")
     
 
     def _send_js(self, js_code: str):
-        if hasattr(self, "_window") and self._window:
-            self._window.evaluate_js(js_code)
+        """
+        Sends JS to the UI. Never blocks nor raises: messages emitted before the
+        main window has loaded (background startup work) are dropped instead of
+        waiting 20s inside pywebview and failing with 'Main window failed to start'.
+        """
+        if not getattr(self, "_ui_ready", True):
+            return
+        window = getattr(self, "_window", None)
+        if window:
+            try:
+                window.evaluate_js(js_code)
+            except Exception:
+                pass
 
     def get_document_properties(self, file_path: str) -> Dict[str, Any]:
         """
@@ -168,5 +180,5 @@ class HistoryApiMixin:
         try:
             return get_pdf_metadata(file_path, trans_stats)
         except Exception as error:
-            print(f"[API Error] Could not extract PDF metadata: {error}")
+            logger.warning(f" Could not extract PDF metadata: {error}")
             return {"file_path": file_path, "file_size": "Unknown"}

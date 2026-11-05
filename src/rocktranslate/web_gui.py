@@ -99,6 +99,7 @@ def main() -> None:
     server_ready.wait(timeout=5)
 
     api = RockTranslateAPI()
+    api._ui_ready = False   # UI messages are dropped until the main window has loaded
 
     # Robust coordinate calculation for perfect Splash Screen centering
     splash_width, splash_height = 850, 520
@@ -151,6 +152,7 @@ def main() -> None:
 
     # 3. Double-layer transition: Close splash and reveal main window upon completion
     def on_window_loaded() -> None:
+        api._ui_ready = True
         # Calculate elapsed time since program startup
         elapsed = (datetime.datetime.now() - start_time).total_seconds()
         # Keep the splash visible just long enough to avoid a flash (min 0.1s)
@@ -215,10 +217,15 @@ def main() -> None:
     try:
         logger.info("Launching pywebview main loop...")
         # Start application on splash, with the main window context passed as master loop
+        # Persistent WebView profile: no temp profile left behind at exit
+        # ("Failed to delete user data folder") and UI preferences survive restarts.
+        webview_profile = str(config_db.config_dir / "webview")
+        os.makedirs(webview_profile, exist_ok=True)
         webview.start(
-                    #   debug=False
-                      debug=not hasattr(sys, "_MEIPASS")
-                      )
+            debug=not hasattr(sys, "_MEIPASS"),
+            private_mode=False,
+            storage_path=webview_profile,
+        )
     except Exception as e:
         import traceback
         error_info = traceback.format_exc()

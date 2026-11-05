@@ -70,8 +70,15 @@ function workspaceController() {
                 window.dispatchEvent(new CustomEvent('update-progress-segments', { detail: { count: items.length } }));
             });
 
+            // Pages opened for translation in the current run. The right pane may be
+            // (re)loaded AFTER 'prepare-page' was sent (first run: the document is
+            // prepared, then the iframe reloads), so onload replays this set.
+            this.preparingPages = new Set();
+            window.addEventListener('trigger-translation-finished', () => { this.preparingPages.clear(); });
+
             window.addEventListener('prepare-page', (e) => {
                 if (e.detail && e.detail.page !== undefined) {
+                    this.preparingPages.add(e.detail.page);
                     const htmlFrame = document.getElementById('html-iframe');
                     if (htmlFrame && htmlFrame.contentWindow && htmlFrame.contentWindow.preparePageForTranslation) {
                         htmlFrame.contentWindow.preparePageForTranslation(e.detail.page);
@@ -81,6 +88,7 @@ function workspaceController() {
 
             window.addEventListener('reset-page', (e) => {
                 if (e.detail && e.detail.page !== undefined) {
+                    this.preparingPages.delete(e.detail.page);
                     const htmlFrame = document.getElementById('html-iframe');
                     if (htmlFrame && htmlFrame.contentWindow && htmlFrame.contentWindow.resetPageToWaiting) {
                         htmlFrame.contentWindow.resetPageToWaiting(e.detail.page);
@@ -376,6 +384,13 @@ function workspaceController() {
                     const waiting = Alpine.store('i18n').translate('waiting_for_translation');
                     rightDocWindow.RT_WAITING_TEXT = waiting;
                     rightDoc.querySelectorAll('[id^="glass-overlay-t-"] p').forEach(p => { p.textContent = waiting; });
+                } catch (err) { }
+
+                // Replay pages of a run that started before this document loaded
+                try {
+                    if (self.preparingPages && rightDocWindow.preparePageForTranslation) {
+                        self.preparingPages.forEach(p => rightDocWindow.preparePageForTranslation(p));
+                    }
                 } catch (err) { }
 
                 // Restore translations already known to the backend (previous session,

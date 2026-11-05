@@ -8,6 +8,7 @@ batches -> translated HTML -> headless Chromium vector PDF.
 License: MIT License
 """
 
+import contextlib
 import os
 import re
 import tempfile
@@ -200,6 +201,32 @@ def _save_cache(path: Optional[str], items: Dict[str, str], sources: Dict[str, s
             logger.warning(f"Could not save the translation cache: {e}")
 
 
+@contextlib.contextmanager
+def _work_dir(input_pdf: str):
+    """
+    Persistent conversion folder (cache/<sha256>/headless_work), reused across
+    runs: a fresh temp dir per run made pdf2htmlEX redo its cold-start work on
+    Windows (long silent phase). Falls back to a temp dir if the cache fails.
+    """
+    folder = None
+    try:
+        import hashlib
+        from .config_manager import config_db
+        sha = hashlib.sha256()
+        with open(input_pdf, "rb") as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                sha.update(chunk)
+        folder = os.path.join(str(config_db.get_cache_dir()), sha.hexdigest(), "headless_work")
+        os.makedirs(folder, exist_ok=True)
+    except OSError:
+        folder = None
+    if folder is None:
+        with tempfile.TemporaryDirectory(prefix="rocktranslate-") as tmp:
+            yield tmp
+    else:
+        yield folder
+
+
 def translate_pdf(
     input_pdf: str,
     output_pdf: Optional[str],
@@ -240,7 +267,7 @@ def translate_pdf(
 
     browser_path = resolve_pdf_renderer()
 
-    with tempfile.TemporaryDirectory(prefix="rocktranslate-") as work_dir:
+    with _work_dir(input_pdf) as work_dir:
         page_list: Optional[List[int]] = None
         first_page = last_page = None
         if pages:

@@ -17,13 +17,25 @@ function statusbarController() {
         // ── INITIAL ZOOM FIX: Set comfortable default scale to 80% ──
         zoomPercent: 80,
 
-        init() {
-            const i18nStore = Alpine.store('i18n');
-            this.statusText = i18nStore.translate('status_ready');
+        // Either an i18n key (re-translated live) or a literal text
+        statusKey: 'status_ready',
+        statusVars: {},
 
+        get currentStatus() {
+            return this.statusKey
+                ? Alpine.store('i18n').translate(this.statusKey, this.statusVars)
+                : this.statusText;
+        },
+
+        init() {
             window.addEventListener('update-status-text', (event) => {
-                if (event.detail && event.detail.text) {
-                    this.statusText = event.detail.text;
+                const d = event.detail || {};
+                if (d.key) {
+                    this.statusKey = d.key;
+                    this.statusVars = d.variables || {};
+                } else if (d.text) {
+                    this.statusKey = null;
+                    this.statusText = d.text;
                 }
             });
 

@@ -39,6 +39,9 @@ from .proc import kill_tree
 # A total time limit would kill legitimate long conversions of large documents,
 # so only inactivity is punished: a healthy conversion always emits progress.
 STALL_TIMEOUT_SECONDS = 30.0
+# Before its FIRST output line pdf2htmlEX may legitimately stay silent for a
+# long time (Windows: font cache build on a cold start).
+STARTUP_GRACE_SECONDS = 120.0
 
 # Last pdf2htmlEX failure reason (stderr tail), surfaced to the UI/CLI.
 LAST_CONVERSION_ERROR: Dict[str, str] = {"message": ""}
@@ -56,6 +59,7 @@ def convert_pdf_to_html(
     assets_dir: str = DEFAULT_ASSETS_DIR,
     on_progress: Optional[Callable[[int, int], None]] = None,
     stall_timeout: float = STALL_TIMEOUT_SECONDS,
+    startup_grace: float = STARTUP_GRACE_SECONDS,
     timeout: Optional[float] = None,
     output_dir: Optional[str] = None,
     check_cancelled: Optional[Callable[[], bool]] = None,
@@ -79,6 +83,7 @@ def convert_pdf_to_html(
         assets_dir: Assets folder storing the external pdf2htmlEX compiler.
         on_progress: Optional callback progress tracker (current_page, total_pages).
         stall_timeout: Max seconds of silence from pdf2htmlEX before it is killed.
+        startup_grace: Max silence allowed before the FIRST output line (cold start).
         timeout: Optional hard cap in seconds for the entire conversion.
         output_dir: Optional directory where the raw HTML (and its assets) are
             written. Defaults to the PDF's own directory.
@@ -189,8 +194,9 @@ def convert_pdf_to_html(
     last_progress: Tuple[int, int] = (0, 0)
     stderr_tail: "deque" = deque(maxlen=8)
 
+    seen_output = False
     while True:
-        wait_budget = stall_timeout
+        wait_budget = stall_timeout if seen_output else max(stall_timeout, startup_grace)
         if deadline is not None:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -213,18 +219,19 @@ def convert_pdf_to_html(
             try:
                 line = stderr_queue.get(timeout=1.0)
                 stalled = False
+                seen_output = True
                 break
             except queue.Empty:
                 continue
 
         if stalled:
             logger.error(
-                f"pdf2htmlEX stalled for {stall_timeout}s without output on: {pdf_filename}. "
+                f"pdf2htmlEX stalled for {wait_budget:.0f}s without output on: {pdf_filename}. "
                 "Terminating the hung process."
             )
             kill_tree(process)
             _remove_quietly(partial_html_path)
-            LAST_CONVERSION_ERROR["message"] = f"pdf2htmlEX stalled for {stall_timeout:.0f}s (unsupported fonts?)"
+            LAST_CONVERSION_ERROR["message"] = f"pdf2htmlEX stalled for {wait_budget:.0f}s (unsupported fonts?)"
             # TODO: If local compilation fails or times out, implement an automatic fallback
             # to a remote serverless cloud-rendering API to convert complex LaTeX documents.
             return None
@@ -404,7 +411,7 @@ SYMBOL_GLYPH_FIXES = str.maketrans({"ð": "(", "Þ": ")", "¼": "=", "þ": "+"})
 
 # Bump whenever instrument_html output changes: cached workspaces built by an
 # older pipeline are then re-instrumented from the cached raw HTML.
-PIPELINE_VERSION = 13
+PIPELINE_VERSION = 14
 
 
 def parse_font_sizes(soup: BeautifulSoup) -> Dict[str, float]:
@@ -1581,8 +1588,20 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
             divT.style.left = (g.offsetLeft + (origW - newW) / 2) + 'px';
         }
 
+        // A page that receives text is no longer "waiting": drop its overlay
+        // even if the 'preparePage' signal was missed (iframe reload race).
+        window.rtRevealPageOf = function(el) {
+            var pf = el && el.closest ? el.closest('.pf') : null;
+            if (!pf) return;
+            var pages = document.querySelectorAll('.pf');
+            var idx = Array.prototype.indexOf.call(pages, pf);
+            var glass = document.getElementById('glass-overlay-t-' + idx);
+            if (glass && glass.style.display !== 'none') glass.style.display = 'none';
+        };
+
         window.applyTranslation = function(transId, translatedText) {
             try {
+                window.rtRevealPageOf(document.querySelector('[data-trans-id="' + transId + '"]'));
                 // Empty = untranslatable segment (number, formula): keep the original
                 if (translatedText === '' || translatedText === null || translatedText === undefined) {
                     var keep = document.querySelector('[data-trans-id="' + transId + '"]');

@@ -861,6 +861,8 @@ class TranslationApiMixin:
         Sends a JavaScript command to the frontend.
         Gracefully ignores errors if the window is closing or already destroyed.
         """
+        if not getattr(self, "_ui_ready", True):
+            return
         if hasattr(self, "_window") and self._window:
             try:
                 self._window.evaluate_js(js_code)
@@ -897,7 +899,7 @@ class TranslationApiMixin:
             config_db.set("RecentFiles", "recent_list", recent_list)
             self._send_js("window.dispatchEvent(new CustomEvent('refresh-menu-data'))")
         except Exception as e:
-            print(f"[API] Error updating history registry: {e}")
+            logger.info(f" Error updating history registry: {e}")
     
     def get_total_pages(self) -> int:
         """

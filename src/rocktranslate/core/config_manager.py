@@ -15,6 +15,7 @@ Version: 1.1.0
 """
 
 import os
+from loguru import logger
 import json
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -67,7 +68,7 @@ class ConfigManager:
                 return loaded_data if isinstance(loaded_data, dict) else {}
         except (json.JSONDecodeError, OSError) as e:
             # Prevent app startup crashes on corrupt settings files by returning an empty state
-            print(f"[Config] Error decoding configuration database: {e}")
+            logger.error(f"[Config] Error decoding configuration database: {e}")
             return {}
 
     def _save(self) -> None:
@@ -80,7 +81,7 @@ class ConfigManager:
             with open(self.filepath, "w", encoding="utf-8") as f:
                 json.dump(self.data, f, indent=4, ensure_ascii=False)
         except OSError as e:
-            print(f"[Config] Error writing settings database: {e}")
+            logger.error(f"[Config] Error writing settings database: {e}")
 
     def get(self, section: str, key: str, default: Any = None) -> Any:
         """
