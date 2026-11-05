@@ -534,12 +534,6 @@ def _group_measured(lines: List[Dict[str, Any]], texts: Dict[str, str]) -> List[
     for line in lines:
         if not has_text(line):
             continue
-        # Formula fragments (fractions, symbols) keep their original rendering:
-        # never a paragraph line, never absorbed into one.
-        if not should_translate("".join(texts.get(g, "") for g, _ in line["spans"])) \
-                and not (line["em"] < 0.85 * max((c["em"] for c in recent[-1:]), default=line["em"])):
-            continue
-
         host = None
         for cand in reversed(recent[-6:]):
             overlap = min(cand["bottom"], line["bottom"]) - max(cand["top"], line["top"])
@@ -555,6 +549,11 @@ def _group_measured(lines: List[Dict[str, Any]], texts: Dict[str, str]) -> List[
             line["sub"] = smaller and not line["sup"] and line["top"] >= host["top"] + 0.25 * host["em"]
             host.setdefault("pieces", []).append(line)
             host["end"] = max(host["end"], line["right"])
+            continue
+
+        # Formula fragments (fractions, symbol runs) that are not inline pieces
+        # keep their original rendering: never a paragraph line.
+        if not should_translate("".join(texts.get(g, "") for g, _ in line["spans"])):
             continue
 
         if not eligible(line):
