@@ -1,0 +1,112 @@
+# Experimental: native 64-bit Windows build of pdf2htmlEX 0.18.8.rc1
+# (no official Windows binary exists past 0.14.6, a 32-bit build from 2015).
+# Builds with MSYS2/MINGW64, smoke-tests the result outside MSYS2 and
+# benchmarks it against the bundled 0.14.6 on the same runner.
+name: pdf2htmlEX Windows build (experimental)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - "tools/pdf2htmlex-windows/**"
+      - ".github/workflows/pdf2htmlex-windows.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 150
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git curl tar xz patch
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-python
+            mingw-w64-x86_64-cairo
+            mingw-w64-x86_64-freetype
+            mingw-w64-x86_64-fontconfig
+            mingw-w64-x86_64-libpng
+            mingw-w64-x86_64-libjpeg-turbo
+            mingw-w64-x86_64-libxml2
+            mingw-w64-x86_64-glib2
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-gettext-runtime
+            mingw-w64-x86_64-gettext-tools
+            mingw-w64-x86_64-libiconv
+            mingw-w64-x86_64-boost
+
+      - name: Build pdf2htmlEX
+        run: |
+          gcc --version | head -1
+          WORK="$PWD/build-win" OUT="$PWD/pdf2htmlEX-win64" JOBS=4 \
+            bash tools/pdf2htmlex-windows/build.sh
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            build-win/**/CMakeFiles/CMakeOutput.log
+            build-win/**/CMakeFiles/CMakeError.log
+            build-win/**/CMakeFiles/CMakeConfigureLog.yaml
+          if-no-files-found: ignore
+
+      - name: Smoke test and benchmark (plain Windows, no MSYS2 on PATH)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $new = (Resolve-Path pdf2htmlEX-win64/bin/pdf2htmlEX.exe).Path
+          $old = (Resolve-Path src/rocktranslate/assets/pdf2htmlEX/pdf2htmlEX.exe).Path
+          New-Item -ItemType Directory -Force bench | Out-Null
+          Set-Location bench
+          Copy-Item ../build-win/pdf2htmlEX/test/test_output/3-pages.pdf .
+          Invoke-WebRequest https://arxiv.org/pdf/1706.03762v7 -OutFile attention.pdf
+          Invoke-WebRequest https://arxiv.org/pdf/1512.03385v1 -OutFile resnet.pdf
+          & $new --version
+          if ($LASTEXITCODE -ne 0) { throw "--version failed" }
+          $rows = @()
+          foreach ($pdf in @("3-pages.pdf", "attention.pdf", "resnet.pdf")) {
+            foreach ($bin in @(@{n="0.18.8-win64"; p=$new}, @{n="0.14.6-win32"; p=$old})) {
+              $out = "$($bin.n)-$($pdf -replace '\.pdf$','').html"
+              $t = Measure-Command { & $bin.p --zoom 1.3 --no-drm 1 --embed-image 0 $pdf $out 2>&1 | Out-Null }
+              $ok = Test-Path $out
+              $size = if ($ok) { [math]::Round((Get-Item $out).Length / 1MB, 2) } else { 0 }
+              $rows += [pscustomobject]@{ binary=$bin.n; pdf=$pdf; seconds=[math]::Round($t.TotalSeconds,1); ok=$ok; html_MB=$size }
+            }
+          }
+          $rows | Format-Table -AutoSize | Out-String | Write-Host
+          $summary = "| binary | pdf | seconds | ok | html MB |`n|---|---|---|---|---|`n"
+          foreach ($r in $rows) { $summary += "| $($r.binary) | $($r.pdf) | $($r.seconds) | $($r.ok) | $($r.html_MB) |`n" }
+          $summary | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          if (-not ($rows | Where-Object { $_.binary -eq "0.18.8-win64" -and $_.ok })) { throw "new binary produced no HTML" }
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf2htmlEX-0.18.8.rc1-win64
+          path: pdf2htmlEX-win64
+          retention-days: 30
+
+      - name: Upload benchmark outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-html
+          path: bench/*.html
+          if-no-files-found: ignore
+          retention-days: 7
