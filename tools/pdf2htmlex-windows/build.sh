@@ -61,7 +61,7 @@ cmake -S fontforge -B fontforge/build -G Ninja -DCMAKE_POLICY_VERSION_MINIMUM=3.
   -DENABLE_MAINTAINER_TOOLS=OFF -DENABLE_TILE_PATH=OFF -DENABLE_WRITE_PFM=OFF \
   -DENABLE_SANITIZER=none -DENABLE_FREETYPE_DEBUGGER= -DSPHINX_USE_VENV=OFF \
   -DREAL_TYPE=double -DTHEME=tango
-cmake --build fontforge/build -j "$JOBS"
+cmake --build fontforge/build -j "$JOBS" --target fontforge   # library only (UI translations are not needed)
 
 # ── pdf2htmlEX ──
 cmake -S pdf2htmlEX -B pdf2htmlEX/build -G Ninja -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_BUILD_TYPE=Release \
