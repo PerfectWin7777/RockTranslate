@@ -23,6 +23,9 @@ FONTFORGE=20200314
 export CFLAGS="-O2 -std=gnu17 -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
 export CXXFLAGS="-O2 -include cstdint -include cstring -include climits"
 
+# CMake 4 refuses the 2020-era cmake_minimum_required() of these projects
+export CMAKE_POLICY_VERSION_MINIMUM=3.5
+
 mkdir -p "$WORK" && cd "$WORK"
 
 # ── Sources ──
@@ -35,7 +38,7 @@ mkdir -p "$WORK" && cd "$WORK"
 python "$HERE/patch_sources.py" "$WORK"
 
 # ── Poppler (static, same options as the official build) ──
-cmake -S poppler -B poppler/build -G Ninja \
+cmake -S poppler -B poppler/build -G Ninja -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
   -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
   -DENABLE_UNSTABLE_API_ABI_HEADERS=OFF -DBUILD_GTK_TESTS=OFF -DBUILD_QT5_TESTS=OFF \
   -DBUILD_CPP_TESTS=OFF -DENABLE_SPLASH=ON -DENABLE_UTILS=OFF -DENABLE_CPP=OFF \
@@ -48,7 +51,7 @@ cmake -S poppler -B poppler/build -G Ninja \
 cmake --build poppler/build -j "$JOBS"
 
 # ── FontForge (static library only, no GUI / Python) ──
-cmake -S fontforge -B fontforge/build -G Ninja \
+cmake -S fontforge -B fontforge/build -G Ninja -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
   -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
   -DENABLE_GUI=OFF -DENABLE_X11=OFF -DENABLE_NATIVE_SCRIPTING=ON \
   -DENABLE_PYTHON_SCRIPTING=OFF -DENABLE_PYTHON_EXTENSION=OFF -DENABLE_LIBSPIRO=OFF \
@@ -61,7 +64,7 @@ cmake -S fontforge -B fontforge/build -G Ninja \
 cmake --build fontforge/build -j "$JOBS"
 
 # ── pdf2htmlEX ──
-cmake -S pdf2htmlEX -B pdf2htmlEX/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+cmake -S pdf2htmlEX -B pdf2htmlEX/build -G Ninja -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX="$WORK/prefix"
 cmake --build pdf2htmlEX/build -j "$JOBS"
 cmake --install pdf2htmlEX/build
