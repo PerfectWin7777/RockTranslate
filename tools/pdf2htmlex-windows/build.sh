@@ -66,7 +66,11 @@ cmake --build fontforge/build -j "$JOBS" --target fontforge   # library only (UI
 # ── pdf2htmlEX ──
 cmake -S pdf2htmlEX -B pdf2htmlEX/build -G Ninja -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX="$WORK/prefix"
-cmake --build pdf2htmlEX/build -j "$JOBS"
+# build_css.sh / build_js.sh cannot run under cmd.exe; without a minifier
+# they only copy the sources, so produce the same files directly.
+for f in base fancy; do cp pdf2htmlEX/share/$f.css pdf2htmlEX/share/$f.min.css; done
+cp pdf2htmlEX/share/pdf2htmlEX.js pdf2htmlEX/share/pdf2htmlEX.min.js
+cmake --build pdf2htmlEX/build -j "$JOBS" --target pdf2htmlEX
 cmake --install pdf2htmlEX/build
 
 # ── Package a self-contained folder ──
