@@ -18,8 +18,12 @@ from typing import List
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 PDF_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "Tankeu et al. 2026.pdf"))
-EXE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src", "rocktranslate",
-                                   "assets", "pdf2htmlEX", "pdf2htmlEX.exe"))
+def _resolve_exe() -> str:
+    from rocktranslate.core.downloader import check_and_download_pdf2htmlex
+    return check_and_download_pdf2htmlex() or "pdf2htmlEX"
+
+
+EXE = _resolve_exe()
 
 
 def make_slice(src_pdf: str, page_numbers: List[int], out_pdf: str) -> None:

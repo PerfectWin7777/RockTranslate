@@ -32,10 +32,8 @@ os.environ["LOCALAPPDATA"] = _TMP_HOME
 # Unit tests use the estimate-based layout path (no browser round-trip)
 os.environ["ROCKTRANSLATE_NO_GEOMETRY"] = "1"
 
-FIXTURE_HTML = os.path.join(
-    ROOT, "src", "rocktranslate", "assets", "pdf2htmlEX", "test",
-    "browser_tests", "geneve_1564", "geneve_1564.html",
-)
+# pdf2htmlEX sample output (from the pdf2htmlEX test suite, GPL v3)
+FIXTURE_HTML = os.path.join(ROOT, "dev_tools", "fixtures", "geneve_1564", "geneve_1564.html")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

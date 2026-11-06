@@ -89,3 +89,6 @@ dev_tools/fidelity_report/*_printed.html
 # pdf.js runtime bundle (the generic "build/" rule above must not drop it)
 !src/rocktranslate/assets/pdfjs/build/
 !src/rocktranslate/assets/pdfjs/build/*.js
+
+# pdf2htmlEX engine: fetched at build time (installer) or on first use, never committed
+src/rocktranslate/assets/pdf2htmlEX/

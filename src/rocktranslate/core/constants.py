@@ -43,8 +43,14 @@ PDFJS_DOWNLOAD_URL: Final[str] = (
     "https://github.com/mozilla/pdf.js/releases/download/v3.11.174/pdfjs-3.11.174-dist.zip"
 )
 
+# Native 64-bit Windows build of pdf2htmlEX 0.18.8.rc1, produced by this
+# repository's CI (.github/workflows/pdf2htmlex-windows.yml) and published as
+# an engine release. Layout of the archive: bin/pdf2htmlEX.exe (+ DLLs, data/),
+# etc/fonts/ (fontconfig).
+PDF2HTMLEX_WINDOWS_VERSION: Final[str] = "0.18.8.rc1-win64"
 PDF2HTMLEX_DOWNLOAD_URL: Final[str] = (
-    "https://shuvomoy.github.io/blogs/assets/pdf2htmlEX/pdf2htmlEX-win32-0.14.6-with-poppler-data.zip"
+    "https://github.com/PerfectWin7777/RockTranslate/releases/download/"
+    f"engine-pdf2htmlex-{PDF2HTMLEX_WINDOWS_VERSION}/pdf2htmlEX-{PDF2HTMLEX_WINDOWS_VERSION}.zip"
 )
 
 

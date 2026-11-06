@@ -38,6 +38,7 @@ from .constants import (
     DEFAULT_ASSETS_DIR,
     PDFJS_DOWNLOAD_URL,
     PDF2HTMLEX_DOWNLOAD_URL,
+    PDF2HTMLEX_WINDOWS_VERSION,
 )
 
 # Official standalone AppImage for Linux x86_64 distributions
@@ -171,9 +172,11 @@ def check_and_download_pdf2htmlex(assets_dir: str = DEFAULT_ASSETS_DIR) -> Optio
     for base in {assets_dir, DEFAULT_ASSETS_DIR}:
         if not base:
             continue
-        bundled = os.path.join(base, "pdf2htmlEX", binary_name)
-        if os.path.isfile(bundled) and system_os == "windows":
-            return bundled
+        if system_os == "windows":
+            # Installer layout: assets/pdf2htmlEX/bin/pdf2htmlEX.exe (0.18.8 win64)
+            bundled = os.path.join(base, "pdf2htmlEX", "bin", binary_name)
+            if os.path.isfile(bundled):
+                return bundled
         extracted = os.path.join(base, "pdf2htmlEX", "appimage", "AppRun")
         if os.path.isfile(extracted):
             return extracted
@@ -181,16 +184,16 @@ def check_and_download_pdf2htmlex(assets_dir: str = DEFAULT_ASSETS_DIR) -> Optio
     runtime_dir = os.path.join(str(config_db.get_runtime_dir()), "pdf2htmlEX")
 
     if system_os == "windows":
-        for root, _, files in os.walk(runtime_dir) if os.path.isdir(runtime_dir) else []:
-            if binary_name in files:
-                return os.path.join(root, binary_name)
-        logger.warning("pdf2htmlEX missing on Windows. Launching automated download...")
-        if _download_and_extract(PDF2HTMLEX_DOWNLOAD_URL, runtime_dir, "pdf2htmlEX.zip"):
-            for root, _, files in os.walk(runtime_dir):
-                if binary_name in files:
-                    resolved_path = os.path.join(root, binary_name)
-                    logger.info(f"Successfully resolved local Windows binary: {resolved_path}")
-                    return resolved_path
+        # Versioned folder: an engine downloaded by an older release (0.14.6)
+        # is never picked up again.
+        engine_dir = os.path.join(str(config_db.get_runtime_dir()), f"pdf2htmlEX-{PDF2HTMLEX_WINDOWS_VERSION}")
+        engine_exe = os.path.join(engine_dir, "bin", binary_name)
+        if os.path.isfile(engine_exe):
+            return engine_exe
+        logger.warning(f"pdf2htmlEX {PDF2HTMLEX_WINDOWS_VERSION} missing on Windows. Downloading it (~16 MB)...")
+        if _download_and_extract(PDF2HTMLEX_DOWNLOAD_URL, engine_dir, "pdf2htmlEX.zip") and os.path.isfile(engine_exe):
+            logger.info(f"pdf2htmlEX ready: {engine_exe}")
+            return engine_exe
         logger.critical("Failed to retrieve pdf2htmlEX automatically.")
         return None
 

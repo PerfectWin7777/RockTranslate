@@ -83,4 +83,19 @@ ldd "$OUT/bin/pdf2htmlEX.exe" | awk '/\/mingw64\// {print $3}' | sort -u | xargs
 cp -r /mingw64/etc/fonts "$OUT/etc/"
 cp -r poppler-data/. "$OUT/bin/data/poppler/"
 cp pdf2htmlEX-src/LICENSE* "$OUT/" 2>/dev/null || true
+cat > "$OUT/README.txt" <<NOTE
+pdf2htmlEX $PDF2HTMLEX_VERSION - native Windows x64 build
+Built for RockTranslate (https://github.com/PerfectWin7777/RockTranslate)
+
+pdf2htmlEX is free software under the GNU GPL v3 (see LICENSE_GPLv3).
+Corresponding source:
+  pdf2htmlEX $PDF2HTMLEX_VERSION   https://github.com/pdf2htmlEX/pdf2htmlEX/tree/v$PDF2HTMLEX_VERSION
+  $POPPLER                https://poppler.freedesktop.org/$POPPLER.tar.xz
+  FontForge $FONTFORGE      https://github.com/fontforge/fontforge/archive/$FONTFORGE.tar.gz
+  Windows build recipe and source patches:
+    https://github.com/PerfectWin7777/RockTranslate/tree/main/tools/pdf2htmlex-windows
+Other DLLs come from MSYS2 MINGW64 packages (https://packages.msys2.org).
+
+Usage: bin\pdf2htmlEX.exe [options] input.pdf output.html
+NOTE
 ls -la "$OUT/bin"

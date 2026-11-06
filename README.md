@@ -191,7 +191,7 @@ A lightweight execution engine that can be run globally from the terminal once i
 
 Each run ends with a summary (segments, time, tokens, estimated cost). Exit code `0` = success, `2` = partial result (some batches failed, the PDF was still produced), `1` = failure.
 
-**No browser to install manually:** RockTranslate prints PDFs with an installed Chrome / Edge / Chromium / Brave, and otherwise downloads a pinned `chrome-headless-shell` into your user folder (never into `site-packages`). On Linux, the official pdf2htmlEX AppImage is extracted automatically — no FUSE required (Docker, WSL, Ubuntu 22.04+). Override with `ROCKTRANSLATE_BROWSER=/path/to/chrome` if needed.
+**No browser to install manually:** RockTranslate prints PDFs with an installed Chrome / Edge / Chromium / Brave, and otherwise downloads a pinned `chrome-headless-shell` into your user folder (never into `site-packages`). On Windows, the pdf2htmlEX engine (native x64 build of 0.18.8) is downloaded on first use when it is not bundled. On Linux, the official pdf2htmlEX AppImage is extracted automatically — no FUSE required (Docker, WSL, Ubuntu 22.04+). Override with `ROCKTRANSLATE_BROWSER=/path/to/chrome` if needed.
 
 ---
 
@@ -243,7 +243,7 @@ The library never reads hidden GUI settings for what you pass explicitly (model,
 *   **Run-in headings and complex inline math:** a line starting with a bold run-in heading ("**Residual Dropout** We apply…") or packed with inline formulas is translated line by line instead of as part of its paragraph.
 *   **Longer target languages** shrink the text of a paragraph uniformly to keep it inside its original box (as other layout-preserving translators do).
 *   **Scanned PDFs** (images only) are not supported yet (no OCR).
-*   **pdf2htmlEX on Windows** is the legacy 0.14.6 build; very unusual LaTeX fonts can stall it — RockTranslate detects the stall, stops the process and reports the reason.
+*   **pdf2htmlEX on Windows** is our own native x64 build of pdf2htmlEX 0.18.8 (recipe in `tools/pdf2htmlex-windows/`), bundled by the installer and downloaded on first use otherwise (~16 MB). If a conversion stops making progress, RockTranslate stops the process and reports the reason.
 
 ### Roadmap:
 *   [ ] **Structured extraction (`to_json`, `to_markdown`)**: expose the document model (titles, paragraphs, tables, captions, reading order) for RAG and analysis pipelines.

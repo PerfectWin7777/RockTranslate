@@ -241,3 +241,25 @@ Découpage interne : P5a modèle de données + JSON · P5b Markdown + chunks · 
 2. Puis P1 → P2 (le cœur), P3, P4 (visible), P5 (la grande nouveauté), P6 (release).
 3. Chaque phase = une série de commits sur `second`, testée avec le LLM **stubbé** (aucun appel API payant sans accord), puis validée par l'auteur avant la phase suivante.
 4. Décisions déjà actées et non remises en cause : pas de réécriture Rust/C, pdf2htmlEX 0.14.6 sous Windows, dossiers d'archives conservés.
+
+
+## 4. À reprendre avec l'auteur : pdf2htmlEX 0.18.8 natif Windows
+
+Acquis (2026-11-06) : premier build natif Windows x64 de pdf2htmlEX 0.18.8.rc1
+(Poppler 0.89.0, FontForge 20200314, Cairo 1.18.6), compilé en CI GitHub Actions.
+Nos recherches n'ont trouvé aucun build public équivalent (le projet officiel ne
+publie que Linux ; une tentative publique MXE en 2025 n'a jamais abouti).
+Mesures sur le même runner Windows, face à l'ancien 0.14.6 (32 bits) :
+3-pages 0,2 s contre 0,5 s ; « Attention » 15 p. 4,0 s contre 5,8 s ;
+ResNet 12 p. 8,3 s contre 12,0 s.
+
+Idées à discuter :
+- Release publique dédiée (« pdf2htmlEX for Windows »), annonce, page sur le site.
+- Monétisation : pdf2htmlEX est sous GPL v3. On peut distribuer et même vendre
+  le binaire, mais il faut fournir les sources correspondantes (recette + patchs,
+  déjà publics dans `tools/pdf2htmlex-windows/`) et l'acheteur garde le droit de
+  le redistribuer. Le binaire lui-même ne peut donc pas être fermé : la valeur se
+  monétise plutôt par le service (RockTranslate, API de conversion hébergée,
+  support, builds maintenus/signés, intégration entreprise).
+- Proposer les correctifs en amont (pdf2htmlEX/pdf2htmlEX, issues #26 et #119)
+  pour la visibilité du projet.

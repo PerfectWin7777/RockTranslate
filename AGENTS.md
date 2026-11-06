@@ -29,11 +29,15 @@ Dernière mise à jour : 2026-09-05
 - **Réécriture Rust/C du moteur d'extraction : rejetée** (fausse bonne idée).
   pdf2htmlEX produit le modèle HTML+CSS matriciel précis que tout le pipeline
   consomme ; le remplacer déplacerait le problème au lieu de le résoudre.
-- **pdf2htmlEX 0.18.8.rc1 n'existe PAS en build Windows** (vérifié via l'API
-  GitHub et le miroir SourceForge : assets Linux uniquement). Windows reste sur
-  le binaire 0.14.6 (bundlé), Linux utilise l'AppImage officielle 0.18.8.rc1.
-  Le levier vitesse côté Windows = conversion par tranches de pages, pas un
-  changement de binaire.
+- **pdf2htmlEX 0.18.8.rc1 n'a pas de build Windows officiel** : nous le
+  compilons nous-mêmes en natif 64 bits (MSYS2/MINGW64, recette et correctifs
+  dans `tools/pdf2htmlex-windows/`, CI `.github/workflows/pdf2htmlex-windows.yml`).
+  Le binaire est publié en release « moteur » `engine-pdf2htmlex-0.18.8.rc1-win64`
+  (pré-release, jamais "latest"), embarqué par le setup (release.yml) et
+  téléchargé à la demande par `core/downloader.py`. L'ancien 0.14.6 (32 bits) est
+  retiré du dépôt ; pas de repli automatique sur 0.14.6 (décision de l'auteur,
+  à revoir après ses tests). Linux reste sur l'AppImage officielle 0.18.8.rc1.
+  Le levier vitesse « pages demandées » reste la conversion par tranches.
 - Accélération "pages spécifiques" : approche choisie = **tranches** (découpe
   pypdf de la plage demandée, conversion de la tranche, remappage d'offset).
   Implémentation différée jusqu'à validation du feedback UI par l'auteur.

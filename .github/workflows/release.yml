@@ -38,6 +38,22 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[gui]" pyinstaller
+      - name: Fetch the pdf2htmlEX Windows engine (0.18.8 win64)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          # Single source of truth: PDF2HTMLEX_WINDOWS_VERSION in core/constants.py
+          $version = ([regex]::Match((Get-Content -Raw src/rocktranslate/core/constants.py), 'PDF2HTMLEX_WINDOWS_VERSION: Final\[str\] = "([^"]+)"')).Groups[1].Value
+          if (-not $version) { throw "PDF2HTMLEX_WINDOWS_VERSION not found" }
+          gh release download "engine-pdf2htmlex-$version" --repo "${{ github.repository }}" --pattern "pdf2htmlEX-$version.zip*" --dir engine
+          $expected = (Get-Content "engine/pdf2htmlEX-$version.zip.sha256").Split(" ")[0]
+          $actual = (Get-FileHash "engine/pdf2htmlEX-$version.zip" -Algorithm SHA256).Hash.ToLower()
+          if ($expected -ne $actual) { throw "engine checksum mismatch" }
+          Expand-Archive "engine/pdf2htmlEX-$version.zip" -DestinationPath src/rocktranslate/assets/pdf2htmlEX -Force
+          & src/rocktranslate/assets/pdf2htmlEX/bin/pdf2htmlEX.exe --version
+          if ($LASTEXITCODE -ne 0) { throw "engine does not start" }
       - name: Build the standalone app (PyInstaller)
         run: python dev_tools/build_app.py
       - name: Check the bundle
