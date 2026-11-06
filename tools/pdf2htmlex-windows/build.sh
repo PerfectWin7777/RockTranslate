@@ -6,7 +6,7 @@
 # a self-contained folder:
 #   pdf2htmlEX-win64/bin/pdf2htmlEX.exe (+ DLLs, data/)
 #   pdf2htmlEX-win64/etc/fonts/        (fontconfig configuration)
-#   pdf2htmlEX-win64/share/poppler/    (poppler-data: CJK cmaps)
+#   (poppler-data, i.e. CJK cmaps, goes to bin/data/poppler where it is looked up)
 set -euxo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -75,12 +75,12 @@ cmake --install pdf2htmlEX/build
 
 # ── Package a self-contained folder ──
 rm -rf "$OUT"
-mkdir -p "$OUT/bin/data" "$OUT/etc" "$OUT/share/poppler"
+mkdir -p "$OUT/bin/data/poppler" "$OUT/etc"
 cp "$WORK/prefix/bin/pdf2htmlEX.exe" "$OUT/bin/"
 cp -r "$WORK/prefix/share/pdf2htmlEX/." "$OUT/bin/data/"
 # Every non-system DLL the executable needs, recursively
 ldd "$OUT/bin/pdf2htmlEX.exe" | awk '/\/mingw64\// {print $3}' | sort -u | xargs -r -I{} cp {} "$OUT/bin/"
 cp -r /mingw64/etc/fonts "$OUT/etc/"
-cp -r poppler-data/. "$OUT/share/poppler/"
+cp -r poppler-data/. "$OUT/bin/data/poppler/"
 cp pdf2htmlEX-src/LICENSE* "$OUT/" 2>/dev/null || true
 ls -la "$OUT/bin"
