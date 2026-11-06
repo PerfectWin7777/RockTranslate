@@ -40,5 +40,18 @@ edit("pdf2htmlEX/src/util/SignalHandler.cc",
 
 # 2. Windows system libraries used by static Poppler/FontForge/GLib.
 edit("pdf2htmlEX/CMakeLists.txt",
-     "  -lz\n  -lm\n)",
-     "  -lz\n  -lm\n  -lintl\n  -liconv\n  -lgdi32\n  -ladvapi32\n  -lshell32\n  -lole32\n  -lws2_32\n)")
+     "add_executable(pdf2htmlEX ${PDF2HTMLEX_SRC})",
+     "if(WIN32)\n  set(PDF2HTMLEX_LIBS ${PDF2HTMLEX_LIBS} -lintl -liconv -lgdi32 -ladvapi32 -lshell32 -lole32 -lws2_32)\nendif()\n"
+     "add_executable(pdf2htmlEX ${PDF2HTMLEX_SRC})")
+
+# 3. Poppler 0.89 glib: recent GLib/GCC reject g_once_init_* on a volatile
+#    variable (fixed upstream in later Poppler releases the same way).
+edit("poppler/glib/poppler-private.h",
+     "static volatile gsize g_define_type_id__volatile = 0;",
+     "static gsize g_define_type_id__volatile = 0;")
+
+# 4. FontForge 20200314 headers include <gio/gio.h>: add the GLib/GIO include
+#    directories explicitly (the upstream file relied on them being implicit).
+edit("pdf2htmlEX/CMakeLists.txt",
+     "find_package(PkgConfig)\n",
+     "find_package(PkgConfig)\npkg_check_modules(GIO REQUIRED gio-2.0 glib-2.0)\ninclude_directories(${GIO_INCLUDE_DIRS})\n")
