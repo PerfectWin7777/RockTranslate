@@ -230,7 +230,7 @@ def main() -> None:
                f"{report.batches_total} batches, {report.seconds:.1f}s, "
                f"{report.prompt_tokens + report.completion_tokens} tokens, ~${report.cost_usd:.4f}")
     if report.success:
-        logger.info(f"Done: {report.output_path} ({summary})")
+        logger.info(f"Done: {report.output_path or 'structured outputs written'} ({summary})")
         sys.exit(0)
     if report.output_path and os.path.exists(report.output_path) and report.batches_failed:
         logger.warning(f"Partial result: {report.output_path} — {report.error} ({summary})")
