@@ -92,3 +92,4 @@ dev_tools/fidelity_report/*_printed.html
 
 # pdf2htmlEX engine: fetched at build time (installer) or on first use, never committed
 src/rocktranslate/assets/pdf2htmlEX/
+src/rocktranslate/assets/chromium_headless/

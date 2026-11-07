@@ -54,6 +54,18 @@ jobs:
           Expand-Archive "engine/pdf2htmlEX-$version.zip" -DestinationPath src/rocktranslate/assets/pdf2htmlEX -Force
           & src/rocktranslate/assets/pdf2htmlEX/bin/pdf2htmlEX.exe --version
           if ($LASTEXITCODE -ne 0) { throw "engine does not start" }
+      - name: Fetch chrome-headless-shell (exact layout measurement + PDF printing)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          # Same pinned version as core/downloader.py (CHROME_SHELL_VERSION)
+          $v = ([regex]::Match((Get-Content -Raw src/rocktranslate/core/downloader.py), 'CHROME_SHELL_VERSION: str = "([^"]+)"')).Groups[1].Value
+          if (-not $v) { throw "CHROME_SHELL_VERSION not found" }
+          $url = "https://storage.googleapis.com/chrome-for-testing-public/$v/win64/chrome-headless-shell-win64.zip"
+          Invoke-WebRequest $url -OutFile shell.zip
+          Expand-Archive shell.zip -DestinationPath src/rocktranslate/assets/chromium_headless -Force
+          $exe = "src/rocktranslate/assets/chromium_headless/chrome-headless-shell-win64/chrome-headless-shell.exe"
+          if (-not (Test-Path $exe)) { throw "chrome-headless-shell.exe missing after extraction" }
       - name: Build the standalone app (PyInstaller)
         run: python dev_tools/build_app.py
       - name: Check the bundle
