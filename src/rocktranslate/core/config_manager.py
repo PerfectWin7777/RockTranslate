@@ -17,6 +17,8 @@ Version: 1.1.0
 import os
 from loguru import logger
 import json
+import shutil
+import threading
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -47,41 +49,62 @@ class ConfigManager:
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self.filepath = self.config_dir / filename
         self.data: Dict[str, Dict[str, Any]] = {}
+        self._lock = threading.RLock()
 
         # Safely populate active configurations from local storage
         self.data = self._load()
 
     def _load(self) -> Dict[str, Dict[str, Any]]:
         """
-        Parses and decodes the configuration file from disk.
-
-        Returns:
-            Dict[str, Dict[str, Any]]: The loaded configuration dictionary, or an empty
-                                       dictionary if the file is missing or invalid.
+        Parses the configuration file. A corrupt file falls back to the last
+        good backup (config.json.bak) and is kept aside for inspection instead
+        of being silently overwritten: saved API keys are never lost.
         """
-        if not self.filepath.exists():
-            return {}
+        for path in (self.filepath, self._backup_path()):
+            if not path.exists():
+                continue
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    loaded_data = json.load(f)
+                if isinstance(loaded_data, dict):
+                    if path != self.filepath:
+                        logger.warning(f"[Config] Restored settings from backup: {path}")
+                    return loaded_data
+            except (json.JSONDecodeError, OSError, UnicodeDecodeError) as e:
+                logger.error(f"[Config] Unreadable settings file {path}: {e}")
+                if path == self.filepath:
+                    try:
+                        os.replace(path, path.with_name(path.name + ".corrupt"))
+                    except OSError:
+                        pass
+        return {}
 
-        try:
-            with open(self.filepath, "r", encoding="utf-8") as f:
-                loaded_data = json.load(f)
-                return loaded_data if isinstance(loaded_data, dict) else {}
-        except (json.JSONDecodeError, OSError) as e:
-            # Prevent app startup crashes on corrupt settings files by returning an empty state
-            logger.error(f"[Config] Error decoding configuration database: {e}")
-            return {}
+    def _backup_path(self) -> Path:
+        return self.filepath.with_name(self.filepath.name + ".bak")
 
     def _save(self) -> None:
         """
-        Serializes current settings map and writes it to disk.
+        Thread-safe, atomic write: serialized under a lock, written to a
+        temporary file, then swapped in. A crash or two threads saving at once
+        can no longer leave a truncated config.json behind.
         """
-        try:
-            # Defensive target directory creation check
-            self.config_dir.mkdir(parents=True, exist_ok=True)
-            with open(self.filepath, "w", encoding="utf-8") as f:
-                json.dump(self.data, f, indent=4, ensure_ascii=False)
-        except OSError as e:
-            logger.error(f"[Config] Error writing settings database: {e}")
+        with self._lock:
+            try:
+                payload = json.dumps(self.data, indent=4, ensure_ascii=False)
+                self.config_dir.mkdir(parents=True, exist_ok=True)
+                tmp = self.filepath.with_name(self.filepath.name + ".tmp")
+                with open(tmp, "w", encoding="utf-8") as f:
+                    f.write(payload)
+                    f.flush()
+                    os.fsync(f.fileno())
+                if self.filepath.exists():
+                    try:
+                        shutil.copyfile(self.filepath, self._backup_path())
+                    except OSError:
+                        pass
+                os.replace(tmp, self.filepath)
+            except (OSError, TypeError, ValueError, RuntimeError) as e:
+                logger.error(f"[Config] Error writing settings database: {e}")
 
     def get(self, section: str, key: str, default: Any = None) -> Any:
         """
@@ -107,10 +130,11 @@ class ConfigManager:
             key: Name of the configuration parameter (e.g., 'provider').
             value: The data payload to serialize (must be JSON serializable).
         """
-        if section not in self.data:
-            self.data[section] = {}
-        self.data[section][key] = value
-        self._save()
+        with self._lock:
+            if section not in self.data:
+                self.data[section] = {}
+            self.data[section][key] = value
+            self._save()
 
     def get_runtime_dir(self) -> Path:
         """
