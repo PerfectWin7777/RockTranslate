@@ -275,30 +275,37 @@
                     });
 
                     // Backend signals: layout preparation phase (lazy pipeline) and effective translation start
-                    window.addEventListener('workspace-prep-start', () => {
+                    window.addEventListener('workspace-prep-start', (e) => {
                         const t = Alpine.store('trans');
-                        t.running = true;
+                        // Background preparation at opening: not a translation run
+                        if (!(e.detail && e.detail.background)) t.running = true;
                         t.stage = 'preparing';
                         t.prepCurrent = 0;
                         t.prepTotal = 0;
                         t.prepAnalysing = false;
                     });
 
-                    window.addEventListener('workspace-prep-analysing', () => {
+                    window.addEventListener('workspace-prep-analysing', (e) => {
                         const t = Alpine.store('trans');
-                        t.running = true;
+                        if (!(e.detail && e.detail.background)) t.running = true;
                         t.stage = 'preparing';
                         t.prepAnalysing = true;
                     });
 
                     window.addEventListener('workspace-prep-progress', (e) => {
                         const t = Alpine.store('trans');
-                        t.running = true;
+                        if (!(e.detail && e.detail.background)) t.running = true;
                         if (t.stage !== 'translating') t.stage = 'preparing';
                         if (e.detail) {
                             t.prepCurrent = e.detail.current || 0;
                             t.prepTotal = e.detail.total || 0;
                         }
+                    });
+
+                    // Background preparation finished: back to idle unless a run started
+                    window.addEventListener('workspace-prep-done', () => {
+                        const t = Alpine.store('trans');
+                        if (!t.running) { t.stage = 'idle'; t.prepAnalysing = false; }
                     });
 
                     window.addEventListener('trigger-translation-start', () => {

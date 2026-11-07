@@ -453,7 +453,7 @@ SYMBOL_GLYPH_FIXES = str.maketrans({"ð": "(", "Þ": ")", "¼": "=", "þ": "+"})
 
 # Bump whenever instrument_html output changes: cached workspaces built by an
 # older pipeline are then re-instrumented from the cached raw HTML.
-PIPELINE_VERSION = 19
+PIPELINE_VERSION = 20
 
 
 def parse_font_sizes(soup: BeautifulSoup) -> Dict[str, float]:
@@ -1247,7 +1247,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 "border-radius: 16px; "
                 "box-shadow: 0 8px 32px rgba(31,38,135,0.15), 0 0 1px rgba(255,255,255,0.8); "
                 "z-index: 1000; "
-                "display: flex; "
+                "display: none; "
                 "justify-content: center; "
                 "align-items: center; "
                 "pointer-events: none; "
@@ -1898,10 +1898,9 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 inner.appendChild(text_p);
                 glass.appendChild(inner);
                 page.appendChild(glass);
-            } else {
-                glass.style.display = 'flex';
-                glass.style.opacity = '1';
             }
+            // The page shows its original text until translated (no overlay)
+            glass.style.display = 'none';
         };
 
         // Secure message bus routing to receive events and updates from parent window contexts

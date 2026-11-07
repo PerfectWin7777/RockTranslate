@@ -8,6 +8,8 @@
 - Fixed blank pages after every page on A4 publisher PDFs, per-page paper sizes (mixed portrait/landscape), names glued together ("KaimingHe"), mixed fonts inside a translated line, glyph corruption of Icelandic text and fractions.
 
 ### Speed & cost
+- The layout is prepared in the background as soon as a PDF opens: the first translation starts instantly.
+- Exact line geometry with the installed Edge/Chrome (DevTools protocol), no extra download needed.
 - Windows: pdf2htmlEX 0.18.8 compiled natively for Windows x64 (replaces the 32-bit 0.14.6 build from 2015):
   1.4–2.5x faster conversions, no 32-bit memory limit, fixes of the 0.18 series.
 - Concurrent requests (4 by default), source-text context so batches are independent.

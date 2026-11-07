@@ -59,7 +59,8 @@ Built with a local-first architecture, RockTranslate prioritizes performance, re
 *   **Transparent Usage:** Live elapsed time, remaining time, tokens and estimated cost during each run, plus cumulative statistics per model.
 *   **Original Text on Hover:** Hover a translated paragraph to read the original in a bubble (toggle in Settings; Ctrl + hover always works).
 *   **Native pdf2htmlEX 0.18.8 on Windows (new in 2.0.5):** The first public native 64-bit Windows build of pdf2htmlEX 0.18.8 — built by our CI from source ([build recipe](tools/pdf2htmlex-windows), [engine release](https://github.com/PerfectWin7777/RockTranslate/releases/tag/engine-pdf2htmlex-0.18.8.rc1-win64)) — 1.4–2.5× faster than the old 32-bit 0.14.6 and free of its 2 GB memory limit.
-*   **Synchronized Side-by-Side View:** Original PDF on the left, translated layout on the right, same zoom and synchronized scrolling; a collapsible progress panel shows pages, segments, time, tokens and cost.
+*   **Synchronized Side-by-Side View:** Original PDF on the left; on the right, the reconstructed layout, prepared in the background as soon as the PDF opens (no AI, no cost), so translation starts instantly. Same zoom and synchronized scrolling; a collapsible progress panel shows pages, segments, time, tokens and cost.
+*   **Exact Layout Measurement with Your Browser:** Paragraph geometry is measured with the installed Edge or Chrome (driven through the DevTools protocol), or with a small headless engine fetched in the background — nothing to install by hand.
 *   **Light & Dark Themes:** A native-feeling interface (light, dark or follow the system) with a unified Settings window (Ctrl/⌘+,).
 *   **Lightweight and Responsive User Experience:** Optimized loading speeds and visual feedback indicators.
 *   **Privacy-Conscious Workflow:** Supports offline and local-first execution via local LLMs (Ollama) to guarantee complete data privacy.

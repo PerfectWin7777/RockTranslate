@@ -167,7 +167,9 @@ class TranslationApiMixin:
                 self._metadata_total_pages = int(total_pages)
                 logger.info(f"Cache hit: prepared workspace restored instantly ({len(original_texts_map)} segments).")
             else:
-                logger.info("No cached workspace: layout preparation deferred to the first translation.")
+                logger.info("No cached workspace: preparing the layout in the background (no LLM, no cost).")
+                threading.Thread(target=self._prepare_in_background, args=(pdf_path,),
+                                 name="rocktranslate-prep", daemon=True).start()
 
             config_db.set("RecentFiles", "active_total_pages", total_pages)
 
@@ -274,6 +276,35 @@ class TranslationApiMixin:
 
     def _prepare_document_for_translation(self, cancelled: Optional[Any] = None) -> bool:
         """
+        Serialized entry point: the background preparation started at opening
+        and a translation run never convert the same document twice; a run
+        that arrives during the background preparation simply waits for it.
+        """
+        lock = self.__dict__.setdefault("_prep_lock", threading.Lock())
+        with lock:
+            if self._is_prepared:
+                return True
+            return self._prepare_document_impl(cancelled)
+
+    def _prepare_in_background(self, pdf_path: str) -> None:
+        """Layout preparation started right after opening (no LLM, no cost)."""
+        self._prep_background = True
+        try:
+            ok = self._prepare_document_for_translation(cancelled=lambda: self._active_pdf_path != pdf_path)
+        except Exception as e:
+            logger.error(f"Background layout preparation failed: {e}")
+            ok = False
+        finally:
+            self._prep_background = False
+        self._send_js(f"window.dispatchEvent(new CustomEvent('workspace-prep-done', {{ detail: {{ ok: {json.dumps(bool(ok))} }} }}))")
+
+    def _prep_event(self, name: str, detail: str = "") -> str:
+        bg = "true" if getattr(self, "_prep_background", False) else "false"
+        extra = f", {detail}" if detail else ""
+        return f"window.dispatchEvent(new CustomEvent('{name}', {{ detail: {{ background: {bg}{extra} }} }}))"
+
+    def _prepare_document_impl(self, cancelled: Optional[Any] = None) -> bool:
+        """
         Runs the deferred heavy pipeline (pdf2htmlEX conversion + BeautifulSoup
         instrumentation) for the active document. Called from the translation
         worker thread so the UI never freezes; progress is streamed to the
@@ -299,15 +330,12 @@ class TranslationApiMixin:
 
         # Announce the preparation phase so the right-pane overlay switches to
         # live progress mode (the UI shows the placeholder in lazy mode).
-        self._send_js("window.dispatchEvent(new CustomEvent('workspace-prep-start'))")
+        self._send_js(self._prep_event('workspace-prep-start'))
 
         # Thread-safe progress report callback for pdf2htmlEX compilation
         def on_pdf_progress(current: int, total: int):
             self._send_status_i18n("status_extraction_pages", {"current": current, "total": total})
-            self._send_js(
-                f"window.dispatchEvent(new CustomEvent('workspace-prep-progress', {{ "
-                f"detail: {{ current: {current}, total: {total} }} }}))"
-            )
+            self._send_js(self._prep_event('workspace-prep-progress', f"current: {current}, total: {total}"))
 
         self._send_status_i18n("status_extraction_start")
         raw_html_path = convert_pdf_to_html(
@@ -330,7 +358,7 @@ class TranslationApiMixin:
             return False
 
         self._send_status_i18n("status_extraction_instrumenting")
-        self._send_js("window.dispatchEvent(new CustomEvent('workspace-prep-analysing'))")
+        self._send_js(self._prep_event('workspace-prep-analysing'))
         logger.info("Executing BeautifulSoup semantic tag compilation...")
 
         workspace_html_path = os.path.join(cache_dir, "workspace.html")
