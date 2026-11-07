@@ -131,6 +131,22 @@ jobs:
             artifacts/RockTranslate_Setup_v$VERSION/*.exe artifacts/python-dist/*
           echo "created=true" >> "$GITHUB_OUTPUT"
 
+      - name: Attach the pdf2htmlEX Windows engine to the release
+        # The standalone engine (our native build of pdf2htmlEX 0.18.8) is
+        # offered next to the installer on every app release, and its own
+        # release is a regular one (never marked "Latest": the app keeps it).
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          ENGINE=$(sed -n 's/^PDF2HTMLEX_WINDOWS_VERSION: Final\[str\] = "\(.*\)"/\1/p' src/rocktranslate/core/constants.py)
+          ENGINE_TAG="engine-pdf2htmlex-$ENGINE"
+          gh release download "$ENGINE_TAG" --pattern "pdf2htmlEX-$ENGINE.zip*" --dir engine
+          gh release upload "v$VERSION" --clobber engine/pdf2htmlEX-$ENGINE.zip engine/pdf2htmlEX-$ENGINE.zip.sha256
+          gh release edit "$ENGINE_TAG" --prerelease=false --latest=false
+          gh release edit "v$VERSION" --latest
+
   pypi:
     # Enable with: Settings > Secrets and variables > Actions > Variables > PUBLISH_TO_PYPI = true
     # and configure a "Trusted Publisher" for this repository on pypi.org (no token needed).

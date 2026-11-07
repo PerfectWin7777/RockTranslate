@@ -112,7 +112,7 @@ jobs:
           retention-days: 30
 
   publish:
-    # Engine release (pre-release, never "latest"): the stable download URL
+    # Engine release (regular, never "latest"): the stable download URL
     # used by the installer build and by the app's on-demand download.
     needs: build
     runs-on: ubuntu-latest
@@ -136,7 +136,7 @@ jobs:
               echo "pdf2htmlEX is GPL v3 software: see README.txt and LICENSE_GPLv3 in the archive for the"
               echo "corresponding sources and the build recipe (tools/pdf2htmlex-windows)."
             } > notes.md
-            gh release create "$TAG" --target "$GITHUB_SHA" --prerelease --latest=false \
+            gh release create "$TAG" --target "$GITHUB_SHA" --latest=false \
               --title "pdf2htmlEX $ENGINE_VERSION (Windows engine)" --notes-file notes.md
           fi
           gh release upload "$TAG" --clobber pdf2htmlEX-$ENGINE_VERSION.zip pdf2htmlEX-$ENGINE_VERSION.zip.sha256
