@@ -453,7 +453,7 @@ SYMBOL_GLYPH_FIXES = str.maketrans({"ð": "(", "Þ": ")", "¼": "=", "þ": "+"})
 
 # Bump whenever instrument_html output changes: cached workspaces built by an
 # older pipeline are then re-instrumented from the cached raw HTML.
-PIPELINE_VERSION = 17
+PIPELINE_VERSION = 18
 
 
 def parse_font_sizes(soup: BeautifulSoup) -> Dict[str, float]:
@@ -951,7 +951,14 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 elif element.name in ["span", "b", "i", "sup", "sub", "em", "strong"]:
                     current_classes = list(active_classes)
                     if element.get("class"):
-                        current_classes.extend(element.get("class"))
+                        own = element.get("class")
+                        # The innermost style wins: a black span (fc0) inside a
+                        # blue line (fc1) is black. Inherited classes of the same
+                        # kind are dropped instead of accumulating.
+                        own_kinds = {re.match(r"[a-z]+", c).group(0) for c in own if re.match(r"(fc|ff|fs|sc)\d", c)}
+                        current_classes = [c for c in current_classes
+                                           if not (re.match(r"(fc|ff|fs|sc)\d", c) and re.match(r"[a-z]+", c).group(0) in own_kinds)]
+                        current_classes.extend(own)
                     for child_node in list(element.contents):
                         flatten_element(child_node, current_classes)
                 else:
@@ -1162,14 +1169,14 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                         if symbol_fonts and any(cls in symbol_fonts for cls in effective_ff):
                             text_content = text_content.translate(SYMBOL_GLYPH_FIXES)
                         
+                        # Effective color = the LAST (innermost) fc class
                         color_hex = None
-                        for cls in child_classes:
-                            # Ignore default color class (fc0) to keep normal text clean
-                            if cls == "fc0":
-                                continue
-                            if cls in color_map:
-                                color_hex = color_map[cls]
-                                break
+                        fc_classes = [c for c in child_classes if re.fullmatch(r"fc\d+", c)]
+                        if fc_classes and fc_classes[-1] != "fc0":
+                            color_hex = color_map.get(fc_classes[-1])
+                        # Near-black is body text, not a color run
+                        if color_hex and all(int(color_hex[i:i + 2], 16) < 0x40 for i in (0, 2, 4)):
+                            color_hex = None
                         
                         # Wrap text in style XML tag if a special color is detected
                         if color_hex and text_content.strip():
