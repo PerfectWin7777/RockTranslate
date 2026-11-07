@@ -80,6 +80,14 @@
                             <label class="rt-switch"><input type="checkbox" x-model="p.show_cost_estimates"
                                     @change="save('show_cost_estimates')"><span></span></label>
                         </div>
+                        <div class="prefs-row">
+                            <div class="prefs-row-text">
+                                <div class="prefs-label" x-text="t('prefs_hover_original')"></div>
+                                <div class="prefs-hint" x-text="t('prefs_hover_original_hint')"></div>
+                            </div>
+                            <label class="rt-switch"><input type="checkbox" x-model="p.hover_original"
+                                    @change="save('hover_original')"><span></span></label>
+                        </div>
                     </div>
                 </div>
 

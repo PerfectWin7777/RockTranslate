@@ -1,3 +1,13 @@
+/** Pushes the "original text on hover" setting into the translated pane. */
+window.rtHoverOriginal = true;
+window.rtSetHoverOriginal = function (on) {
+    window.rtHoverOriginal = !!on;
+    try {
+        const w = document.getElementById('html-iframe').contentWindow;
+        if (w) w.RT_HOVER_ORIGINAL = window.rtHoverOriginal;
+    } catch (e) { /* frame not loaded */ }
+};
+
 /**
  * RockTranslate — Settings window controller + run statistics formatting
  * Path: src/rocktranslate/assets/ui/js/preferences.js
@@ -86,6 +96,7 @@ function preferencesController() {
             try {
                 this.p = await api.get_preferences() || {};
                 window.rtShowCost = this.p.show_cost_estimates !== false;
+                window.rtSetHoverOriginal(this.p.hover_original !== false);
                 this.api = await api.get_api_status() || {};
                 this.cache = await api.get_cache_info() || this.cache;
                 await this.loadUsage();
@@ -112,6 +123,7 @@ function preferencesController() {
                 if (res && res.status === 'success') {
                     this.p[key] = res.value;
                     if (key === 'show_cost_estimates') window.rtShowCost = !!res.value;
+                    if (key === 'hover_original') window.rtSetHoverOriginal(!!res.value);
                     this.flash();
                 } else {
                     window.showToast((res && res.message) || this.t('save_error_msg'), 'error');

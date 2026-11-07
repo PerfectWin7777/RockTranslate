@@ -253,13 +253,12 @@ Mesures sur le même runner Windows, face à l'ancien 0.14.6 (32 bits) :
 3-pages 0,2 s contre 0,5 s ; « Attention » 15 p. 4,0 s contre 5,8 s ;
 ResNet 12 p. 8,3 s contre 12,0 s.
 
+Objectif (précisé par l'auteur) : **visibilité**, pas commerce. Être les premiers à
+publier un build Windows natif de pdf2htmlEX 0.18.8 doit faire connaître RockTranslate.
+pdf2htmlEX étant sous GPL v3, le binaire reste libre et ses sources publiques.
+
 Idées à discuter :
-- Release publique dédiée (« pdf2htmlEX for Windows »), annonce, page sur le site.
-- Monétisation : pdf2htmlEX est sous GPL v3. On peut distribuer et même vendre
-  le binaire, mais il faut fournir les sources correspondantes (recette + patchs,
-  déjà publics dans `tools/pdf2htmlex-windows/`) et l'acheteur garde le droit de
-  le redistribuer. Le binaire lui-même ne peut donc pas être fermé : la valeur se
-  monétise plutôt par le service (RockTranslate, API de conversion hébergée,
-  support, builds maintenus/signés, intégration entreprise).
-- Proposer les correctifs en amont (pdf2htmlEX/pdf2htmlEX, issues #26 et #119)
-  pour la visibilité du projet.
+- Release dédiée « pdf2htmlEX 0.18.8 for Windows » mise en avant (déjà publiée en
+  pré-release moteur), mention dans le README, annonce (Reddit, forums LaTeX/PDF,
+  issues #26 et #119 du dépôt officiel qui demandent un .exe).
+- Proposer les correctifs en amont (pdf2htmlEX/pdf2htmlEX) avec un lien vers RockTranslate.

@@ -453,7 +453,7 @@ SYMBOL_GLYPH_FIXES = str.maketrans({"ð": "(", "Þ": ")", "¼": "=", "þ": "+"})
 
 # Bump whenever instrument_html output changes: cached workspaces built by an
 # older pipeline are then re-instrumented from the cached raw HTML.
-PIPELINE_VERSION = 18
+PIPELINE_VERSION = 19
 
 
 def parse_font_sizes(soup: BeautifulSoup) -> Dict[str, float]:
@@ -1926,21 +1926,36 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
         // Create and append the dynamic tooltip box on document load
         var tooltip = document.createElement('div');
         tooltip.id = 'rt-bilingual-tooltip';
-        tooltip.style.cssText = "position: absolute; display: none; background: rgba(15, 23, 42, 0.96); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); color: #ffffff; padding: 10px 14px; border-radius: 6px; font-size: 11px; max-width: 320px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); z-index: 5000; border: 1px solid rgba(255,255,255,0.15); line-height: 1.5; pointer-events: none; transition: opacity 0.1s ease; opacity: 0; font-family: 'Segoe UI', -apple-system, sans-serif; white-space: pre-line;";
+        tooltip.style.cssText = "position: absolute; display: none; background: rgba(15, 23, 42, 0.96); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); color: #ffffff; padding: 10px 14px; border-radius: 6px; font-size: 11px; max-width: 420px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); z-index: 5000; border: 1px solid rgba(255,255,255,0.15); line-height: 1.5; pointer-events: none; transition: opacity 0.1s ease; opacity: 0; font-family: 'Segoe UI', -apple-system, sans-serif; white-space: pre-line;";
         document.body.appendChild(tooltip);
 
+        // Shown while Ctrl is held, or always when "Show the original text on
+        // hover" is enabled in the settings (window.RT_HOVER_ORIGINAL, set by
+        // the app). Only translated text shows a bubble.
+        var peekOn = function (e) { return e.ctrlKey || window.RT_HOVER_ORIGINAL === true; };
+        var peekTarget = function (el) {
+            var span = el && el.closest ? el.closest('span[data-trans-id]') : null;
+            if (!span) return null;
+            var pid = span.getAttribute('data-para');
+            var translated = pid
+                ? document.querySelector('[data-para="' + pid + '"].translated, [data-para="' + pid + '"] .translated, [data-para="' + pid + '"][data-rt-reflowed]')
+                : (span.classList.contains('translated') ? span : null);
+            return (translated || (pid && window.__rtParas && window.__rtParas[pid])) ? span : null;
+        };
+
         document.addEventListener('mouseover', function(e) {
-            var span = e.target.closest('span[data-trans-id]');
-            if (span && e.ctrlKey) {
+            var span = peekTarget(e.target);
+            if (span && peekOn(e)) {
                 hoveredSpan = span;
                 showTooltip(span);
+                positionTooltip(e);
             }
         });
 
         document.addEventListener('mousemove', function(e) {
-            if (hoveredSpan && e.ctrlKey) {
+            if (hoveredSpan && peekOn(e)) {
                 positionTooltip(e);
-            } else if (hoveredSpan && !e.ctrlKey) {
+            } else if (hoveredSpan) {
                 hideTooltip();
             }
         });
@@ -1949,6 +1964,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
             var span = e.target.closest('span[data-trans-id]');
             if (span && span === hoveredSpan) {
                 hideTooltip();
+                hoveredSpan = null;
             }
         });
 
@@ -1960,32 +1976,42 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
         });
 
         document.addEventListener('keyup', function(e) {
-            if (e.key === 'Control') {
+            if (e.key === 'Control' && window.RT_HOVER_ORIGINAL !== true) {
                 hideTooltip();
             }
         });
 
         function showTooltip(span) {
-            var origHtml = span.getAttribute('data-orig-html');
-            if (!origHtml) return;
-
-            // Create a temporary container to extract raw, unstyled text from original HTML
+            // A reflowed paragraph shows its WHOLE original text, in line order
+            var pid = span.getAttribute('data-para');
+            var parts = pid
+                ? Array.prototype.slice.call(document.querySelectorAll('[data-para="' + pid + '"]'))
+                    .sort(function (a, b) { return (+a.getAttribute('data-para-line') || 0) - (+b.getAttribute('data-para-line') || 0); })
+                : [span];
+            var parser = new DOMParser();
             // DOMParser documents are inert: no script or onerror handler can run
-            var parsed = new DOMParser().parseFromString(origHtml, 'text/html');
-            var cleanText = (parsed.body && parsed.body.textContent) || "";
-            cleanText = cleanText.trim();
+            var cleanText = parts.map(function (el) {
+                var h = el.getAttribute('data-orig-html');
+                return h ? ((parser.parseFromString(h, 'text/html').body || {}).textContent || '') : '';
+            }).join(' ').replace(/\s+/g, ' ').replace(/(\w)- (\w)/g, '$1$2').trim();
 
             if (!cleanText) return;
 
-            tooltip.textContent = "🔍 Original : " + cleanText;
+            tooltip.textContent = (window.RT_ORIGINAL_LABEL || "Original") + " : " + cleanText;
             tooltip.style.display = 'block';
             setTimeout(function() { tooltip.style.opacity = '1'; }, 10);
         }
 
         function positionTooltip(e) {
             // Smoothly position the tooltip near the active mouse pointer
-            tooltip.style.left = (e.pageX + 15) + 'px';
-            tooltip.style.top = (e.pageY - tooltip.offsetHeight - 15) + 'px';
+            // Fixed to the viewport; the app zooms <body>, so viewport
+            // coordinates are divided by that zoom.
+            var z = parseFloat(document.body.style.zoom) || 1;
+            tooltip.style.position = 'fixed';
+            var x = (e.clientX + 15) / z, y = (e.clientY - 15) / z - tooltip.offsetHeight;
+            var maxX = window.innerWidth / z - tooltip.offsetWidth - 8;
+            tooltip.style.left = Math.max(4, Math.min(x, maxX)) + 'px';
+            tooltip.style.top = (y < 4 ? (e.clientY + 20) / z : y) + 'px';
         }
 
         function hideTooltip() {

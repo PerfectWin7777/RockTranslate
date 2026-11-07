@@ -423,6 +423,8 @@ function workspaceController() {
                 try {
                     const waiting = Alpine.store('i18n').translate('waiting_for_translation');
                     rightDocWindow.RT_WAITING_TEXT = waiting;
+                    rightDocWindow.RT_HOVER_ORIGINAL = window.rtHoverOriginal !== false;
+                    rightDocWindow.RT_ORIGINAL_LABEL = Alpine.store('i18n').translate('original_label');
                     rightDoc.querySelectorAll('[id^="glass-overlay-t-"] p').forEach(p => { p.textContent = waiting; });
                 } catch (err) { }
 
