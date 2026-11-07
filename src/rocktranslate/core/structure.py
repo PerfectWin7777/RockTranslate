@@ -241,6 +241,7 @@ def build_document(workspace_html: str, original_texts: Dict[str, str], tid_to_p
     _group_display_math(elements)
     _merge_title_lines(elements)
     _mark_margin_text(elements, page_sizes)
+    _demote_stacked_headings(elements)
     _set_heading_depths(elements)
     _title_first(elements)
     _link_parents(elements)
@@ -261,14 +262,19 @@ def _classify(text: str, raw: str, seg: str, size: float, body: float, top_ratio
     if not should_translate(text) and re.search(r"[=+\-×·∑∫√≤≥≈∂∇λμσπθαβγδ]", text):
         return FORMULA
     # Document title: clearly the largest text near the top of the first page
-    if title_candidate and size >= 1.5 * body and top_ratio < 0.5 and short:
+    # (a real title has several words: a big one-word journal name is not it)
+    if (title_candidate and size >= 1.3 * body and top_ratio < 0.5 and len(text) <= 320
+            and len(text.split()) >= 3):
         return TITLE
     if short and n_lines <= 3:
         bigger = size >= 1.12 * body
-        numbered = bool(_NUMBERED_HEADING.match(text)) and len(text) < 120 and not text[-1:] in ".;,"
+        # (numbered rows of a table use a smaller font than the body text)
+        numbered = (bool(_NUMBERED_HEADING.match(text)) and len(text) < 120 and not text[-1:] in ".;,"
+                    and size >= 0.95 * body and re.search(r"[A-Za-zÀ-ÿ]{3}", text) is not None)
         known = bool(_KNOWN_HEADINGS.match(text))
         words = len(text.split())
-        if (bigger and words <= 14 and not text.endswith(".")) or (numbered and n_lines <= 2) or known:
+        wordy = re.search(r"[A-Za-zÀ-ÿ]{2}", text) is not None     # not a lone symbol / letter
+        if wordy and ((bigger and words <= 14 and not text.endswith(".")) or (numbered and n_lines <= 2) or known):
             return SECTION
     if in_references:
         return REFERENCE
@@ -409,6 +415,27 @@ def _mark_margin_text(elements: List[Element], page_sizes: Dict[int, Tuple[float
             e.type = HEADER           # arXiv stamp, journal margin line
         elif rotated:
             e.type = FIGURE_TEXT      # words drawn rotated inside a figure
+
+
+def _demote_stacked_headings(elements: List[Element]) -> None:
+    """
+    Headings are followed by content, they do not stack: three or more
+    'numbered headings' in a row, each right below the previous one, are the
+    numbered rows of a list or table ("1 Basin area", "2 Basin shape"...).
+    """
+    i = 0
+    while i < len(elements):
+        j = i
+        while (j + 1 < len(elements) and elements[j].type == SECTION and elements[j + 1].type == SECTION
+               and elements[j + 1].page == elements[j].page
+               and elements[j + 1].bbox[1] - elements[j].bbox[3] < 2.5 * max(elements[j].font_size, 1)):
+            j += 1
+        if elements[i].type == SECTION and j - i + 1 >= 3:
+            for e in elements[i:j + 1]:
+                e.type = LIST_ITEM
+            i = j + 1
+        else:
+            i += 1
 
 
 def _set_heading_depths(elements: List[Element]) -> None:
