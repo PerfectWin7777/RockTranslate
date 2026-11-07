@@ -55,3 +55,10 @@ edit("poppler/glib/poppler-private.h",
 edit("pdf2htmlEX/CMakeLists.txt",
      "find_package(PkgConfig)\n",
      "find_package(PkgConfig)\npkg_check_modules(GIO REQUIRED gio-2.0 glib-2.0)\ninclude_directories(${GIO_INCLUDE_DIRS})\n")
+
+# 5. Report which signal crashed the process (the upstream handler omits it).
+edit("pdf2htmlEX/src/util/SignalHandler.cc",
+     "  write(STDERR_FILENO, oopsMessage,        strlen(oopsMessage) );",
+     "  write(STDERR_FILENO, oopsMessage,        strlen(oopsMessage) );\n"
+     "  { char sigBuf[48]; int n = snprintf(sigBuf, sizeof(sigBuf), \"Signal: %d\\n\", sigInt);\n"
+     "    if (n > 0) write(STDERR_FILENO, sigBuf, (size_t)n); }")
