@@ -207,7 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
         { type: 'input', text: 'pip install rocktranslate' },
         { type: 'output', text: 'Collecting rocktranslate...' },
         { type: 'output', text: 'Installing pdf2htmlEX-windows, beautifulsoup4, litellm...' },
-        { type: 'success', text: 'Successfully installed rocktranslate-2.0.2' },
+        { type: 'success', text: 'Successfully installed rocktranslate-2.0.5' },
         { type: 'input', text: 'rocktranslate article_geology.pdf --target-lang French --model gemini/gemini-3.8-flash' },
         { type: 'output', text: '[INFO] Initializing lazy geometric parser...' },
         { type: 'output', text: '[INFO] DOM extracted (42 pages, 18 tables, 62 equations)' },
@@ -376,4 +376,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 2600);
     }
 
+});
+/* ── Extraction showcase: Markdown / JSON tabs ── */
+document.querySelectorAll('.extract-output').forEach((box) => {
+    const tabs = box.querySelectorAll('.extract-tab');
+    tabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+            tabs.forEach((t) => {
+                const on = t === tab;
+                t.classList.toggle('active', on);
+                const panel = box.querySelector('#' + t.dataset.target);
+                if (panel) panel.hidden = !on;
+            });
+        });
+    });
 });

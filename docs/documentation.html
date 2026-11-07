@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RockTranslate Documentation</title>
+    <meta name="description" content="Install RockTranslate, translate PDFs with their exact layout, and extract their structure as JSON, Markdown and RAG chunks.">
+    <link rel="icon" type="image/png" href="assets/rocktranslate_icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="docs.css">
+    <script>
+        /* Same theme as the landing page (saved choice), applied before paint */
+        try {
+            var saved = localStorage.getItem('rocktranslate_theme');
+            if (saved) document.documentElement.setAttribute('data-theme', saved);
+        } catch (e) { /* storage unavailable */ }
+    </script>
+</head>
+<body class="docs-body">
+
+<header class="docs-topbar">
+    <a href="index.html" class="docs-brand">
+        <img src="assets/rocktranslate_icon.png" alt="" width="26" height="26">
+        <span>RockTranslate</span>
+        <span class="docs-version">v2.0.5</span>
+    </a>
+    <nav class="docs-topnav" aria-label="Site">
+        <a href="index.html#extract">Extract</a>
+        <a href="index.html#platform">Platform</a>
+        <a href="https://github.com/PerfectWin7777/RockTranslate" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <button type="button" id="docs-theme" class="docs-theme" aria-label="Switch light or dark theme">Theme</button>
+    </nav>
+</header>
+
+<div class="docs-layout">
+    <nav class="docs-sidebar" aria-label="Documentation">
+        <p class="docs-group">Getting started</p>
+        <a href="#install">Install</a>
+        <a href="#first-translation">First translation</a>
+        <a href="#models">Models and API keys</a>
+        <p class="docs-group">Translate</p>
+        <a href="#translate-cli">From the command line</a>
+        <a href="#translate-python">From Python</a>
+        <a href="#outputs">Outputs and formats</a>
+        <a href="#cost">Cost and caching</a>
+        <p class="docs-group">Extract</p>
+        <a href="#extract">Overview</a>
+        <a href="#elements">Element types</a>
+        <a href="#json">JSON schema</a>
+        <a href="#chunks">Chunks for RAG</a>
+        <a href="#search">Search and highlight</a>
+        <p class="docs-group">Reference</p>
+        <a href="#cli-reference">CLI</a>
+        <a href="#api-reference">Python API</a>
+        <a href="#desktop">Desktop app</a>
+        <a href="#troubleshooting">Troubleshooting</a>
+        <a href="#limits">Known limits</a>
+    </nav>
+
+    <main class="docs-main">
+        <section class="docs-hero">
+            <h1>Translate and read PDFs as structured documents</h1>
+            <p>RockTranslate rebuilds a PDF page as HTML with pdf2htmlEX, regroups lines into paragraphs and tables, translates them with the LLM of your choice, and prints the result with the original layout. The same analysis gives you the document's structure as data.</p>
+        </section>
+
+        <!-- ── Getting started ── -->
+        <section id="install" class="docs-section">
+            <h2>Install</h2>
+            <p><strong>Windows desktop app.</strong> Download <a href="https://github.com/PerfectWin7777/RockTranslate/releases/download/v2.0.5/RockTranslate_Setup_v2.0.5.exe">RockTranslate_Setup_v2.0.5.exe</a>. It includes the layout engine (pdf2htmlEX 0.18.8, native 64-bit).</p>
+            <p><strong>Python package</strong> (Windows, Linux, macOS), Python 3.9 or newer:</p>
+            <pre class="docs-code"><code>pip install rocktranslate            # CLI and Python API
+pip install "rocktranslate[gui]"     # plus the desktop interface</code></pre>
+            <p>Check the setup: the command lists the layout engine, the browser used for measuring and printing, and the API keys it found.</p>
+            <pre class="docs-code"><code>rocktranslate doctor</code></pre>
+            <p class="docs-hint">Nothing else to install by hand. On Windows the engine is downloaded on first use if it is not bundled; on Linux the official pdf2htmlEX AppImage is extracted automatically. Exact line measurement uses an installed Edge or Chrome.</p>
+        </section>
+
+        <section id="first-translation" class="docs-section">
+            <h2>First translation</h2>
+            <div class="docs-tabs" data-tabs>
+                <div class="docs-tablist" role="tablist">
+                    <button type="button" role="tab" class="active" data-panel="ft-cli">CLI</button>
+                    <button type="button" role="tab" data-panel="ft-py">Python</button>
+                    <button type="button" role="tab" data-panel="ft-gui">Desktop</button>
+                </div>
+                <pre class="docs-code" id="ft-cli"><code>export DEEPSEEK_API_KEY=sk-...
+rocktranslate paper.pdf -l French -p 1-2
+# -> paper_translated.pdf (pages 1-2, same layout, in French)</code></pre>
+                <pre class="docs-code" id="ft-py" hidden><code>import rocktranslate
+
+doc = rocktranslate.translate("paper.pdf", lang="French", pages="1-2",
+                              model="deepseek/deepseek-flash")
+print(doc.output_pdf, doc.report.cost_usd)</code></pre>
+                <div class="docs-panel" id="ft-gui" hidden>
+                    <p>Open a PDF: the original appears on the left while the layout is prepared on the right. Choose <em>Translation → Translate</em> (or a page range). Export with <em>File → Export</em> (Ctrl+S), which opens your browser's print dialog: choose <em>Save as PDF</em>.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="models" class="docs-section">
+            <h2>Models and API keys</h2>
+            <p>Any model reachable through <a href="https://docs.litellm.ai/docs/providers" target="_blank" rel="noopener noreferrer">LiteLLM</a> works. Pass the route with <code>-m</code> (CLI) or <code>model=</code> (Python). Keys are read from the provider's usual environment variable, from the desktop app's settings, or passed explicitly.</p>
+            <div class="table-scroll">
+                <table class="docs-table">
+                    <thead><tr><th scope="col">Provider</th><th scope="col">Model route</th><th scope="col">Key variable</th></tr></thead>
+                    <tbody>
+                        <tr><td>DeepSeek</td><td><code>deepseek/deepseek-flash</code></td><td><code>DEEPSEEK_API_KEY</code></td></tr>
+                        <tr><td>Google Gemini</td><td><code>gemini/&lt;model&gt;</code></td><td><code>GEMINI_API_KEY</code></td></tr>
+                        <tr><td>OpenAI</td><td><code>openai/&lt;model&gt;</code></td><td><code>OPENAI_API_KEY</code></td></tr>
+                        <tr><td>Anthropic</td><td><code>anthropic/&lt;model&gt;</code></td><td><code>ANTHROPIC_API_KEY</code></td></tr>
+                        <tr><td>Ollama (local, offline)</td><td><code>ollama/&lt;model&gt;</code> with <code>--base-url http://localhost:11434</code></td><td>none</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ── Translate ── -->
+        <section id="translate-cli" class="docs-section">
+            <h2>Translate from the command line</h2>
+            <pre class="docs-code"><code>rocktranslate "Tankeu et al. 2026.pdf" -l German -p 1-2 -o out/tankeu_de.pdf</code></pre>
+            <p>With <code>-p</code>, only the requested pages are converted, so a range of a large PDF starts in seconds. The layout analysis is cached per page range, and translations are cached per document, language and model: a second run of the same pages costs nothing.</p>
+            <p>Measured on the 40-page reference paper (pages 1-2, Windows laptop): conversion 3 s, layout analysis 8 s, translation 10 s, PDF export 15 s on a warm run.</p>
+        </section>
+
+        <section id="translate-python" class="docs-section">
+            <h2>Translate from Python</h2>
+            <pre class="docs-code"><code>import rocktranslate
+
+doc = rocktranslate.translate(
+    "paper.pdf",
+    lang="Spanish",
+    model="deepseek/deepseek-flash",
+    pages="1-5",
+    render_pdf=True,          # False: structured outputs only, no PDF
+)
+doc.to_markdown("paper.es.md", bilingual=True)
+for e in doc.by_type("Section"):
+    print(e.text, "->", e.translation)</code></pre>
+            <p><code>translate()</code> returns the same <code>Document</code> as <code>extract()</code>, where every element also carries <code>translation</code> (and tables <code>table_translation</code>). <code>doc.report</code> holds tokens, cost, time and failures.</p>
+        </section>
+
+        <section id="outputs" class="docs-section">
+            <h2>Outputs and formats</h2>
+            <div class="table-scroll">
+                <table class="docs-table">
+                    <thead><tr><th scope="col"><code>-f</code> value</th><th scope="col">File</th><th scope="col">Content</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>pdf</code></td><td><code>paper_translated.pdf</code></td><td>Translated PDF with the original layout (default)</td></tr>
+                        <tr><td><code>json</code></td><td><code>paper_german.json</code></td><td>Elements with page, box, original text and translation</td></tr>
+                        <tr><td><code>md</code></td><td><code>paper_german.md</code></td><td>Translated Markdown; with <code>--bilingual</code>, each original paragraph followed by its translation</td></tr>
+                        <tr><td><code>chunks</code></td><td><code>paper_german.chunks.json</code></td><td>Section-aware chunks with their boxes</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="cost" class="docs-section">
+            <h2>Cost and caching</h2>
+            <p>A page of a scientific article costs about $0.002 with <code>deepseek/deepseek-flash</code> (page 1 of <em>Attention Is All You Need</em>: 3,315 tokens, $0.0019). Numbers, formulas and symbols are not sent to the model. Nothing is paid twice: cached translations are reused when the same text is translated again into the same language with the same model.</p>
+        </section>
+
+        <!-- ── Extract ── -->
+        <section id="extract" class="docs-section">
+            <h2>Structured extraction</h2>
+            <p><code>rocktranslate.extract()</code> returns a <code>Document</code>: a list of typed elements in reading order. It runs locally, needs no API key and costs nothing.</p>
+            <pre class="docs-code"><code>import rocktranslate
+
+doc = rocktranslate.extract("paper.pdf")          # pages="1-3", password="..."
+print(doc)
+# &lt;Document 'paper.pdf': 531 elements (135 NarrativeText, 86 Reference,
+#   31 Section, 11 Formula, 5 FigureCaption, 4 Table, 1 Title, ...)&gt;
+
+doc.to_markdown("paper.md")
+doc.to_json("paper.json")
+print(doc.title)
+for table in doc.tables:
+    print(table.page, table.table[:2])               # rows x cells</code></pre>
+            <pre class="docs-code"><code>rocktranslate extract paper.pdf -f json,md,chunks -p 1-10</code></pre>
+            <figure class="docs-figure">
+                <img src="assets/readme_extract_table_input.png" alt="Source table in the PDF" loading="lazy">
+                <figcaption>Input: Table 4, Wabo Defo et al., <em>Geological Magazine</em>, 2026 (CC BY 4.0). Output below, unedited.</figcaption>
+            </figure>
+            <pre class="docs-code"><code>| 1 | 1.02 | 0.02 | 1.07 | 12.74 | 0.20 | 1.90 | 0.44 | 48.17 | 0.39 | 0.31 |
+| 2 | 0.80 | 0.01 | 1.33 | 2.42  | 0.20 | 1.79 | 0.29 | −21.74 | 0.18 | 0.26 |
+| 3 | 0.44 | 0.01 | 5.63 | 3.88  | 0.39 | 2.37 | 0.47 | 9.95  | 0.25 | 0.06 |</code></pre>
+        </section>
+
+        <section id="elements" class="docs-section">
+            <h2>Element types</h2>
+            <div class="table-scroll">
+                <table class="docs-table">
+                    <thead><tr><th scope="col">Type</th><th scope="col">Meaning</th><th scope="col">In Markdown</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>Title</code></td><td>Document title (largest multi-word text near the top of page 1)</td><td><code>#</code></td></tr>
+                        <tr><td><code>Section</code></td><td>Heading; <code>category_depth</code> from its numbering (3.2.1 → 2)</td><td><code>##</code> to <code>######</code></td></tr>
+                        <tr><td><code>NarrativeText</code></td><td>Paragraph, regrouped across lines and columns</td><td>paragraph</td></tr>
+                        <tr><td><code>ListItem</code>, <code>Reference</code></td><td>List entries; bibliography entries after a References heading</td><td><code>-</code></td></tr>
+                        <tr><td><code>Table</code></td><td>Rows × cells in <code>table</code>, HTML in <code>text_as_html</code></td><td>pipe table</td></tr>
+                        <tr><td><code>FigureCaption</code>, <code>TableCaption</code></td><td>Captions starting with Figure / Fig. / Table</td><td>italic</td></tr>
+                        <tr><td><code>Formula</code></td><td>Displayed equation pieces</td><td>code block</td></tr>
+                        <tr><td><code>Footnote</code></td><td>Small text at the bottom of the page, with its mark</td><td>quote</td></tr>
+                        <tr><td><code>Header</code>, <code>Footer</code>, <code>FigureText</code></td><td>Running headers, page numbers, stamps, words drawn inside figures</td><td>left out</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="json" class="docs-section">
+            <h2>JSON schema</h2>
+            <p>Each element follows Unstructured's layout. <code>to_json(unstructured=True)</code> also maps our types to Unstructured's names (<code>Section</code> → <code>Title</code>, <code>TableCaption</code> → <code>FigureCaption</code>…), so existing pipelines can read it.</p>
+            <pre class="docs-code"><code>{
+  "type": "Section",
+  "element_id": "2f93c78ffa05077345dd7301e50c9ccd",
+  "text": "3.2.1 Scaled Dot-Product Attention",
+  "metadata": {
+    "page_number": 4,
+    "coordinates": {
+      "points": [[108.0, 337.49], [108.0, 358.7], [264.13, 358.7], [264.13, 337.49]],
+      "system": "PDFPoints",
+      "origin": "top-left"
+    },
+    "parent_id": "2bc82002054ba39d4452522b7f29bb3e",
+    "category_depth": 2,
+    "font_size": 9.96
+  }
+}</code></pre>
+            <p>Real element from <em>Attention Is All You Need</em>. Ids are stable: the same document gives the same ids. After <code>translate()</code>, the metadata also holds <code>translation</code> (and <code>table_translation</code> for tables).</p>
+        </section>
+
+        <section id="chunks" class="docs-section">
+            <h2>Chunks for RAG</h2>
+            <p><code>doc.chunks(max_characters=1500)</code> groups whole elements of one section up to the size limit. A chunk never mixes two sections and never cuts an element. Each one keeps the page and box of its elements, so a retrieved chunk can be shown in the PDF.</p>
+            <pre class="docs-code"><code>{
+  "text": "Recurrent neural networks, long short-term memory [13] and gated …",
+  "section": "1 Introduction",
+  "pages": [2],
+  "element_ids": ["b47cb8d9…", "74fe378b…"],
+  "boxes": [[2, [108.0, 85.56, 504.36, 150.28]], [2, [108.0, 145.58, 504.47, 243.03]]],
+  "translation": null
+}</code></pre>
+        </section>
+
+        <section id="search" class="docs-section">
+            <h2>Search and highlight</h2>
+            <p><code>doc.search()</code> matches every word of the query, ignoring case and accents, in the original text and in the translation. <code>doc.highlight()</code> writes a copy of the source PDF with the elements framed at their exact position.</p>
+            <pre class="docs-code"><code>doc = rocktranslate.extract("attention.pdf")
+hits = doc.search("multi-head attention")       # 10 elements on pages 1-5
+doc.highlight(hits, "attention.pdf", "attention_hits.pdf")</code></pre>
+            <figure class="docs-figure docs-figure-narrow">
+                <img src="assets/readme_extract_highlight.png" alt="Highlighted search hit in the original PDF" loading="lazy">
+                <figcaption>attention_hits.pdf, page 4: the caption of Figure 2 framed in the original.</figcaption>
+            </figure>
+        </section>
+
+        <!-- ── Reference ── -->
+        <section id="cli-reference" class="docs-section">
+            <h2>CLI reference</h2>
+            <h3><code>rocktranslate &lt;pdf&gt;</code></h3>
+            <div class="table-scroll">
+                <table class="docs-table">
+                    <thead><tr><th scope="col">Option</th><th scope="col">Description</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>-l, --lang</code></td><td>Target language (default: French)</td></tr>
+                        <tr><td><code>-o, --output</code></td><td>Output PDF (default: <code>&lt;input&gt;_translated.pdf</code>)</td></tr>
+                        <tr><td><code>-p, --pages</code></td><td>Page range, e.g. <code>"1-3, 5"</code>; only those pages are converted</td></tr>
+                        <tr><td><code>-m, --model</code></td><td>LiteLLM route, e.g. <code>deepseek/deepseek-flash</code></td></tr>
+                        <tr><td><code>-k, --api-key</code></td><td>API key (default: environment variable or desktop settings)</td></tr>
+                        <tr><td><code>-t, --temp</code></td><td>Sampling temperature</td></tr>
+                        <tr><td><code>-f, --format</code></td><td><code>pdf</code>, <code>json</code>, <code>md</code>, <code>chunks</code>, comma-separated</td></tr>
+                        <tr><td><code>--bilingual</code></td><td>Markdown with each original paragraph followed by its translation</td></tr>
+                        <tr><td><code>--parallel</code></td><td>Concurrent LLM requests (default: 4)</td></tr>
+                        <tr><td><code>--base-url</code></td><td>Custom API endpoint (Ollama, proxies)</td></tr>
+                        <tr><td><code>--password</code></td><td>Password of a protected PDF</td></tr>
+                        <tr><td><code>--keep-html</code></td><td>Also save the translated HTML</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <h3><code>rocktranslate extract &lt;pdf&gt;</code></h3>
+            <p><code>-f json,md,chunks</code> (default <code>json,md</code>), <code>-o</code> output base path, <code>-p</code> page range, <code>--password</code>.</p>
+            <h3><code>rocktranslate doctor</code></h3>
+            <p>Checks pdf2htmlEX, the PDF renderer, the GUI package and the API keys.</p>
+        </section>
+
+        <section id="api-reference" class="docs-section">
+            <h2>Python API reference</h2>
+            <dl class="docs-api">
+                <dt><code>rocktranslate.extract(pdf_path, pages=None, password=None, measure=True) → Document</code></dt>
+                <dd>Structure only. <code>measure=False</code> skips the browser measurement and estimates line widths.</dd>
+                <dt><code>rocktranslate.translate(pdf_path, lang="French", model=…, api_key=None, pages=None, output_pdf=None, render_pdf=True, parallel=4, password=None, **options) → Document</code></dt>
+                <dd>Translated Document; <code>doc.output_pdf</code> and <code>doc.report</code> (tokens, cost, seconds, failures). Raises <code>RuntimeError</code> when nothing could be translated.</dd>
+                <dt><code>Document</code></dt>
+                <dd><code>elements</code>, <code>title</code>, <code>tables</code>, <code>by_type(*types)</code>, <code>sections()</code>, <code>to_json(path=None, unstructured=False)</code>, <code>to_markdown(path=None, translated=False, bilingual=False, page_markers=False)</code>, <code>to_text(translated=False)</code>, <code>chunks(max_characters=1500)</code>, <code>search(query)</code>, <code>highlight(elements, source_pdf, output_pdf)</code>.</dd>
+                <dt><code>Element</code></dt>
+                <dd><code>type</code>, <code>text</code>, <code>html</code>, <code>page</code>, <code>bbox</code> (x0, y0, x1, y1 in points from the top-left), <code>element_id</code>, <code>parent_id</code>, <code>depth</code>, <code>font_size</code>, <code>table</code>, <code>translation</code>, <code>translation_html</code>, <code>table_translation</code>.</dd>
+                <dt><code>RockTranslator(model, api_key, target_lang, temperature, parallel, glossary, …)</code></dt>
+                <dd><code>translate_document(pdf, output, pages, structured=False, render_pdf=True) → TranslationReport</code>, for fine control and reuse of one configuration.</dd>
+            </dl>
+        </section>
+
+        <section id="desktop" class="docs-section">
+            <h2>Desktop app</h2>
+            <ul class="docs-list">
+                <li><strong>Side-by-side view</strong>: original PDF on the left, reconstructed layout on the right, same zoom, synchronized scrolling.</li>
+                <li><strong>Layout prepared at opening</strong>, in the background and at no cost, so translation starts at once.</li>
+                <li><strong>Original text on hover</strong>: <em>View → Original text on hover</em>, or hold Ctrl while hovering.</li>
+                <li><strong>Progress panel</strong> with pages, segments, time, tokens and cost; collapse or close it from its corner buttons.</li>
+                <li><strong>Export</strong>: <em>File → Export</em> opens your browser's print dialog; <em>Export without browser</em> writes the PDF automatically.</li>
+                <li><strong>Settings → Clear the translation cache</strong> prepares the open document again from scratch.</li>
+            </ul>
+        </section>
+
+        <section id="troubleshooting" class="docs-section">
+            <h2>Troubleshooting</h2>
+            <dl class="docs-api">
+                <dt>The conversion stops or takes long on a large PDF</dt>
+                <dd>RockTranslate watches pdf2htmlEX: a conversion that makes no progress and uses no CPU is stopped and retried automatically, up to three times. Converting only the pages you need (<code>-p</code>) is the fastest option.</dd>
+                <dt>Paragraphs look squeezed</dt>
+                <dd>Exact line measurement needs Edge, Chrome or the small headless engine RockTranslate downloads in the background. Run <code>rocktranslate doctor</code> to see which one is used.</dd>
+                <dt>The text stays in the original language</dt>
+                <dd>Check the API key in the logs (401 / 403), or clear the translation cache from the Settings menu so the document is prepared again.</dd>
+            </dl>
+        </section>
+
+        <section id="limits" class="docs-section">
+            <h2>Known limits</h2>
+            <ul class="docs-list">
+                <li>Scanned PDFs (images without a text layer) need OCR, which RockTranslate does not do yet.</li>
+                <li>Displayed equations are only partly reassembled into one element.</li>
+                <li>Tables whose rows are drawn as a single text run are not split into cells yet; multi-level table headers can be split.</li>
+                <li>Publisher fonts embed only the glyphs they use: translated characters outside them use a fallback font.</li>
+            </ul>
+        </section>
+
+        <footer class="docs-foot">
+            <p>RockTranslate is open source under the MIT License. pdf2htmlEX is GPL v3; our Windows build recipe is in <a href="https://github.com/PerfectWin7777/RockTranslate/tree/main/tools/pdf2htmlex-windows" target="_blank" rel="noopener noreferrer">tools/pdf2htmlex-windows</a>.</p>
+        </footer>
+    </main>
+</div>
+
+<script>
+    /* Theme toggle shared with the landing page */
+    (function () {
+        var btn = document.getElementById('docs-theme');
+        btn.addEventListener('click', function () {
+            var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            try { localStorage.setItem('rocktranslate_theme', next); } catch (e) { /* ignore */ }
+        });
+    })();
+
+    /* Tabs */
+    document.querySelectorAll('[data-tabs]').forEach(function (box) {
+        var tabs = box.querySelectorAll('[role="tab"]');
+        tabs.forEach(function (tab) {
+            tab.addEventListener('click', function () {
+                tabs.forEach(function (t) {
+                    var on = t === tab;
+                    t.classList.toggle('active', on);
+                    t.setAttribute('aria-selected', on ? 'true' : 'false');
+                    document.getElementById(t.dataset.panel).hidden = !on;
+                });
+            });
+        });
+    });
+
+    /* Current section in the sidebar */
+    (function () {
+        var links = Array.prototype.slice.call(document.querySelectorAll('.docs-sidebar a'));
+        var sections = links.map(function (a) { return document.querySelector(a.getAttribute('href')); });
+        function update() {
+            var current = 0;
+            sections.forEach(function (s, i) { if (s && s.getBoundingClientRect().top < 120) current = i; });
+            links.forEach(function (a, i) { a.classList.toggle('current', i === current); });
+        }
+        window.addEventListener('scroll', update, { passive: true });
+        update();
+    })();
+</script>
+</body>
+</html>
