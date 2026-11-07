@@ -279,21 +279,42 @@ RockTranslate also turns a PDF into **typed, positioned elements** — the schem
 
 <p align="center"><img src="docs/assets/site_headings_input.png" alt="Page 3 of the paper with sections 3.1 and 3.2" width="75%"></p>
 
-Markdown outline produced by  (headings with their real depth, numbering kept):
+Markdown outline produced by `rocktranslate extract` (headings with their real depth, numbering kept):
 
+```markdown
+# Attention Is All You Need
+## Abstract
+## 1 Introduction
+## 2 Background
+## 3 Model Architecture
+### 3.1 Encoder and Decoder Stacks
+### 3.2 Attention
+#### 3.2.1 Scaled Dot-Product Attention
+#### 3.2.2 Multi-Head Attention
+### 3.3 Position-wise Feed-Forward Networks
+## 4 Why Self-Attention
+…
+```
 
-
-Author marks stay attached (), footnotes are typed , the rotated arXiv stamp is read as one  (), and words drawn inside figures are kept apart as .
+Author marks stay attached (`Ashish Vaswani<sup>∗</sup>`), footnotes are typed `Footnote`, the rotated arXiv stamp is read as one `Header` (`arXiv:1706.03762v7 [cs.CL] 2 Aug 2023`), and words drawn inside figures are kept apart as `FigureText`.
 
 **3 · Bilingual, aligned paragraph by paragraph.** Input: the abstract on page 1.
 
 <p align="center"><img src="docs/assets/site_abstract_input.png" alt="Abstract of the paper in English" width="75%"></p>
 
- (output unedited):
+`rocktranslate paper.pdf -l French -p 1 -f md --bilingual` (output unedited):
 
+```markdown
+## Abstract
 
+> Résumé
 
-Unchanged text (names, e-mails, codes) is not repeated; tables are translated cell by cell ().
+The dominant sequence transduction models are based on complex recurrent or convolutional neural networks that include an encoder and a decoder. The best performing models also connect the encoder and decoder through an attention mechanism. We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. Experiments on two machine translation tasks show these models to be superior in quality while being more parallelizable and requiring signiﬁcantly less time to train. Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best results, including ensembles, by over 2 BLEU. On the WMT 2014 English-to-French translation task, our model establishes a new single-model state-of-the-art BLEU score of 41.8 after training for 3.5 days on eight GPUs, a small fraction of the training costs of the best models from the literature. We show that the Transformer generalizes well to other tasks by applying it successfully to English constituency parsing both with large and limited training data.
+
+> Les modèles dominants de transduction de séquences reposent sur des réseaux neuronaux récurrents ou convolutifs complexes comprenant un encodeur et un décodeur. Les modèles les plus performants relient également l'encodeur et le décodeur par un mécanisme d'attention. Nous proposons une nouvelle architecture de réseau simple, le Transformer, fondée uniquement sur des mécanismes d'attention, se dispensant entièrement de récurrence et de convolutions. Des expériences sur deux tâches de traduction automatique montrent que ces modèles sont de qualité supérieure tout en étant plus parallélisables et en nécessitant significativement moins de temps d'entraînement. Notre modèle atteint 28,4 BLEU sur la tâche de traduction anglais-vers-allemand du WMT 2014, améliorant de plus de 2 BLEU les meilleurs résultats existants, y compris les ensembles. Sur la tâche de traduction anglais-vers-français du WMT 2014, notre modèle établit un nouveau score BLEU de pointe de 41,8 pour un modèle unique après un entraînement de 3,5 jours sur huit GPU, soit une faible fraction des coûts d'entraînement des meilleurs modèles de la littérature. Nous montrons que le Transformer se généralise bien à d'autres tâches en l'appliquant avec succès à l'analyse syntaxique de constituants en anglais, tant avec de grandes qu'avec de limitées données d'entraînement.
+```
+
+Unchanged text (names, e-mails, codes) is not repeated; tables are translated cell by cell (`table_translation`).
 
 **4 · Find a passage, see it in the original PDF.** `doc.search()` looks into the original *and* the translation; `doc.highlight()` frames the hits at their exact position in a copy of the source PDF:
 
