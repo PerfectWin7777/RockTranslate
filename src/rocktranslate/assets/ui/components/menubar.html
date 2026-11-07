@@ -187,6 +187,13 @@
                     </span>
                     <span class="dropdown-shortcut">Ctrl+Q</span>
                 </div>
+                <div class="dropdown-item" @click="toggleHoverOriginal(); closeAll()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark" x-text="hoverOriginal ? '✓' : ''"></span>
+                        <span x-text="$store.i18n.translate('item_hover_original')"></span>
+                    </span>
+                    <span class="dropdown-shortcut" x-text="hoverOriginal ? '' : $store.i18n.translate('ctrl_hover')"></span>
+                </div>
                 <div class="dropdown-item" @click="toggleFullscreen(); closeAll()">
                     <span class="dropdown-label">
                         <span class="dropdown-checkmark" x-text="isFullscreen ? '✓' : ''"></span>

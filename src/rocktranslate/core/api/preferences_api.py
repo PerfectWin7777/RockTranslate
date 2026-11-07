@@ -43,7 +43,7 @@ PREFERENCE_SCHEMA: Dict[str, Tuple[str, Any, str, Optional[float], Optional[floa
     "pdfjs_path_override": ("SystemConfig", "", "str", None, None),
     "browser_path_override": ("SystemConfig", "", "str", None, None),
     "show_cost_estimates": ("SystemConfig", True, "bool", None, None),
-    "hover_original": ("SystemConfig", True, "bool", None, None),
+    "hover_original": ("SystemConfig", False, "bool", None, None),
 }
 
 _EMPTY_TOTALS = {

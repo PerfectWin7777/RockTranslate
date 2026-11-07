@@ -29,6 +29,8 @@ function menubarController() {
         // --- CHECKABLE STATES  ---
         targetLang: 'French',
         showProgressPanel: true,
+        // "Original text on hover" (off by default; Ctrl + hover always works)
+        hoverOriginal: window.rtHoverOriginal === true,
         isFullscreen: false,
         layoutMode: 'both', // 'both', 'pdf_only', 'trans_only'
         // NOTE: translation running state lives in the central Alpine store
@@ -36,6 +38,8 @@ function menubarController() {
         // sibling components desync silently.
 
         init() {
+            window.addEventListener('hover-original-changed', (e) => { this.hoverOriginal = !!(e.detail && e.detail.on); });
+            window.addEventListener('trigger-toggle-progress', (e) => { if (e.detail) this.showProgressPanel = !!e.detail.visible; });
             // Fetch initial recent files and API status
            const load = () => this.loadMenuData();
 
@@ -158,6 +162,17 @@ function menubarController() {
             this.closeAll();
             if (window.pywebview.api && window.pywebview.api.set_system_locale) {
                 window.pywebview.api.set_system_locale(code);
+            }
+        },
+
+        async toggleHoverOriginal() {
+            const next = !this.hoverOriginal;
+            try {
+                const api = window.pywebview && window.pywebview.api;
+                const res = api && api.set_preference ? await api.set_preference('hover_original', next) : null;
+                window.rtSetHoverOriginal(res && res.status === 'success' ? !!res.value : next);
+            } catch (e) {
+                window.rtSetHoverOriginal(next);
             }
         },
 

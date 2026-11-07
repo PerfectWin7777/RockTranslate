@@ -1,7 +1,8 @@
 /** Pushes the "original text on hover" setting into the translated pane. */
-window.rtHoverOriginal = true;
+window.rtHoverOriginal = false;
 window.rtSetHoverOriginal = function (on) {
     window.rtHoverOriginal = !!on;
+    window.dispatchEvent(new CustomEvent('hover-original-changed', { detail: { on: window.rtHoverOriginal } }));
     try {
         const w = document.getElementById('html-iframe').contentWindow;
         if (w) w.RT_HOVER_ORIGINAL = window.rtHoverOriginal;
@@ -78,6 +79,8 @@ function preferencesController() {
         fmtDuration(n) { return rtFormat.duration(n); },
 
         init() {
+            // Menu toggle and settings switch stay in sync
+            window.addEventListener('hover-original-changed', (e) => { if (this.p) this.p.hover_original = !!(e.detail && e.detail.on); });
             const load = () => this.loadAll();
             if (window.pywebview && window.pywebview.api) load();
             else window.addEventListener('pywebviewready', load);
@@ -96,7 +99,7 @@ function preferencesController() {
             try {
                 this.p = await api.get_preferences() || {};
                 window.rtShowCost = this.p.show_cost_estimates !== false;
-                window.rtSetHoverOriginal(this.p.hover_original !== false);
+                window.rtSetHoverOriginal(this.p.hover_original === true);
                 this.api = await api.get_api_status() || {};
                 this.cache = await api.get_cache_info() || this.cache;
                 await this.loadUsage();
