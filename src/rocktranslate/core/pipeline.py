@@ -202,7 +202,7 @@ def _save_cache(path: Optional[str], items: Dict[str, str], sources: Dict[str, s
 
 
 @contextlib.contextmanager
-def _work_dir(input_pdf: str):
+def _work_dir(input_pdf: str, span: str = "all"):
     """
     Persistent conversion folder (cache/<sha256>/headless_work), reused across
     runs: a fresh temp dir per run made pdf2htmlEX redo its cold-start work on
@@ -216,7 +216,9 @@ def _work_dir(input_pdf: str):
         with open(input_pdf, "rb") as f:
             for chunk in iter(lambda: f.read(1024 * 1024), b""):
                 sha.update(chunk)
-        folder = os.path.join(str(config_db.get_cache_dir()), sha.hexdigest(), "headless_work")
+        # One folder per page span: the raw HTML of pages 1-2 must never be
+        # reused for another range (it would translate the wrong pages)
+        folder = os.path.join(str(config_db.get_cache_dir()), sha.hexdigest(), "headless_work", span)
         os.makedirs(folder, exist_ok=True)
     except OSError:
         folder = None
@@ -225,6 +227,48 @@ def _work_dir(input_pdf: str):
             yield tmp
     else:
         yield folder
+
+
+def _layout_key(raw_html: str) -> Optional[str]:
+    try:
+        from .html_transformer import PIPELINE_VERSION
+        st = os.stat(raw_html)
+        return f"{PIPELINE_VERSION}:{st.st_size}:{int(st.st_mtime)}"
+    except OSError:
+        return None
+
+
+def _load_layout_cache(work_dir: str, raw_html: str) -> Optional[Tuple[Dict[str, str], Dict[str, int]]]:
+    """Instrumented workspace + segment maps of a previous run on the same raw HTML."""
+    import json
+    path = os.path.join(work_dir, "layout.json")
+    key = _layout_key(raw_html)
+    try:
+        if not (key and os.path.exists(path) and os.path.exists(os.path.join(work_dir, "workspace.html"))):
+            return None
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        if data.get("key") != key or not data.get("original_texts"):
+            return None
+        return data["original_texts"], {k: int(v) for k, v in data["tid_to_page"].items()}
+    except (OSError, ValueError, KeyError):
+        return None
+
+
+def _save_layout_cache(work_dir: str, raw_html: str, original_texts: Dict[str, str],
+                       tid_to_page: Dict[str, int]) -> None:
+    import json
+    key = _layout_key(raw_html)
+    if not key:
+        return
+    path = os.path.join(work_dir, "layout.json")
+    try:
+        with open(path + ".tmp", "w", encoding="utf-8") as f:
+            json.dump({"key": key, "original_texts": original_texts, "tid_to_page": tid_to_page}, f,
+                      ensure_ascii=False)
+        os.replace(path + ".tmp", path)
+    except OSError as e:
+        logger.warning(f"Could not cache the layout analysis: {e}")
 
 
 def translate_pdf(
@@ -267,18 +311,20 @@ def translate_pdf(
 
     browser_path = resolve_pdf_renderer()
 
-    with _work_dir(input_pdf) as work_dir:
-        page_list: Optional[List[int]] = None
-        first_page = last_page = None
-        if pages:
-            from .pdf_metadata import get_pdf_metadata
-            total = int(get_pdf_metadata(input_pdf).get("pages_count") or 0) or 10_000
-            page_list = parse_page_range(pages, total)
-            if not page_list:
-                report.error = f"Invalid page range: {pages}"
-                return report
-            # Only convert the pages that are needed (contiguous span)
-            first_page, last_page = page_list[0] + 1, page_list[-1] + 1
+    page_list: Optional[List[int]] = None
+    first_page = last_page = None
+    if pages:
+        from .pdf_metadata import get_pdf_metadata
+        total = int(get_pdf_metadata(input_pdf).get("pages_count") or 0) or 10_000
+        page_list = parse_page_range(pages, total)
+        if not page_list:
+            report.error = f"Invalid page range: {pages}"
+            return report
+        # Only convert the pages that are needed (contiguous span)
+        first_page, last_page = page_list[0] + 1, page_list[-1] + 1
+    span = f"p{first_page}-{last_page}" if first_page is not None else "all"
+
+    with _work_dir(input_pdf, span) as work_dir:
 
         logger.info("Step 1/5: layout extraction (pdf2htmlEX)...")
         raw_html = convert_pdf_to_html(
@@ -291,7 +337,13 @@ def translate_pdf(
 
         logger.info("Step 2/5: instrumenting the layout...")
         workspace_html = os.path.join(work_dir, "workspace.html")
-        original_texts, tid_to_page = instrument_html(raw_html, workspace_html)
+        maps = _load_layout_cache(work_dir, raw_html)
+        if maps:
+            original_texts, tid_to_page = maps
+            logger.info(f"Layout analysis reused from cache ({len(original_texts)} segments).")
+        else:
+            original_texts, tid_to_page = instrument_html(raw_html, workspace_html)
+            _save_layout_cache(work_dir, raw_html, original_texts, tid_to_page)
 
         if first_page is not None and page_list is not None:
             # pdf2htmlEX page 0 is document page first_page-1: keep only requested pages
