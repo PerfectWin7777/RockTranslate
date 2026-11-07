@@ -41,7 +41,7 @@ edit("pdf2htmlEX/src/util/SignalHandler.cc",
 # 2. Windows system libraries used by static Poppler/FontForge/GLib.
 edit("pdf2htmlEX/CMakeLists.txt",
      "add_executable(pdf2htmlEX ${PDF2HTMLEX_SRC})",
-     "if(WIN32)\n  set(PDF2HTMLEX_LIBS ${PDF2HTMLEX_LIBS} -lintl -liconv -lgdi32 -ladvapi32 -lshell32 -lole32 -lws2_32)\nendif()\n"
+     "if(WIN32)\n  set(PDF2HTMLEX_LIBS ${PDF2HTMLEX_LIBS} -lintl -liconv -lgdi32 -ladvapi32 -lshell32 -lole32 -lws2_32)\n  # Windows default stack is 2 MB (Linux: 8 MB): deep Poppler recursion on\n  # large documents overflowed it\n  set(CMAKE_EXE_LINKER_FLAGS \"${CMAKE_EXE_LINKER_FLAGS} -Wl,--stack,67108864\")\nendif()\n"
      "add_executable(pdf2htmlEX ${PDF2HTMLEX_SRC})")
 
 # 3. Poppler 0.89 glib: recent GLib/GCC reject g_once_init_* on a volatile
