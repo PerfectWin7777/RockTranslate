@@ -46,9 +46,9 @@
             <!-- Navigation Links -->
             <ul class="nav-links">
                 <li><a href="#showcase" class="nav-link">Showcase</a></li>
-                <li><a href="#architecture" class="nav-link">Architecture</a></li>
                 <li><a href="#extract" class="nav-link">Extract</a></li>
                 <li><a href="#platform" class="nav-link">Platform</a></li>
+                <li><a href="#engine" class="nav-link">pdf2htmlEX</a></li>
                 <li><a href="documentation.html" class="nav-link">Docs</a></li>
                 <li><a href="#faq" class="nav-link">FAQ</a></li>
             </ul>
@@ -721,6 +721,47 @@ doc.highlight(hits, "attention.pdf",
                         <p>Structure only, local and free. JSON compatible with Unstructured's element names.</p>
                         <code>rocktranslate extract paper.pdf -f json,md</code>
                     </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══ WINDOWS ENGINE ═══ -->
+        <section id="engine" class="engine-section">
+            <div class="container engine-split">
+                <div class="engine-text">
+                    <span class="section-tag">Open-source contribution</span>
+                    <h2 class="section-title">pdf2htmlEX 0.18.8, native on Windows</h2>
+                    <p class="section-subtitle">
+                        pdf2htmlEX is the engine that rebuilds a PDF page as HTML. Its maintainers only publish Linux builds of 0.18.8;
+                        Windows users were left with 0.14.6, a 32-bit build from 2015. We compiled 0.18.8 as a native 64-bit Windows
+                        program, with Poppler 0.89 and FontForge 20200314, in an automated GitHub Actions build. We found no other public
+                        Windows build of this version.
+                    </p>
+                    <p class="engine-detail">
+                        It ships inside the RockTranslate installer. You can also use it on its own: unzip, then run
+                        <code>bin\pdf2htmlEX.exe input.pdf output.html</code>. It is free software under the GPL v3, with its build
+                        recipe and source patches published.
+                    </p>
+                    <div class="engine-actions">
+                        <a class="btn-hero-primary" href="https://github.com/PerfectWin7777/RockTranslate/releases/download/engine-pdf2htmlex-0.18.8.rc1-win64/pdf2htmlEX-0.18.8.rc1-win64.zip">Download pdf2htmlEX 0.18.8 for Windows (64-bit, 16 MB)</a>
+                        <a class="btn-hero-secondary" href="https://github.com/PerfectWin7777/RockTranslate/tree/main/tools/pdf2htmlex-windows" target="_blank" rel="noopener noreferrer">Build recipe</a>
+                    </div>
+                </div>
+                <div class="engine-bench">
+                    <h3>Conversion time on the same Windows machine</h3>
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr><th scope="col">PDF</th><th scope="col">0.14.6 (32-bit)</th><th scope="col">0.18.8 (64-bit)</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Test document, 3 pages</td><td>0.5 s</td><td>0.2 s</td></tr>
+                                <tr><td><em>Attention Is All You Need</em>, 15 pages</td><td>5.8 s</td><td>4.0 s</td></tr>
+                                <tr><td>ResNet paper, 12 pages with images</td><td>12.0 s</td><td>8.3 s</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="engine-note">GitHub Actions <code>windows-latest</code> runner, same options for both versions. The 64-bit build also lifts the 2 GB memory limit of the 32-bit one, which matters for large, image-heavy papers.</p>
                 </div>
             </div>
         </section>
