@@ -75,7 +75,7 @@ function menubarController() {
                         this.toggleFullscreen();
                     } else {
                         // Guard check: Some actions require an active document loaded to execute
-                        const docRequired = ['export-pdf', 'open-in-browser', 'show-properties', 'toggle-translation', 'toggle-translation-range'];
+                        const docRequired = ['export-pdf', 'export-pdf-direct', 'show-properties', 'toggle-translation', 'toggle-translation-range'];
                         if (docRequired.includes(act) && !this.isDocumentLoaded()) {
                             return; // Abort quietly if no document is loaded
                         }
@@ -254,11 +254,13 @@ function menubarController() {
                 this.$dispatch('trigger-file-picker');
             } else if (actionName === 'close-doc') {
                 this.$dispatch('trigger-close-document');
-            } else if (actionName === 'open-in-browser') {
+            } else if (actionName === 'export-pdf') {
+                // Default export: the machine's browser and its print dialog
+                // (fast, GPU-accelerated); the headless export stays available
                 if (window.pywebview && window.pywebview.api && window.pywebview.api.open_translated_in_browser) {
                     window.pywebview.api.open_translated_in_browser();
                 }
-            } else if (actionName === 'export-pdf') {
+            } else if (actionName === 'export-pdf-direct') {
                 if (window.pywebview && window.pywebview.api && window.pywebview.api.export_translated_pdf) {
                     window.pywebview.api.export_translated_pdf();
                 }
