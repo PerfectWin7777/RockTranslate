@@ -593,3 +593,58 @@ def test_partial_copy_detection_and_color_merge():
     assert _copies_source(src, src) is False          # references / names: accepted as is
     assert merge_color_runs("<color_0080ad>Saaty,</color_0080ad> <color_0080ad>1977;</color_0080ad> x") == \
         "<color_0080ad>Saaty, 1977;</color_0080ad> x"
+
+
+# ── Structured extraction (rocktranslate.extract / Document) ───────────────
+
+def _fixture_document(tmp_path):
+    from rocktranslate.core.html_transformer import instrument_html
+    from rocktranslate.core.structure import build_document
+    out = tmp_path / "ws.html"
+    texts, pages = instrument_html(FIXTURE_HTML, str(out))
+    return build_document(str(out), texts, pages, "geneve.pdf"), texts
+
+
+def test_document_elements_have_types_pages_and_boxes(tmp_path):
+    from rocktranslate.document import FURNITURE, NARRATIVE
+    doc, _ = _fixture_document(tmp_path)
+    assert len(doc) > 0
+    for e in doc:
+        x0, y0, x1, y1 = e.bbox
+        assert e.page >= 1 and x1 >= x0 and y1 >= y0
+        assert e.element_id and len(e.element_id) == 32
+    assert any(e.type == NARRATIVE for e in doc)
+    # Element ids are stable: the same document gives the same ids
+    again, _ = _fixture_document(tmp_path)
+    assert [e.element_id for e in doc] == [e.element_id for e in again]
+
+
+def test_document_exports_json_markdown_chunks(tmp_path):
+    doc, _ = _fixture_document(tmp_path)
+    data = json.loads(doc.to_json())
+    assert data and {"type", "element_id", "text", "metadata"} <= set(data[0])
+    assert data[0]["metadata"]["coordinates"]["system"] == "PDFPoints"
+    unstructured = json.loads(doc.to_json(unstructured=True))
+    assert {d["type"] for d in unstructured} <= {"Title", "NarrativeText", "ListItem", "Table", "FigureCaption",
+                                                   "Footnote", "Header", "Footer", "Formula", "UncategorizedText"}
+    md = doc.to_markdown()
+    assert md.strip()
+    chunks = doc.chunks(max_characters=300)
+    assert chunks and all(c.element_ids and c.boxes for c in chunks)
+
+
+def test_translations_attach_to_elements(tmp_path):
+    from rocktranslate.core.structure import attach_translations
+    doc, texts = _fixture_document(tmp_path)
+    translations = {seg: "TR " + text for seg, text in texts.items()}
+    attach_translations(doc, translations, texts, "French")
+    translated = [e for e in doc if e.translation]
+    assert translated and all(e.translation.startswith("TR") or e.type == "Table" for e in translated)
+    assert "TR" in doc.to_markdown(translated=True)
+    assert doc.search("TR")       # the translation is searchable too
+
+
+def test_line_end_hyphen_keeps_real_compounds():
+    from rocktranslate.core.html_transformer import join_paragraph_lines
+    assert join_paragraph_lines(["trans-", "lation works"]) == "translation works"
+    assert join_paragraph_lines(["the English-", "to-German task"]) == "the English-to-German task"

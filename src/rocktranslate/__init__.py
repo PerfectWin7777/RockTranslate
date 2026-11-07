@@ -9,7 +9,9 @@ Version: 1.0.0
 """
 
 from .core.html_transformer import convert_pdf_to_html, instrument_html
-from .api import RockTranslator
+from .api import RockTranslator, extract, translate
+from .document import Chunk, Document, Element
 
 __version__ = "2.0.5"
-__all__ = ["convert_pdf_to_html", "instrument_html", "RockTranslator"]
+__all__ = ["extract", "translate", "Document", "Element", "Chunk", "RockTranslator",
+           "convert_pdf_to_html", "instrument_html"]

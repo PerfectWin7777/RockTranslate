@@ -16,7 +16,7 @@ import threading
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from loguru import logger
 
@@ -45,6 +45,8 @@ class TranslationReport:
     cost_usd: float = 0.0
     seconds: float = 0.0
     error: str = ""
+    # Structured result (rocktranslate.translate(..., structured=True))
+    document: Optional[Any] = None
 
 
 def parse_page_range(range_str: Optional[str], max_pages: int) -> Optional[List[int]]:
@@ -271,6 +273,56 @@ def _save_layout_cache(work_dir: str, raw_html: str, original_texts: Dict[str, s
         logger.warning(f"Could not cache the layout analysis: {e}")
 
 
+def _resolve_pages(input_pdf: str, pages: Optional[str]) -> Tuple[Optional[List[int]], Optional[int], Optional[int]]:
+    """'1-3, 5' -> (0-based page list, first and last 1-based page of the contiguous span)."""
+    if not pages:
+        return None, None, None
+    from .pdf_metadata import get_pdf_metadata
+    total = int(get_pdf_metadata(input_pdf).get("pages_count") or 0) or 10_000
+    page_list = parse_page_range(pages, total)
+    if not page_list:
+        raise ValueError(f"Invalid page range: {pages}")
+    # Only the pages that are needed are converted (contiguous span)
+    return page_list, page_list[0] + 1, page_list[-1] + 1
+
+
+def extract_document(input_pdf: str, pages: Optional[str] = None, user_password: Optional[str] = None,
+                     assets_dir: str = DEFAULT_ASSETS_DIR, measure: bool = True) -> "Document":
+    """
+    PDF -> structured Document (no LLM, no API key, no cost).
+
+    Same conversion, cache and layout analysis as the translator. `measure`
+    uses an installed Edge/Chrome (or the headless shell) for exact line
+    widths; without a browser, widths are estimated from font sizes.
+    """
+    from .structure import build_document
+    page_list, first_page, last_page = _resolve_pages(input_pdf, pages)
+    span = f"p{first_page}-{last_page}" if first_page is not None else "all"
+    with _work_dir(input_pdf, span) as work_dir:
+        raw_html = convert_pdf_to_html(input_pdf, assets_dir, output_dir=work_dir, first_page=first_page,
+                                       last_page=last_page, user_password=user_password)
+        if not raw_html:
+            raise RuntimeError("pdf2htmlEX conversion failed: "
+                               + (LAST_CONVERSION_ERROR.get("message") or "unknown error"))
+        workspace_html = os.path.join(work_dir, "workspace.html")
+        maps = _load_layout_cache(work_dir, raw_html)
+        if maps:
+            original_texts, tid_to_page = maps
+        else:
+            original_texts, tid_to_page = instrument_html(raw_html, workspace_html)
+            _save_layout_cache(work_dir, raw_html, original_texts, tid_to_page)
+        boxes = None
+        if measure:
+            from .geometry import measure_line_boxes
+            boxes = measure_line_boxes(raw_html)
+        doc = build_document(workspace_html, original_texts, tid_to_page, input_pdf,
+                             page_offset=(first_page - 1) if first_page else 0, boxes=boxes)
+    if page_list is not None:
+        wanted = {p + 1 for p in page_list}
+        doc.elements = [e for e in doc.elements if e.page in wanted]
+    return doc
+
+
 def translate_pdf(
     input_pdf: str,
     output_pdf: Optional[str],
@@ -282,6 +334,8 @@ def translate_pdf(
     keep_html: Optional[str] = None,
     user_password: Optional[str] = None,
     assets_dir: str = DEFAULT_ASSETS_DIR,
+    structured: bool = False,
+    render_pdf: bool = True,
 ) -> TranslationReport:
     """
     Full headless pipeline. Untranslated pages are left in the original language.
@@ -311,17 +365,11 @@ def translate_pdf(
 
     browser_path = resolve_pdf_renderer()
 
-    page_list: Optional[List[int]] = None
-    first_page = last_page = None
-    if pages:
-        from .pdf_metadata import get_pdf_metadata
-        total = int(get_pdf_metadata(input_pdf).get("pages_count") or 0) or 10_000
-        page_list = parse_page_range(pages, total)
-        if not page_list:
-            report.error = f"Invalid page range: {pages}"
-            return report
-        # Only convert the pages that are needed (contiguous span)
-        first_page, last_page = page_list[0] + 1, page_list[-1] + 1
+    try:
+        page_list, first_page, last_page = _resolve_pages(input_pdf, pages)
+    except ValueError as e:
+        report.error = str(e)
+        return report
     span = f"p{first_page}-{last_page}" if first_page is not None else "all"
 
     with _work_dir(input_pdf, span) as work_dir:
@@ -345,6 +393,7 @@ def translate_pdf(
             original_texts, tid_to_page = instrument_html(raw_html, workspace_html)
             _save_layout_cache(work_dir, raw_html, original_texts, tid_to_page)
 
+        original_texts_all = dict(original_texts)
         if first_page is not None and page_list is not None:
             # pdf2htmlEX page 0 is document page first_page-1: keep only requested pages
             offset = first_page - 1
@@ -398,6 +447,25 @@ def translate_pdf(
         # rest of the document (cached translations included).
         if batches and failed == len(batches) and not llm_items and not cached:
             report.error = "Every translation request failed (check the API key / network)."
+            report.seconds = time.monotonic() - started
+            return report
+
+        if structured:
+            # Same elements as extract(), each carrying its aligned translation
+            from .geometry import measure_line_boxes
+            from .structure import attach_translations, build_document
+            doc = build_document(workspace_html, original_texts_all, tid_to_page, input_pdf,
+                                 page_offset=(first_page - 1) if first_page else 0,
+                                 boxes=measure_line_boxes(raw_html))
+            if page_list is not None:
+                wanted = {p + 1 for p in page_list}
+                doc.elements = [e for e in doc.elements if e.page in wanted]
+            attach_translations(doc, translations, original_texts_all, client.target_lang)
+            report.document = doc
+
+        if not render_pdf:
+            report.output_path = None
+            report.success = failed == 0
             report.seconds = time.monotonic() - started
             return report
 

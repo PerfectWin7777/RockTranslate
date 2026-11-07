@@ -12,6 +12,7 @@ import argparse
 import json
 import os
 import sys
+from typing import List
 
 from loguru import logger
 
@@ -88,9 +89,53 @@ def run_doctor() -> int:
     return 0 if ok else 1
 
 
+def _write_structured(doc, base: str, formats: List[str], bilingual: bool, translated: bool) -> List[str]:
+    """Writes the requested structured outputs next to `base` (no extension)."""
+    written = []
+    if "json" in formats:
+        written.append(base + ".json")
+        doc.to_json(written[-1])
+    if "md" in formats or "markdown" in formats:
+        written.append(base + ".md")
+        doc.to_markdown(written[-1], translated=translated and not bilingual, bilingual=bilingual)
+    if "chunks" in formats:
+        written.append(base + ".chunks.json")
+        with open(written[-1], "w", encoding="utf-8") as f:
+            json.dump([c.to_dict() for c in doc.chunks()], f, ensure_ascii=False, indent=2)
+    return written
+
+
+def run_extract(argv: List[str]) -> int:
+    """rocktranslate extract paper.pdf --format json,md : structure only, no LLM."""
+    parser = argparse.ArgumentParser(
+        prog="rocktranslate extract",
+        description="Extracts the structure of a PDF (titles, sections, paragraphs, tables, captions, "
+                    "formulas...) as JSON / Markdown / RAG chunks. Local, free, no API key.")
+    parser.add_argument("input", help="Source PDF file.")
+    parser.add_argument("-f", "--format", default="json,md",
+                        help="Comma-separated: json, md, chunks (default: json,md).")
+    parser.add_argument("-o", "--output", help="Output base path without extension (default: next to the PDF).")
+    parser.add_argument("-p", "--pages", help="Page range, e.g. '1-3, 5'.")
+    parser.add_argument("--password", help="Password of a protected PDF.")
+    args = parser.parse_args(argv)
+    if not os.path.isfile(args.input):
+        logger.error(f"File not found: {args.input}")
+        return 1
+    from .api import extract
+    doc = extract(args.input, pages=args.pages, password=args.password)
+    base = args.output or os.path.splitext(args.input)[0]
+    formats = [f.strip().lower() for f in args.format.split(",") if f.strip()]
+    for path in _write_structured(doc, base, formats, bilingual=False, translated=False):
+        logger.info(f"Written: {path}")
+    logger.info(f"Done: {doc!r}")
+    return 0
+
+
 def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == "doctor":
         sys.exit(run_doctor())
+    if len(sys.argv) > 1 and sys.argv[1] == "extract":
+        sys.exit(run_extract(sys.argv[2:]))
 
     parser = argparse.ArgumentParser(
         prog="rocktranslate",
@@ -102,6 +147,8 @@ def main() -> None:
             "  rocktranslate paper.pdf -l Spanish -o paper_es.pdf --pages 1-3\n"
             "  rocktranslate paper.pdf -m deepseek/deepseek-flash --parallel 6\n"
             "  rocktranslate paper.pdf -m ollama/llama4 --base-url http://localhost:11434\n"
+            "  rocktranslate paper.pdf -l German -f pdf,md --bilingual\n"
+            "  rocktranslate extract paper.pdf -f json,md,chunks   # structure only, no LLM\n"
             "  rocktranslate doctor          # check pdf2htmlEX, browser, keys\n"
         ),
     )
@@ -118,6 +165,11 @@ def main() -> None:
     parser.add_argument("--base-url", help="Custom API base URL (Ollama, proxies...).")
     parser.add_argument("--password", help="Password of a protected PDF.")
     parser.add_argument("--keep-html", help="Also save the translated HTML to this path.")
+    parser.add_argument("-f", "--format", default="pdf",
+                        help="Comma-separated outputs: pdf, json, md, chunks (default: pdf).\n"
+                             "json/md/chunks hold every element with its aligned translation.")
+    parser.add_argument("--bilingual", action="store_true",
+                        help="Markdown output: original paragraph followed by its translation.")
     parser.add_argument("--version", action="version", version=f"rocktranslate {__version__}")
     args = parser.parse_args()
 
@@ -151,10 +203,13 @@ def main() -> None:
         if done == total:
             sys.stderr.write("\n")
 
+    formats = [f.strip().lower() for f in args.format.split(",") if f.strip()]
+    structured = any(f in formats for f in ("json", "md", "markdown", "chunks"))
     try:
         report = translator.translate_document(
             args.input, args.output, pages=args.pages, progress=progress,
             keep_html=args.keep_html, password=args.password,
+            structured=structured, render_pdf="pdf" in formats,
         )
     except KeyboardInterrupt:
         logger.warning("Interrupted.")
@@ -163,6 +218,13 @@ def main() -> None:
         logger.exception(f"Unexpected error: {e}")
         logger.error("Please report this with the log above: https://github.com/PerfectWin7777/RockTranslate/issues")
         sys.exit(1)
+
+    if report.document is not None:
+        base = os.path.splitext(args.output or args.input)[0]
+        if not args.output:
+            base += f"_{args.lang.lower()}"
+        for path in _write_structured(report.document, base, formats, args.bilingual, translated=True):
+            logger.info(f"Written: {path}")
 
     summary = (f"{report.segments_translated}/{report.segments_total} segments, "
                f"{report.batches_total} batches, {report.seconds:.1f}s, "

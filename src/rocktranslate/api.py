@@ -18,7 +18,8 @@ from loguru import logger
 
 from .core.constants import DEFAULT_MODEL, DEFAULT_PARALLEL_REQUESTS, DEFAULT_TEMPERATURE
 from .core.llm_client import LLMClient
-from .core.pipeline import ProgressCallback, TranslationReport, translate_pdf
+from .core.pipeline import ProgressCallback, TranslationReport, extract_document, translate_pdf
+from .document import Document
 
 
 class RockTranslator:
@@ -84,9 +85,13 @@ class RockTranslator:
         progress: Optional[ProgressCallback] = None,
         keep_html: Optional[str] = None,
         password: Optional[str] = None,
+        structured: bool = False,
+        render_pdf: bool = True,
     ) -> TranslationReport:
         """
         Translates a PDF and returns a detailed report (tokens, cost, failures).
+        With structured=True, report.document is a Document whose elements carry
+        their aligned translation; render_pdf=False skips the PDF rendering.
 
         Args:
             input_pdf_path: Source PDF.
@@ -102,6 +107,7 @@ class RockTranslator:
             input_pdf_path, output_pdf_path, self._client(),
             pages=pages, parallel=self.parallel, progress=progress,
             keep_html=keep_html, user_password=password,
+            structured=structured, render_pdf=render_pdf,
         )
 
     def translate(self, input_pdf_path: str, output_pdf_path: Optional[str] = None,
@@ -111,6 +117,46 @@ class RockTranslator:
         if not report.success:
             logger.error(report.error or "Translation failed.")
         return report.success
+
+
+def extract(pdf_path: str, pages: Optional[str] = None, password: Optional[str] = None,
+            measure: bool = True) -> Document:
+    """
+    PDF -> structured Document: titles, sections, paragraphs, lists, tables,
+    captions, formulas, footnotes, headers/footers, each with its page and its
+    exact box in PDF points. Local and free: no LLM, no API key.
+
+        >>> doc = rocktranslate.extract("paper.pdf")
+        >>> doc.to_markdown("paper.md"); doc.to_json("paper.json")
+        >>> chunks = doc.chunks(max_characters=1500)        # RAG-ready
+    """
+    return extract_document(pdf_path, pages=pages, user_password=password, measure=measure)
+
+
+def translate(pdf_path: str, lang: str = "French", model: str = DEFAULT_MODEL, api_key: Optional[str] = None,
+              pages: Optional[str] = None, output_pdf: Optional[str] = None, render_pdf: bool = True,
+              parallel: int = DEFAULT_PARALLEL_REQUESTS, password: Optional[str] = None,
+              **options) -> Document:
+    """
+    PDF -> translated Document (and, by default, the translated PDF with the
+    original layout). Every element keeps its original text AND its aligned
+    translation: doc.to_markdown(bilingual=True), doc.to_json(), doc.chunks().
+
+        >>> doc = rocktranslate.translate("paper.pdf", lang="German", pages="1-2")
+        >>> doc.output_pdf, doc.report.cost_usd
+        >>> doc.to_markdown("paper.de.md", translated=True)
+
+    Raises RuntimeError when nothing could be translated (key, network...).
+    """
+    translator = RockTranslator(model=model, api_key=api_key, target_lang=lang, parallel=parallel, **options)
+    report = translator.translate_document(pdf_path, output_pdf, pages=pages, password=password,
+                                           structured=True, render_pdf=render_pdf)
+    if report.document is None:
+        raise RuntimeError(report.error or "Translation failed.")
+    doc: Document = report.document
+    doc.report = report
+    doc.output_pdf = report.output_path if render_pdf and report.output_path and os.path.exists(report.output_path) else None
+    return doc
 
 
 if __name__ == "__main__":  # pragma: no cover - manual smoke test

@@ -844,7 +844,16 @@ def join_paragraph_lines(lines: List[str]) -> str:
         if not out:
             out = text
         elif re.search(r"[A-Za-zÀ-ÿ]-$", out) and text[:1].islower():
-            out = out[:-1] + text
+            # Line-end hyphen: a split word ("trans-" + "lation") is joined, but a
+            # real compound keeps its hyphen ("English-" + "to-German",
+            # "state-" + "of-the-art"): the next part goes on with a hyphen, or
+            # the first part is a capitalized word.
+            last_word = re.search(r"([A-Za-zÀ-ÿ]+)-$", out).group(1)
+            next_word = re.match(r"[^\s]*", text).group(0)
+            if "-" in next_word or last_word[:1].isupper():
+                out = out + text
+            else:
+                out = out[:-1] + text
         else:
             out = out + " " + text
     return out
