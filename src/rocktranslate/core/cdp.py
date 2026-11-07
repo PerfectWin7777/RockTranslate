@@ -131,7 +131,9 @@ class _Session:
             raise TimeoutError("browser did not expose a DevTools port")
         req = urllib.request.Request(
             f"http://127.0.0.1:{port}/json/new?{urllib.request.quote(url, safe=':/')}", method="PUT")
-        target = json.loads(urllib.request.urlopen(req, timeout=10).read().decode())
+        # Never through a system proxy (Windows registry proxies catch 127.0.0.1)
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        target = json.loads(opener.open(req, timeout=10).read().decode())
         self.ws = _WebSocket(target["webSocketDebuggerUrl"], timeout=max(1.0, self.remaining()))
 
     def remaining(self) -> float:
@@ -180,7 +182,9 @@ def evaluate_in_page(browser: str, url: str, expression: str, timeout: float) ->
     try:
         session = _Session(browser, url, timeout)
         return session.evaluate(expression)
-    except Exception:
+    except Exception as e:
+        from loguru import logger
+        logger.warning(f"DevTools evaluation failed with {os.path.basename(browser)}: {type(e).__name__}: {e}")
         return None
     finally:
         if session is not None:
@@ -206,6 +210,8 @@ def print_to_pdf(browser: str, html_path: str, output_pdf: str, timeout: float) 
     try:
         session = _Session(browser, url, timeout)
         if session.evaluate(_READY_FOR_PRINT) is not True:
+            from loguru import logger
+            logger.warning(f"DevTools: the page never became ready to print ({os.path.basename(browser)}).")
             return False
         result = session.call("Page.printToPDF", {"printBackground": True, "preferCSSPageSize": True,
                                                   "displayHeaderFooter": False, "marginTop": 0,
@@ -218,7 +224,9 @@ def print_to_pdf(browser: str, html_path: str, output_pdf: str, timeout: float) 
             f.write(b64.b64decode(data))
         os.replace(tmp, output_pdf)
         return os.path.getsize(output_pdf) > 0
-    except Exception:
+    except Exception as e:
+        from loguru import logger
+        logger.warning(f"DevTools printing failed with {os.path.basename(browser)}: {type(e).__name__}: {e}")
         return False
     finally:
         if session is not None:
