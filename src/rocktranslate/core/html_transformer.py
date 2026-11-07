@@ -654,7 +654,8 @@ def _group_estimated(lines: List[Dict[str, Any]], texts: Dict[str, str]) -> List
     column_edges = sorted({round(x, 1) for x in xs if sum(1 for o in xs if abs(o - x) <= 1.5) >= 4})
 
     # Table columns: cell starts aligned to the pixel on 3+ lines of the page
-    all_xs = [l["x"] for l in lines if l.get("x") is not None]
+    all_xs = [l["x"] for l in lines if l.get("x") is not None and not _ACCENT_ONLY_RE.match(
+        re.sub(r"</?[a-z_0-9]+>", "", "".join(texts.get(g, "") for g, _ in l["spans"])))]
     aligned_edges = sorted({round(x, 1) for x in all_xs if sum(1 for o in all_xs if abs(o - x) <= 1.0) >= 3})
 
     def on_other_column_edge(line: Dict[str, Any], prev: Dict[str, Any]) -> bool:
@@ -722,6 +723,15 @@ def _group_estimated(lines: List[Dict[str, Any]], texts: Dict[str, str]) -> List
                     close(block)
             continue
 
+        # A stacked accent drawn as its own glyph box (slightly above the
+        # baseline) belongs to the current visual line: it must not end the
+        # paragraph and split the word it sits on.
+        accent_text = re.sub(r"</?[a-z_0-9]+>", "", "".join(texts.get(g, "") for g, _ in line["spans"]))
+        if (last_slot is not None and _ACCENT_ONLY_RE.match(accent_text)
+                and line.get("y") is not None and abs(last_slot["y"] - line["y"]) <= 1.2 * last_slot["em"]):
+            last_slot.setdefault("pieces", []).append(line)
+            continue
+
         # Same visual line as a recent slot (footnote marker, inline math, text
         # emitted after it): absorbed into that slot instead of breaking the block.
         candidates = ([last_slot] if last_slot is not None else []) + [
@@ -731,7 +741,15 @@ def _group_estimated(lines: List[Dict[str, Any]], texts: Dict[str, str]) -> List
             est_end = prev["x"] + 0.6 * prev["em"] * _visual_len(prev, texts)
             if (abs(prev["y"] - line["y"]) <= 0.6 * prev["em"] and line["x"] > prev["x"]
                     and line["x"] <= est_end + 1.5 * prev["em"]
-                    and not on_other_column_edge(line, prev)
+                    # a word fragment (e.g. "P" + stacked accent) continued by
+                    # the rest of the word: its continuation, even if that x
+                    # happens to match another column edge
+                    and ((_visual_len(prev, texts) <= 4 and line["x"] <= est_end + 0.5 * prev["em"])
+                         or not on_other_column_edge(line, prev))
+                    # a column starts between the host and this piece: the piece
+                    # is in the next column (e.g. its indented first line)
+                    and not any(prev["x"] + 2.0 * prev["em"] < e <= line["x"] + 0.5 * prev["em"]
+                                for e in column_edges)
                     and line["em"] <= prev["em"] * 1.05):
                 host = prev
                 break
@@ -798,6 +816,23 @@ def merge_color_runs(text: str) -> str:
         previous = text
         text = re.sub(r"</color_([0-9a-fA-F]{6})>(\s*)<color_\1>", r"\2", text)
     return text
+
+
+# Spacing accents that some PDFs (TeX) draw as separate glyphs over a letter
+_SPACING_ACCENTS = {"´": "\u0301", "`": "\u0300", "ˆ": "\u0302", "^": "\u0302", "˜": "\u0303",
+                    "¨": "\u0308", "¸": "\u0327", "ˇ": "\u030c", "˘": "\u0306", "˙": "\u0307",
+                    "˚": "\u030a", "˝": "\u030b", "¯": "\u0304"}
+_ACCENT_CHARS = "".join(_SPACING_ACCENTS)
+_ACCENT_ONLY_RE = re.compile(r"^\s*[" + re.escape(_ACCENT_CHARS) + r"]+\s*$")
+_ACCENT_LETTER_RE = re.compile(r"\s?([" + re.escape(_ACCENT_CHARS) + r"])\s*([A-Za-z])")
+
+
+def compose_stacked_accents(text: str) -> str:
+    """"P ´ erez-Pe ˜ na" -> "Pérez-Peña": a stacked accent glyph is merged into
+    the letter it sits on, so the translator sees the real word."""
+    def repl(m: "re.Match") -> str:
+        return unicodedata.normalize("NFC", m.group(2) + _SPACING_ACCENTS[m.group(1)])
+    return _ACCENT_LETTER_RE.sub(repl, text)
 
 
 def join_paragraph_lines(lines: List[str]) -> str:
@@ -1187,7 +1222,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     else:
                         line_text = line_text.rstrip() + " " + p_text
                 texts.append(line_text)
-            original_texts_map[pid] = merge_color_runs(join_paragraph_lines(texts))
+            original_texts_map[pid] = compose_stacked_accents(merge_color_runs(join_paragraph_lines(texts)))
             tid_to_page[pid] = page_idx
 
     # ── 2. EMBED GLASS OVERLAYS ON ALL PAGES ──
@@ -1485,11 +1520,22 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     for (var i = 0; i < rects.length; i++) {
                         var a = rects[i];
                         var overlapV = Math.min(a.bottom, r.bottom) - Math.max(a.top, r.top);
-                        if (overlapV > 0.5 * Math.min(a.height, r.height) && left > geo[i].left + 4) {
+                        // A neighbour column starts AFTER this line's own text:
+                        // stacked accents (separate glyph boxes over a letter)
+                        // lie inside the line and must not shrink the block.
+                        var ownRight = (a.right - pr.left) / k;
+                        if (overlapV > 0.5 * Math.min(a.height, r.height) && left > ownRight - 2) {
                             limit = Math.min(limit, left - 4);
                         }
                     }
                 });
+                // A "neighbour" that would leave less than half of the typical
+                // line width is the paragraph's own continuation (a word split
+                // around a stacked accent), not another column.
+                var widths = geo.map(function (g) { return g.right - g.left; }).sort(function (a, b) { return a - b; });
+                var typicalWidth = widths[Math.floor(widths.length / 2)] || 0;
+                var minLeft = Math.min.apply(null, geo.map(function (g) { return g.left; }));
+                if (limit - minLeft < 0.5 * typicalWidth) limit = Infinity;
                 if (limit < Infinity && limit < paraRight) paraRight = Math.max(limit, Math.max.apply(null, geo.map(function (g) { return g.left; })) + 20);
             })();
 
