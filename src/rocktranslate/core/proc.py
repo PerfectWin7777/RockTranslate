@@ -12,6 +12,9 @@ import subprocess
 import sys
 from typing import List, Optional, Tuple
 
+# GUI app on Windows: child processes must not pop up a console window
+NO_WINDOW: dict = {"creationflags": 0x08000000} if sys.platform == "win32" else {}  # CREATE_NO_WINDOW
+
 
 def kill_tree(proc: "subprocess.Popen") -> None:
     """Kills a process and its children; never raises."""
@@ -20,7 +23,7 @@ def kill_tree(proc: "subprocess.Popen") -> None:
             return
         if sys.platform == "win32":
             subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15, **NO_WINDOW)
         else:
             proc.kill()
     except Exception:
@@ -36,7 +39,7 @@ def kill_tree(proc: "subprocess.Popen") -> None:
 
 def run_with_timeout(cmd: List[str], timeout: float) -> Tuple[Optional[int], bytes, bytes]:
     """Runs a command; on timeout kills the whole tree. Returns (returncode|None, stdout, stderr)."""
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **NO_WINDOW)
     try:
         out, err = proc.communicate(timeout=timeout)
         return proc.returncode, out, err

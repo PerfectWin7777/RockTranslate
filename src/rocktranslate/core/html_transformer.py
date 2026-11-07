@@ -33,7 +33,7 @@ from .chunker import should_translate
 # Safe imports supporting both standard package modules and direct scripts
 from .constants import DEFAULT_ASSETS_DIR, ACCENTS_TO_IGNORE, THRESHOLD_PX
 from .downloader import check_and_download_pdf2htmlex, pdf2htmlex_data_dir
-from .proc import kill_tree, process_cpu_seconds
+from .proc import NO_WINDOW, kill_tree, process_cpu_seconds
 
 # Seconds without any stderr output before the conversion is considered hung.
 # A total time limit would kill legitimate long conversions of large documents,
@@ -194,7 +194,8 @@ def convert_pdf_to_html(
         text=True,
         bufsize=1,                  # Line buffered output
         universal_newlines=True,    # Translates carriage returns (\r) to newlines (\n)
-        env=env                     # Parallel workers pass an isolated TEMP/TMP here
+        env=env,                    # Parallel workers pass an isolated TEMP/TMP here
+        **NO_WINDOW,                # no console window popping up from the GUI (Windows)
     )
 
     # ── NON-BLOCKING PIPE READER ──

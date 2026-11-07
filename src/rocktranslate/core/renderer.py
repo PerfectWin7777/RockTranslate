@@ -335,18 +335,37 @@ def print_html_to_vector_pdf(browser_path: str, input_html_path: str, output_pdf
     return ok
 
 
+def _devtools_browsers() -> list:
+    """Installed Edge / Chrome / Chromium usable through the DevTools protocol (Edge first)."""
+    override = os.environ.get("ROCKTRANSLATE_BROWSER")
+    paths = [override] if override and os.path.isfile(override) else []
+    paths += [p for p in _candidate_browser_paths() if p and os.path.isfile(p)]
+    system = find_system_chromium_browser()
+    if system:
+        paths.append(system)
+    seen, ordered = set(), []
+    for p in sorted(paths, key=lambda p: 0 if "edge" in p.lower() else 1):
+        if p not in seen and "headless-shell" not in os.path.basename(p).lower():
+            seen.add(p)
+            ordered.append(p)
+    return ordered
+
+
 def print_html_with_fallback(input_html_path: str, output_pdf_path: str,
                              browser_path: Optional[str] = None,
                              timeout: Optional[float] = None) -> bool:
     """
-    Prints with the resolved browser; if that fails or hangs (some full
-    Chrome builds stall in --print-to-pdf mode on servers), retries once with
-    the pinned chrome-headless-shell, downloading it if needed.
+    Prints to a vector PDF, most reliable route first:
+
+    1. The installed Edge / Chrome driven through the DevTools protocol
+       (Page.printToPDF). Desktop browsers stall in the --print-to-pdf
+       command-line mode, never through DevTools.
+    2. chrome-headless-shell in command-line mode (downloaded if needed).
     """
     from loguru import logger
-    from .downloader import check_and_download_headless_shell
+    from .cdp import print_to_pdf
+    from .downloader import check_and_download_headless_shell, find_downloaded_headless_shell
 
-    browser = browser_path or resolve_pdf_renderer()
     if timeout is None:
         try:
             size_mb = os.path.getsize(input_html_path) / 1e6
@@ -354,14 +373,19 @@ def print_html_with_fallback(input_html_path: str, output_pdf_path: str,
             size_mb = 10
         timeout = min(PRINT_TIMEOUT_SECONDS, 60 + 4 * size_mb)
 
-    if browser and print_html_to_vector_pdf(browser, input_html_path, output_pdf_path, timeout=timeout):
-        return True
+    output_abs = os.path.abspath(output_pdf_path)
+    if os.path.dirname(output_abs):
+        os.makedirs(os.path.dirname(output_abs), exist_ok=True)
 
-    if browser and "headless-shell" in os.path.basename(browser).lower():
-        return False
+    candidates = ([browser_path] if browser_path and "headless-shell" not in os.path.basename(browser_path).lower()
+                  else []) + _devtools_browsers()
+    for browser in dict.fromkeys(candidates):
+        if print_to_pdf(browser, input_html_path, output_abs, timeout):
+            logger.info(f"PDF printed with {os.path.basename(browser)} (DevTools).")
+            return True
+        logger.warning(f"Printing through DevTools failed with {browser}; trying the next engine.")
 
-    logger.warning("System browser could not print; falling back to chrome-headless-shell...")
-    shell = check_and_download_headless_shell()
+    shell = find_downloaded_headless_shell() or check_and_download_headless_shell()
     if not shell:
         return False
-    return print_html_to_vector_pdf(shell, input_html_path, output_pdf_path, timeout=PRINT_TIMEOUT_SECONDS)
+    return print_html_to_vector_pdf(shell, input_html_path, output_abs, timeout=timeout)
