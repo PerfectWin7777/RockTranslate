@@ -12,8 +12,24 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RockTranslate — Absolute Geometric Fidelity Scientific PDF Translator</title>
-    <meta name="description" content="Open-source local-first academic PDF translation engine. Preserves double columns, mathematical formulas, and tables with zero layout deformation.">
+    <title>RockTranslate: Translate Scientific PDFs and Keep the Exact Layout (Free, Open Source)</title>
+    <meta name="description" content="Free open-source translator for research papers: columns, equations, tables and figures stay in place. Runs locally with Ollama or any LLM, and extracts PDFs to Markdown and JSON.">
+    <link rel="canonical" href="https://perfectwin7777.github.io/RockTranslate/">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#FAF8F5">
+    <!-- Social previews (LinkedIn, X, WhatsApp, Slack...) -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="RockTranslate">
+    <meta property="og:title" content="RockTranslate: Translate Scientific PDFs and Keep the Exact Layout (Free, Open Source)">
+    <meta property="og:description" content="Free open-source translator for research papers: columns, equations, tables and figures stay in place. Runs locally with Ollama or any LLM, and extracts PDFs to Markdown and JSON.">
+    <meta property="og:url" content="https://perfectwin7777.github.io/RockTranslate/">
+    <meta property="og:image" content="https://perfectwin7777.github.io/RockTranslate/assets/og_image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="RockTranslate: Translate Scientific PDFs and Keep the Exact Layout (Free, Open Source)">
+    <meta name="twitter:description" content="Free open-source translator for research papers: columns, equations, tables and figures stay in place. Runs locally with Ollama or any LLM, and extracts PDFs to Markdown and JSON.">
+    <meta name="twitter:image" content="https://perfectwin7777.github.io/RockTranslate/assets/og_image.png">
 
     <!-- Google Fonts: Plus Jakarta Sans (Modern Clean UI) & Newsreader (Editorial Academic) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,6 +41,75 @@
 
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="assets/rocktranslate_icon.png">
+    <script type="application/ld+json">
+[
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "RockTranslate",
+    "url": "https://perfectwin7777.github.io/RockTranslate/",
+    "image": "https://perfectwin7777.github.io/RockTranslate/assets/og_image.png",
+    "description": "Free open-source translator for research papers: columns, equations, tables and figures stay in place. Runs locally with Ollama or any LLM, and extracts PDFs to Markdown and JSON.",
+    "softwareVersion": "2.0.5",
+    "applicationCategory": "UtilitiesApplication",
+    "operatingSystem": "Windows 10, Windows 11, Linux, macOS",
+    "license": "https://opensource.org/licenses/MIT",
+    "downloadUrl": "https://github.com/PerfectWin7777/RockTranslate/releases/latest",
+    "codeRepository": "https://github.com/PerfectWin7777/RockTranslate",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How does RockTranslate prevent translated text from overflowing adjacent columns?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Through pdf2htmlEX spatial analysis, each text element is bound to its original geometric bounding box. When translations expand (such as in French or German, where word volume increases by 20–30%), our algorithm computes a proportional micro-adjustment on font size and CSS matrix transform: transform: scaleX(...). Text seamlessly conforms to its allocated spatial slot without colliding with figures or neighboring columns."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do my unpublished scientific drafts and research papers remain confidential?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes, 100%. When operating in local mode with Ollama, the entire processing pipeline (geometric extraction, textual analysis, translation, and vector PDF compilation) runs entirely on your physical machine. Zero bytes, zero text, and zero telemetry leave your computer."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How are complex mathematical formulas and chemical nomenclature handled?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "During HTML DOM instrumentation, matrix equations, Greek mathematical symbols, sub/superscripts, and vector graphics are isolated and tagged. They are excluded from linguistic translation to ensure they remain mathematically and spatially intact in their original positions."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Why is RockTranslate completely free and open source?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "RockTranslate was built by students and researchers who experienced the financial barriers of commercial translation tools firsthand. The project is licensed under the permissive MIT license to democratize scientific knowledge and empower researchers in underfunded universities worldwide."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Which operating systems are supported?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The graphical desktop application is available as a standalone executable installer for Windows 10 and 11 (64-bit). The Python package and CLI run across Windows, Linux (via the official pdf2htmlEX AppImage), and macOS."
+        }
+      }
+    ]
+  }
+]
+    </script>
 </head>
 
 <body>
