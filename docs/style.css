@@ -1953,3 +1953,69 @@ html, body { max-width: 100%; overflow-x: clip; }
 @media (max-width: 960px) {
     .extract-pair .extract-input { position: static; }
 }
+
+/* ── Exact command behind each example ── */
+.cmd-bubbles { display: flex; flex-direction: column; gap: 8px; }
+
+.cmd-bubble {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 9px 10px 9px 12px;
+    background: var(--accent-forest-subtle);
+    border: 1px solid color-mix(in srgb, var(--accent-forest) 28%, transparent);
+    border-radius: 999px;
+}
+
+.cmd-label {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--bg-surface);
+    background: var(--accent-forest);
+    border-radius: 999px;
+    padding: 3px 9px;
+}
+
+.cmd-bubble code {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: 0.84rem;
+    color: var(--text-primary);
+    overflow-x: auto;
+    white-space: nowrap;
+}
+
+.cmd-copy {
+    flex: none;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--accent-forest);
+    background: var(--bg-surface);
+    border: 1px solid color-mix(in srgb, var(--accent-forest) 30%, transparent);
+    border-radius: 999px;
+    padding: 4px 12px;
+    cursor: pointer;
+}
+
+.cmd-copy:focus-visible { outline: 2px solid var(--accent-forest); outline-offset: 2px; }
+.cmd-note { font-size: 0.86rem; color: var(--text-muted); padding-left: 12px; }
+.cmd-note code { font-family: var(--font-mono); font-size: 0.85em; }
+
+.extract-out-label {
+    align-self: center;
+    margin-right: 8px;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.extract-solo { border-radius: 8px; }

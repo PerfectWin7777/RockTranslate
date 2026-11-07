@@ -391,3 +391,20 @@ document.querySelectorAll('.extract-output').forEach((box) => {
         });
     });
 });
+
+/* ── Copy buttons of the command bubbles ── */
+document.querySelectorAll('.cmd-copy').forEach((btn) => {
+    btn.addEventListener('click', () => {
+        const text = btn.dataset.copy || '';
+        const done = () => { btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy'; }, 1500); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(done).catch(() => {
+                const code = btn.parentElement.querySelector('code');
+                if (code) window.getSelection().selectAllChildren(code);
+            });
+        } else {
+            const code = btn.parentElement.querySelector('code');
+            if (code) window.getSelection().selectAllChildren(code);
+        }
+    });
+});

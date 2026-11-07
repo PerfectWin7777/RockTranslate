@@ -588,13 +588,26 @@
                         <h3>A 45-row table, rebuilt cell by cell</h3>
                         <p>Table 4 of an open-access geology paper (Wabo Defo et al., <em>Geological Magazine</em>, 2026, CC BY 4.0). Every value lands in its column.</p>
                     </header>
+                    <div class="cmd-bubbles">
+                        <div class="cmd-bubble">
+                            <span class="cmd-label">CLI</span>
+                            <code>rocktranslate extract wabo.pdf -p 11 -f md,json</code>
+                            <button type="button" class="cmd-copy" data-copy="rocktranslate extract wabo.pdf -p 11 -f md,json">Copy</button>
+                        </div>
+                        <div class="cmd-bubble">
+                            <span class="cmd-label">Python</span>
+                            <code>rocktranslate.extract("wabo.pdf", pages="11").tables[0].table</code>
+                            <button type="button" class="cmd-copy" data-copy="rocktranslate.extract(&quot;wabo.pdf&quot;, pages=&quot;11&quot;).tables[0].table">Copy</button>
+                        </div>
+                    </div>
                     <div class="extract-pair">
                         <figure class="extract-input">
-                            <figcaption>In the PDF</figcaption>
+                            <figcaption>Input · the PDF</figcaption>
                             <img src="assets/readme_extract_table_input.png" alt="Table 4 as printed in the PDF" loading="lazy">
                         </figure>
                         <div class="extract-output">
                             <div class="extract-tabs" role="tablist">
+                                <span class="extract-out-label">Output</span>
                                 <button type="button" class="extract-tab active" data-target="t-md">Markdown</button>
                                 <button type="button" class="extract-tab" data-target="t-json">JSON</button>
                             </div>
@@ -627,13 +640,27 @@
                         <h3>Real headings, real depth</h3>
                         <p><em>Attention Is All You Need</em>, page 3: the same passage as Markdown, unedited. Headings keep their numbering and get their depth from it (3.1 → <code>###</code>).</p>
                     </header>
+                    <div class="cmd-bubbles">
+                        <div class="cmd-bubble">
+                            <span class="cmd-label">CLI</span>
+                            <code>rocktranslate extract attention.pdf -p 3 -f md</code>
+                            <button type="button" class="cmd-copy" data-copy="rocktranslate extract attention.pdf -p 3 -f md">Copy</button>
+                        </div>
+                        <div class="cmd-bubble">
+                            <span class="cmd-label">Python</span>
+                            <code>rocktranslate.extract("attention.pdf", pages="3").to_markdown()</code>
+                            <button type="button" class="cmd-copy" data-copy="rocktranslate.extract(&quot;attention.pdf&quot;, pages=&quot;3&quot;).to_markdown()">Copy</button>
+                        </div>
+                        <p class="cmd-note">Whole-paper outline: <code>rocktranslate extract attention.pdf -f md</code></p>
+                    </div>
                     <div class="extract-pair">
                         <figure class="extract-input">
-                            <figcaption>In the PDF, page 3</figcaption>
+                            <figcaption>Input · the PDF, page 3</figcaption>
                             <img src="assets/site_headings_input.png" alt="Page 3 of the paper with sections 3.1 and 3.2" loading="lazy">
                         </figure>
                         <div class="extract-output">
                             <div class="extract-tabs" role="tablist">
+                                <span class="extract-out-label">Output</span>
                                 <button type="button" class="extract-tab active" data-target="h-page">This passage</button>
                                 <button type="button" class="extract-tab" data-target="h-outline">Whole paper outline</button>
                             </div>
@@ -666,20 +693,34 @@ An attention function can be described as mapping a query and a set of key-value
                 <article class="extract-case">
                     <header class="extract-case-head">
                         <h3>Bilingual, paragraph by paragraph</h3>
-                        <p><code>rocktranslate paper.pdf -l French -f md --bilingual</code>: each paragraph of the original, followed by its translation. Output below, unedited.</p>
+                        <p>Each paragraph of the original, followed by its translation. Output below, unedited.</p>
                     </header>
+                    <div class="cmd-bubbles">
+                        <div class="cmd-bubble">
+                            <span class="cmd-label">CLI</span>
+                            <code>rocktranslate attention.pdf -l French -p 1 -f md --bilingual</code>
+                            <button type="button" class="cmd-copy" data-copy="rocktranslate attention.pdf -l French -p 1 -f md --bilingual">Copy</button>
+                        </div>
+                        <div class="cmd-bubble">
+                            <span class="cmd-label">Python</span>
+                            <code>rocktranslate.translate("attention.pdf", lang="French", pages="1").to_markdown(bilingual=True)</code>
+                            <button type="button" class="cmd-copy" data-copy="rocktranslate.translate(&quot;attention.pdf&quot;, lang=&quot;French&quot;, pages=&quot;1&quot;).to_markdown(bilingual=True)">Copy</button>
+                        </div>
+                        <p class="cmd-note">Needs an API key (here DeepSeek: 3,315 tokens, $0.0019 for the page).</p>
+                    </div>
                     <div class="extract-pair">
                         <figure class="extract-input">
-                            <figcaption>In the PDF, page 1</figcaption>
+                            <figcaption>Input · the PDF, page 1</figcaption>
                             <img src="assets/site_abstract_input.png" alt="Abstract of the paper in English" loading="lazy">
                         </figure>
-<pre class="extract-code extract-prose"><code>## Abstract
+<div class="extract-output"><div class="extract-tabs"><span class="extract-out-label">Output</span></div>
+<pre class="extract-code extract-prose extract-solo"><code>## Abstract
 
 &gt; Résumé
 
 The dominant sequence transduction models are based on complex recurrent or convolutional neural networks that include an encoder and a decoder. The best performing models also connect the encoder and decoder through an attention mechanism. We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. Experiments on two machine translation tasks show these models to be superior in quality while being more parallelizable and requiring signiﬁcantly less time to train. Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best results, including ensembles, by over 2 BLEU. On the WMT 2014 English-to-French translation task, our model establishes a new single-model state-of-the-art BLEU score of 41.8 after training for 3.5 days on eight GPUs, a small fraction of the training costs of the best models from the literature. We show that the Transformer generalizes well to other tasks by applying it successfully to English constituency parsing both with large and limited training data.
 
-&gt; Les modèles dominants de transduction de séquences reposent sur des réseaux neuronaux récurrents ou convolutifs complexes comprenant un encodeur et un décodeur. Les modèles les plus performants relient également l'encodeur et le décodeur par un mécanisme d'attention. Nous proposons une nouvelle architecture de réseau simple, le Transformer, fondée uniquement sur des mécanismes d'attention, se dispensant entièrement de récurrence et de convolutions. Des expériences sur deux tâches de traduction automatique montrent que ces modèles sont de qualité supérieure tout en étant plus parallélisables et en nécessitant significativement moins de temps d'entraînement. Notre modèle atteint 28,4 BLEU sur la tâche de traduction anglais-vers-allemand du WMT 2014, améliorant de plus de 2 BLEU les meilleurs résultats existants, y compris les ensembles. Sur la tâche de traduction anglais-vers-français du WMT 2014, notre modèle établit un nouveau score BLEU de pointe de 41,8 pour un modèle unique après un entraînement de 3,5 jours sur huit GPU, soit une faible fraction des coûts d'entraînement des meilleurs modèles de la littérature. Nous montrons que le Transformer se généralise bien à d'autres tâches en l'appliquant avec succès à l'analyse syntaxique de constituants en anglais, tant avec de grandes qu'avec de limitées données d'entraînement.</code></pre>
+&gt; Les modèles dominants de transduction de séquences reposent sur des réseaux neuronaux récurrents ou convolutifs complexes comprenant un encodeur et un décodeur. Les modèles les plus performants relient également l'encodeur et le décodeur par un mécanisme d'attention. Nous proposons une nouvelle architecture de réseau simple, le Transformer, fondée uniquement sur des mécanismes d'attention, se dispensant entièrement de récurrence et de convolutions. Des expériences sur deux tâches de traduction automatique montrent que ces modèles sont de qualité supérieure tout en étant plus parallélisables et en nécessitant significativement moins de temps d'entraînement. Notre modèle atteint 28,4 BLEU sur la tâche de traduction anglais-vers-allemand du WMT 2014, améliorant de plus de 2 BLEU les meilleurs résultats existants, y compris les ensembles. Sur la tâche de traduction anglais-vers-français du WMT 2014, notre modèle établit un nouveau score BLEU de pointe de 41,8 pour un modèle unique après un entraînement de 3,5 jours sur huit GPU, soit une faible fraction des coûts d'entraînement des meilleurs modèles de la littérature. Nous montrons que le Transformer se généralise bien à d'autres tâches en l'appliquant avec succès à l'analyse syntaxique de constituants en anglais, tant avec de grandes qu'avec de limitées données d'entraînement.</code></pre></div>
                     </div>
                 </article>
 

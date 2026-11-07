@@ -249,7 +249,18 @@ RockTranslate also turns a PDF into **typed, positioned elements** — the schem
 
 <p align="center"><img src="docs/assets/readme_extract_table_input.png" alt="Source table in the PDF" width="90%"></p>
 
-`rocktranslate extract paper.pdf -p 11 -f md` → Markdown (first rows):
+**▶ Command**
+
+```bash
+rocktranslate extract wabo.pdf -p 11 -f md,json
+```
+
+```python
+import rocktranslate
+table = rocktranslate.extract("wabo.pdf", pages="11").tables[0].table
+```
+
+**⬇ Result** — Markdown (first rows):
 
 ```markdown
 | 1 | 1.02 | 0.02 | 1.07 | 12.74 | 0.20 | 1.90 | 0.44 | 48.17 | 0.39 | 0.31 |
@@ -259,7 +270,7 @@ RockTranslate also turns a PDF into **typed, positioned elements** — the schem
 | 5 | 0.77 | 0.01 | 1.75 | 26.98 | 0.34 | 1.27 | 0.38 | 12.88 | 0.20 | 0.09 |
 ```
 
-…all 45 rows, every value in its column. The same table in JSON (`-f json`), with its page and its box in PDF points:
+…all 45 rows, every value in its column. The same table in the JSON file, with its page and its box in PDF points:
 
 ```json
 {
@@ -279,7 +290,18 @@ RockTranslate also turns a PDF into **typed, positioned elements** — the schem
 
 <p align="center"><img src="docs/assets/site_headings_input.png" alt="Page 3 of the paper with sections 3.1 and 3.2" width="75%"></p>
 
-The same passage as produced by `rocktranslate extract -f md` (unedited):
+**▶ Command**
+
+```bash
+rocktranslate extract attention.pdf -p 3 -f md
+```
+
+```python
+import rocktranslate
+print(rocktranslate.extract("attention.pdf", pages="3").to_markdown())
+```
+
+**⬇ Result** — the same passage, unedited:
 
 ```markdown
 ### 3.1 Encoder and Decoder Stacks
@@ -293,7 +315,7 @@ Decoder: The decoder is also composed of a stack of N = 6 identical layers. In a
 An attention function can be described as mapping a query and a set of key-value pairs to an output, where the query, keys, values, and output are all vectors. The output is computed as a weighted sum
 ```
 
-And the outline of the whole paper, headings with their real depth:
+And the outline of the whole paper (`rocktranslate extract attention.pdf -f md`), headings with their real depth:
 
 ```markdown
 # Attention Is All You Need
@@ -316,7 +338,21 @@ Author marks stay attached (`Ashish Vaswani<sup>∗</sup>`), footnotes are typed
 
 <p align="center"><img src="docs/assets/site_abstract_input.png" alt="Abstract of the paper in English" width="75%"></p>
 
-`rocktranslate paper.pdf -l French -p 1 -f md --bilingual` (output unedited):
+**▶ Command**
+
+```bash
+rocktranslate attention.pdf -l French -p 1 -f md --bilingual
+```
+
+```python
+import rocktranslate
+doc = rocktranslate.translate("attention.pdf", lang="French", pages="1")
+print(doc.to_markdown(bilingual=True))
+```
+
+Needs an API key (here DeepSeek: 3,315 tokens, $0.0019 for the page).
+
+**⬇ Result** — unedited:
 
 ```markdown
 ## Abstract
