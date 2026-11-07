@@ -172,10 +172,14 @@ class PreferencesApiMixin:
             pass
         return {"path": cache_dir, "documents": documents, "size_mb": round(total / 1e6, 1)}
 
-    def clear_translation_cache(self) -> Dict[str, Any]:
-        """Deletes cached workspaces and translations, except the open document's."""
+    def clear_translation_cache(self, include_current: bool = False) -> Dict[str, Any]:
+        """
+        Deletes cached workspaces and translations. By default the open
+        document's cache is kept; with include_current=True it is removed too
+        and the open document is prepared again from scratch (fresh layout).
+        """
         cache_dir = str(config_db.get_cache_dir())
-        keep = getattr(self, "_document_hash", None)
+        keep = None if include_current else getattr(self, "_document_hash", None)
         removed = 0
         try:
             for entry in os.scandir(cache_dir):
@@ -184,6 +188,14 @@ class PreferencesApiMixin:
                     removed += 1
         except OSError as e:
             logger.warning(f"Cache cleanup failed: {e}")
+        pdf = getattr(self, "_active_pdf_path", None)
+        if include_current and pdf and os.path.exists(pdf):
+            # Forget the in-memory preparation and reopen: background re-preparation
+            self._is_prepared = False
+            self._active_html_path = None
+            self._original_texts, self._tid_to_page, self._translated_pages = {}, {}, {}
+            import threading
+            threading.Thread(target=self._run_extraction, args=(pdf,), name="rocktranslate-reopen", daemon=True).start()
         return {"status": "success", "removed": removed, **self.get_cache_info()}
 
     def open_config_folder(self) -> None:

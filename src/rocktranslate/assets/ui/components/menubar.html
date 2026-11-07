@@ -292,6 +292,12 @@
 
                 <div class="dropdown-divider"></div>
 
+                <div class="dropdown-item" @click="triggerAction('clear-cache')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_clear_cache')"></span>
+                    </span>
+                </div>
                 <div class="dropdown-item" @click="triggerAction('reset-settings')">
                     <span class="dropdown-label">
                         <span class="dropdown-checkmark"></span>

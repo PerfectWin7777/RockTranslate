@@ -229,6 +229,16 @@ function menubarController() {
         triggerAction(actionName) {
             this.closeAll();
 
+            if (actionName === 'clear-cache') {
+                (async () => {
+                    const i18n = Alpine.store('i18n');
+                    const ok = await Alpine.store('dialogs').confirm(i18n.translate('clear_cache_confirm'), i18n.translate('item_clear_cache'));
+                    if (!ok) return;
+                    const res = await window.pywebview.api.clear_translation_cache(true);
+                    if (res) window.showToast(i18n.translate('prefs_cache_cleared', { n: res.removed }), 'success');
+                })();
+                return;
+            }
             if (actionName === 'show-about') {
                 Alpine.store('modals').open('about');
             } else if (actionName === 'show-api-config') {
