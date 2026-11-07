@@ -121,8 +121,11 @@ class _Session:
         port = None
         while time.monotonic() < self.deadline and self.proc.poll() is None:
             if os.path.exists(port_file):
-                with open(port_file, encoding="utf-8") as f:
-                    first = f.readline().strip()
+                try:
+                    with open(port_file, encoding="utf-8") as f:
+                        first = f.readline().strip()
+                except OSError:
+                    first = ""      # Windows: still locked by the browser writing it
                 if first.isdigit():
                     port = int(first)
                     break

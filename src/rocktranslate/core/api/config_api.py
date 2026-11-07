@@ -139,7 +139,6 @@ class ConfigApiMixin:
         """Returns the currently saved target translation language."""
         lang = config_db.get("SystemConfig", "target_lang", "French")
         # Diagnostic Log
-        logger.debug(f" get_target_language read value: '{lang}' (from file: {config_db.filepath})")
         return lang
     
     def get_api_status(self) -> Dict[str, Any]:

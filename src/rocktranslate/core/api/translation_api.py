@@ -245,6 +245,20 @@ class TranslationApiMixin:
             tid_to_page = maps.get("tid_to_page", {})
             if not original_texts or not tid_to_page:
                 return None
+            # Self-healing: segments must be consistent with the document's own
+            # raw text (a preparation saved under the wrong document, or an
+            # interrupted one, had a handful of segments for dozens of lines).
+            raw_lines = maps.get("raw_text_lines")
+            if raw_lines is None:
+                raw_lines = 0
+                for name in os.listdir(cache_dir):
+                    if name.endswith("_raw.html"):
+                        with open(os.path.join(cache_dir, name), encoding="utf-8", errors="ignore") as f:
+                            raw_lines += f.read().count('class="t ')
+            if raw_lines >= 20 and len(original_texts) < 0.25 * raw_lines and len(original_texts) < 10:
+                logger.warning(f"Cached workspace inconsistent ({len(original_texts)} segments for "
+                               f"{raw_lines} text lines): it will be rebuilt.")
+                return None
 
             return workspace_html_path, original_texts, tid_to_page
         except (OSError, ValueError) as e:
@@ -255,22 +269,27 @@ class TranslationApiMixin:
         self,
         workspace_html_path: str,
         original_texts: Dict[str, str],
-        tid_to_page: Dict[str, int]
+        tid_to_page: Dict[str, int],
+        cache_dir: Optional[str] = None,
+        raw_text_lines: Optional[int] = None,
     ) -> None:
         """
         Persists the segment maps alongside the instrumented workspace HTML so
         the next open of the same document skips pdf2htmlEX entirely.
         """
         try:
-            cache_dir = self._document_cache_dir()
+            cache_dir = cache_dir or self._document_cache_dir()
             os.makedirs(cache_dir, exist_ok=True)
             maps_path = os.path.join(cache_dir, "maps.json")
-            with open(maps_path, "w", encoding="utf-8") as f:
+            tmp_path = maps_path + ".tmp"
+            with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump({
                     "pipeline_version": PIPELINE_VERSION,
                     "original_texts": original_texts,
-                    "tid_to_page": tid_to_page
+                    "tid_to_page": tid_to_page,
+                    "raw_text_lines": raw_text_lines,
                 }, f, ensure_ascii=False)
+            os.replace(tmp_path, maps_path)
         except OSError as e:
             logger.warning(f"Could not persist workspace cache maps: {e}")
 
@@ -338,6 +357,7 @@ class TranslationApiMixin:
             self._send_js(self._prep_event('workspace-prep-progress', f"current: {current}, total: {total}"))
 
         self._send_status_i18n("status_extraction_start")
+        prepared_for = os.path.abspath(pdf_path)
         raw_html_path = convert_pdf_to_html(
             pdf_path, assets_dir, on_progress=on_pdf_progress,
             output_dir=cache_dir, check_cancelled=cancelled or (lambda: self._stop_translation),
@@ -370,13 +390,26 @@ class TranslationApiMixin:
             self._send_toast_i18n("toast_extraction_error", "error", variables={"error": str(error)})
             return False
 
+        # The user may have opened another document meanwhile: this result
+        # belongs to `prepared_for` only (cached under ITS folder, never
+        # applied to the now-active document).
+        try:
+            with open(raw_html_path, encoding="utf-8", errors="ignore") as f:
+                raw_lines = f.read().count('class="t ')
+        except OSError:
+            raw_lines = None
+        self._save_preparation_cache(workspace_html_path, original_texts_map, tid_to_page,
+                                     cache_dir=cache_dir, raw_text_lines=raw_lines)
+        if not self._active_pdf_path or os.path.abspath(self._active_pdf_path) != prepared_for:
+            logger.info("Document changed during preparation: result cached, not applied.")
+            return False
+
         self._active_html_path = workspace_html_path
         self._original_texts = original_texts_map
         self._tid_to_page = tid_to_page
         self._is_prepared = True
         self._metadata_total_pages = max(tid_to_page.values()) + 1 if tid_to_page else self._metadata_total_pages
 
-        self._save_preparation_cache(workspace_html_path, original_texts_map, tid_to_page)
         config_db.set("RecentFiles", "active_total_pages", self._metadata_total_pages)
 
         # Serve the freshly prepared workspace to the right pane
@@ -964,7 +997,7 @@ class TranslationApiMixin:
 
         self._send_status_i18n("status_export_waiting_path")
         destination_path = self._window.create_file_dialog(
-            webview.SAVE_DIALOG,
+            getattr(getattr(webview, 'FileDialog', None), 'SAVE', None) or webview.SAVE_DIALOG,
             allow_multiple=False,
             file_types=("PDF Documents (*.pdf)", "All files (*.*)"),
             save_filename=suggested_name,

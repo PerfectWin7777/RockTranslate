@@ -155,12 +155,12 @@ class LLMClient:
         # Partially translated outputs (the model copied the end of the source)
         # are treated like omissions and go through the retry path.
         for seg_id in [k for k, v in by_id.items() if _copies_source(sources.get(k, ""), v)]:
-            logger.warning(f"Segment {seg_id} came back partly untranslated; retrying it.")
+            logger.info(f"Segment {seg_id} came back partly untranslated; retrying it.")
             del by_id[seg_id]
 
         missing = [seg for seg in batch_segments if seg["id"] not in by_id]
         if missing and not (check_cancelled and check_cancelled()):
-            logger.warning(f"Model omitted {len(missing)} segment(s); re-requesting them once.")
+            logger.info(f"Model omitted {len(missing)} segment(s); re-requesting them once.")
             retry = self._translate_with_retries(missing, context, check_cancelled)
             if retry:
                 by_id.update(self._index_valid_results(retry, {seg["id"] for seg in missing}))

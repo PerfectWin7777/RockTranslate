@@ -46,7 +46,7 @@ class HistoryApiMixin:
 
         file_types = ("PDF Documents (*.pdf)", "All files (*.*)")
         result = self._window.create_file_dialog(
-            webview.OPEN_DIALOG,
+            getattr(getattr(webview, 'FileDialog', None), 'OPEN', None) or webview.OPEN_DIALOG,
             allow_multiple=False,
             file_types=file_types
         )
@@ -79,7 +79,7 @@ class HistoryApiMixin:
 
         file_filter = "Executables (*.exe)" if os.name == "nt" else "All Files (*)"
         result = self._window.create_file_dialog(
-            webview.OPEN_DIALOG,
+            getattr(getattr(webview, 'FileDialog', None), 'OPEN', None) or webview.OPEN_DIALOG,
             allow_multiple=False,
             file_types=(file_filter, "All files (*.*)")
         )
