@@ -134,7 +134,10 @@ jobs:
   pypi:
     # Enable with: Settings > Secrets and variables > Actions > Variables > PUBLISH_TO_PYPI = true
     # and configure a "Trusted Publisher" for this repository on pypi.org (no token needed).
-    if: github.ref == 'refs/heads/main' && vars.PUBLISH_TO_PYPI == 'true' && needs.github-release.outputs.created == 'true'
+    # Runs on every main build once enabled: a version already on PyPI is
+    # skipped (skip-existing), so the first build after enabling publishes the
+    # current version even though its GitHub release already existed.
+    if: github.ref == 'refs/heads/main' && vars.PUBLISH_TO_PYPI == 'true' && needs.github-release.result == 'success'
     needs: [github-release]
     runs-on: ubuntu-latest
     environment: pypi
@@ -146,3 +149,5 @@ jobs:
           name: python-dist
           path: dist
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
