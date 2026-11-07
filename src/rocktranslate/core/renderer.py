@@ -367,11 +367,14 @@ def print_html_with_fallback(input_html_path: str, output_pdf_path: str,
     from .downloader import check_and_download_headless_shell, find_downloaded_headless_shell
 
     if timeout is None:
+        # Page count drives the cost (backgrounds are separate files now, so
+        # the HTML size no longer reflects the work): ~6 s per page, capped.
         try:
-            size_mb = os.path.getsize(input_html_path) / 1e6
+            with open(input_html_path, encoding="utf-8", errors="ignore") as f:
+                pages = f.read().count('class="pf ')
         except OSError:
-            size_mb = 10
-        timeout = min(PRINT_TIMEOUT_SECONDS, 60 + 4 * size_mb)
+            pages = 20
+        timeout = min(900.0, 90.0 + 6.0 * max(pages, 1))
 
     output_abs = os.path.abspath(output_pdf_path)
     if os.path.dirname(output_abs):
@@ -379,10 +382,17 @@ def print_html_with_fallback(input_html_path: str, output_pdf_path: str,
 
     candidates = ([browser_path] if browser_path and "headless-shell" not in os.path.basename(browser_path).lower()
                   else []) + _devtools_browsers()
+    import time as _time
     for browser in dict.fromkeys(candidates):
+        started = _time.monotonic()
         if print_to_pdf(browser, input_html_path, output_abs, timeout):
-            logger.info(f"PDF printed with {os.path.basename(browser)} (DevTools).")
+            logger.info(f"PDF printed with {os.path.basename(browser)} (DevTools) in "
+                        f"{_time.monotonic() - started:.0f}s.")
             return True
+        if _time.monotonic() - started > 0.8 * timeout:
+            # It worked but ran out of time: another engine would be as slow
+            logger.warning(f"Printing timed out with {browser}.")
+            return False
         logger.warning(f"Printing through DevTools failed with {browser}; trying the next engine.")
 
     shell = find_downloaded_headless_shell() or check_and_download_headless_shell()

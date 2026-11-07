@@ -6,7 +6,10 @@
 <div id="statusbar-container" x-data="statusbarController()">
 
     <!-- LEFT PANEL: Status message text -->
-    <div class="status-text-left" x-text="currentStatus"></div>
+    <div class="status-text-left">
+        <span x-text="currentStatus"></span>
+        <span class="status-busy" x-show="busy" x-cloak><i></i><i></i><i></i></span>
+    </div>
 
     <!-- RIGHT PANEL: Zoom percentage increments widget -->
     <div class="status-zoom-widget">

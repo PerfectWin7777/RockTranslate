@@ -16,6 +16,8 @@ function statusbarController() {
 
         // ── INITIAL ZOOM FIX: Set comfortable default scale to 80% ──
         zoomPercent: 100,
+        // Long background work (PDF export...): animated dots after the message
+        busy: false,
 
         // Either an i18n key (re-translated live) or a literal text
         statusKey: 'status_ready',
@@ -28,6 +30,7 @@ function statusbarController() {
         },
 
         init() {
+            window.addEventListener('app-busy', (e) => { this.busy = !!(e.detail && e.detail.on); });
             window.addEventListener('update-status-text', (event) => {
                 const d = event.detail || {};
                 if (d.key) {

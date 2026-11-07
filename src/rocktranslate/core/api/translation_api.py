@@ -358,11 +358,20 @@ class TranslationApiMixin:
 
         self._send_status_i18n("status_extraction_start")
         prepared_for = os.path.abspath(pdf_path)
-        raw_html_path = convert_pdf_to_html(
-            pdf_path, assets_dir, on_progress=on_pdf_progress,
-            output_dir=cache_dir, check_cancelled=cancelled or (lambda: self._stop_translation),
-            user_password=self._pdf_passwords.get(os.path.abspath(pdf_path)),
-        )
+        # A conversion that stalls (no output, no CPU) is retried automatically:
+        # observed hangs on large PDFs succeed on a fresh attempt.
+        stop = cancelled or (lambda: self._stop_translation)
+        raw_html_path = None
+        for attempt in range(1, 4):
+            raw_html_path = convert_pdf_to_html(
+                pdf_path, assets_dir, on_progress=on_pdf_progress,
+                output_dir=cache_dir, check_cancelled=stop,
+                user_password=self._pdf_passwords.get(os.path.abspath(pdf_path)),
+            )
+            if raw_html_path or stop() or "stalled" not in (LAST_CONVERSION_ERROR.get("message") or ""):
+                break
+            logger.warning(f"pdf2htmlEX stalled: automatic retry {attempt + 1}/3...")
+            self._send_status_i18n("status_conversion_retry", {"attempt": attempt + 1, "max": 3})
 
         # Cancellation requested while converting: exit gracefully
         if (cancelled or (lambda: self._stop_translation))():
@@ -1017,6 +1026,7 @@ class TranslationApiMixin:
 
     def _export_worker(self, destination_path: str) -> None:
         temp_html_path = None
+        self._send_js("window.dispatchEvent(new CustomEvent('app-busy', { detail: { on: true } }))")
         try:
             translations = {seg_id: text for page in self._translated_pages.values() for seg_id, text in page.items()}
             # Written next to the workspace: its page images are relative files
@@ -1035,6 +1045,7 @@ class TranslationApiMixin:
             logger.error(f"Error during PDF export pipeline: {e}")
             self._send_toast_i18n("toast_export_error", "error", variables={"error": str(e)})
         finally:
+            self._send_js("window.dispatchEvent(new CustomEvent('app-busy', { detail: { on: false } }))")
             if temp_html_path:
                 try:
                     os.unlink(temp_html_path)
