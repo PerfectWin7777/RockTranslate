@@ -184,6 +184,14 @@ class _ThreadingServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     daemon_threads = True
     allow_reuse_address = True
 
+    def handle_error(self, request, client_address) -> None:
+        """A viewer that cancels a download (navigation, reload) is not an error."""
+        import sys
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (ConnectionAbortedError, ConnectionResetError, BrokenPipeError)):
+            return
+        logger.warning(f"Local server error for {client_address}: {exc!r}")
+
 
 def start_local_server(port: int, directory: str, ready: Optional[threading.Event] = None) -> None:
     """Runs the hardened server forever (call from a daemon thread)."""

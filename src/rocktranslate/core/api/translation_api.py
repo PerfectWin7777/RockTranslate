@@ -87,9 +87,17 @@ class TranslationApiMixin:
         Args:
             file_path: Absolute filesystem path to the target PDF document.
         """
+        # The same file requested twice in a row (double click, drop + dialog):
+        # opened once, the duplicate is ignored.
+        now = time.monotonic()
+        last = getattr(self, "_last_open_request", (None, 0.0))
+        if file_path and last[0] == file_path and now - last[1] < 3.0:
+            logger.info("Duplicate open request ignored.")
+            return
+        self._last_open_request = (file_path, now)
         thread = threading.Thread(
-            target=self._run_extraction, 
-            args=(file_path,), 
+            target=self._run_extraction,
+            args=(file_path,),
             daemon=True
         )
         thread.start()
