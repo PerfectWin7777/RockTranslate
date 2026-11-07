@@ -15,7 +15,7 @@ function statusbarController() {
         statusText: '',
 
         // ── INITIAL ZOOM FIX: Set comfortable default scale to 80% ──
-        zoomPercent: 80,
+        zoomPercent: 100,
 
         // Either an i18n key (re-translated live) or a literal text
         statusKey: 'status_ready',
@@ -47,12 +47,12 @@ function statusbarController() {
                 this.updateZoom();
             });
 
-            // Dispatch our initial 80% zoom on startup
+            // Dispatch the initial zoom (100%: both panes at the PDF's natural size)
             this.$nextTick(() => this.updateZoom());
         },
 
         updateZoom() {
-            this.zoomPercent = Math.max(50, Math.min(250, parseInt(this.zoomPercent) || 80));
+            this.zoomPercent = Math.max(50, Math.min(300, parseInt(this.zoomPercent) || 100));
 
             // Dispatch active zoom factor to workspace iframe viewports
             const factor = this.zoomPercent / 100.0;
@@ -65,7 +65,7 @@ function statusbarController() {
         },
 
         increment() {
-            this.zoomPercent = Math.min(250, this.zoomPercent + 10);
+            this.zoomPercent = Math.min(300, this.zoomPercent + 10);
             this.updateZoom();
         }
     };

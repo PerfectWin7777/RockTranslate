@@ -88,3 +88,40 @@
     font-family: var(--rt-font-mono);
     color: var(--rt-text-3);
 }
+
+/* ── Panel controls (VS Code style) ── */
+#progress-container { position: fixed; }
+.progress-full { display: flex; flex-direction: column; gap: 7px; }
+.progress-panel-actions {
+    position: absolute;
+    top: 4px;
+    right: 8px;
+    display: flex;
+    gap: 2px;
+    z-index: 1;
+}
+.progress-panel-btn {
+    width: 22px;
+    height: 20px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--rt-text-muted, var(--rt-text));
+    font-size: 11px;
+    line-height: 20px;
+    cursor: pointer;
+    padding: 0;
+}
+.progress-panel-btn:hover { background: var(--rt-hover, rgba(127, 127, 127, 0.18)); color: var(--rt-text); }
+.progress-compact {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11.5px;
+    color: var(--rt-text);
+    padding-right: 60px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.progress-compact-sep { opacity: 0.45; }

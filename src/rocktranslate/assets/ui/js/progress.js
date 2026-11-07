@@ -32,7 +32,25 @@ function progressController() {
         elapsedTick: 0,
         _tickTimer: null,
 
+        // Compact one-line mode (persisted per viewer)
+        collapsed: (() => { try { return localStorage.getItem('rt-progress-collapsed') === '1'; } catch (e) { return false; } })(),
+
+        toggleCollapsed() {
+            this.collapsed = !this.collapsed;
+            try { localStorage.setItem('rt-progress-collapsed', this.collapsed ? '1' : '0'); } catch (e) { }
+            this.applyPanelHeight();
+        },
+
+        closePanel() {
+            window.dispatchEvent(new CustomEvent('trigger-toggle-progress', { detail: { visible: false } }));
+        },
+
+        applyPanelHeight() {
+            document.documentElement.style.setProperty('--rt-progress-h', this.collapsed ? '30px' : '96px');
+        },
+
         init() {
+            this.applyPanelHeight();
             window.addEventListener('trigger-toggle-progress', (e) => {
                 this.visible = e.detail.visible;
             });

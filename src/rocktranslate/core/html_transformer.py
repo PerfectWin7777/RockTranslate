@@ -453,7 +453,7 @@ SYMBOL_GLYPH_FIXES = str.maketrans({"ð": "(", "Þ": ")", "¼": "=", "þ": "+"})
 
 # Bump whenever instrument_html output changes: cached workspaces built by an
 # older pipeline are then re-instrumented from the cached raw HTML.
-PIPELINE_VERSION = 16
+PIPELINE_VERSION = 17
 
 
 def parse_font_sizes(soup: BeautifulSoup) -> Dict[str, float]:
@@ -1301,33 +1301,30 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
         }
 
        @keyframes loading-shimmer {
-            0% {
-                background-position: -150px 0;
-            }
-            100% {
-                background-position: 150px 0;
-            }
+            0% { background-position: 100% 0; }
+            100% { background-position: 0% 0; }
         }
-        
+
+        /* Skeleton bars: the highlight sweeps the WHOLE line (it used to stop
+           after 300 px), with soft, page-neutral tones and rounded ends. */
         .shimmer-line {
             display: inline-block !important;
-            background: #f1f5f9 !important;
-            background-image: linear-gradient(
-                90deg, 
-                #f1f5f9 0px, 
-                #cbd5e1 40px, 
-                #f1f5f9 80px
-            ) !important;
-            background-size: 250px 100% !important;
+            background-color: rgba(148, 163, 184, 0.22) !important;
+            background-image: linear-gradient(90deg,
+                rgba(148, 163, 184, 0) 35%,
+                rgba(148, 163, 184, 0.45) 50%,
+                rgba(148, 163, 184, 0) 65%) !important;
+            background-size: 300% 100% !important;
             background-repeat: no-repeat !important;
-            animation: loading-shimmer 1.5s infinite linear !important;
-
+            animation: loading-shimmer 1.6s infinite ease-in-out !important;
             will-change: background-position !important;
             transform: translateZ(0) !important;
-
-            border-radius: 4px !important;
+            border-radius: 999px !important;
             color: transparent !important;
             min-width: 30px;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .shimmer-line { animation: none !important; }
         }
         .shimmer-line * { color: transparent !important; }
 
@@ -1695,6 +1692,23 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     var keep = document.querySelector('[data-trans-id="' + transId + '"]');
                     if (keep) keep.classList.remove('shimmer-line');
                     return;
+                }
+                // Unchanged by the translator (author names, affiliations, codes):
+                // the original line stays untouched, so its superscripts and
+                // exact glyph positions are preserved.
+                var srcEls = document.querySelectorAll('[data-trans-id="' + transId + '"], [data-para="' + transId + '"]');
+                if (srcEls.length) {
+                    var parser = new DOMParser(), src = '';
+                    srcEls.forEach(function (e) {
+                        var h = e.getAttribute('data-orig-html');
+                        src += ' ' + (h !== null ? (parser.parseFromString(h, 'text/html').body.textContent || '') : e.textContent);
+                    });
+                    var norm = function (t) { return String(t).replace(/<[^>]+>/g, '').replace(/[\s\u00ad-]+/g, ''); };
+                    if (norm(src) === norm(translatedText)) {
+                        srcEls.forEach(function (e) { e.classList.remove('shimmer-line'); });
+                        window.rtRevealPageOf(srcEls[0]);
+                        return;
+                    }
                 }
                 if (String(transId).indexOf('p-') === 0) {
                     window.reflowParagraph(transId, translatedText);

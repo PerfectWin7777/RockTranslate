@@ -23,6 +23,9 @@ window.rtSessionToken = function () {
  * Version: 1.0.3
  */
 
+// pdf2htmlEX converts at --zoom 1.3 px/pt; PDF.js shows 96/72 px/pt at 100%
+const RT_HTML_ZOOM_CORRECTION = (96 / 72) / 1.3;
+
 function workspaceController() {
     return {
         isDragging: false,
@@ -31,7 +34,7 @@ function workspaceController() {
         lastSyncedPage: 0,
 
         // Default initial zoom factor (80%)
-        zoomFactor: 0.8,
+        zoomFactor: 1.0,
 
         init() {
             // The workspace component is re-mounted on every document open: drop
@@ -319,11 +322,26 @@ function workspaceController() {
             }
         },
 
+        /**
+         * One zoom factor for both panes, at the same visual size: PDF.js
+         * draws 96/72 CSS px per point at 100%, pdf2htmlEX pages are converted
+         * at 1.3 px per point, hence the HTML correction factor. Debounced:
+         * zooming relayouts large documents, so slider drags apply once
+         * movement pauses instead of on every pixel (the old full-workspace
+         * zoom re-rendered both panes on every slider event).
+         */
         applyZoom(factor) {
-            const grid = document.getElementById('workspace-grid');
-            if (grid) {
-                grid.style.zoom = factor;
-            }
+            clearTimeout(this._zoomTimer);
+            this._zoomTimer = setTimeout(() => {
+                try {
+                    const doc = document.getElementById('html-iframe').contentWindow.document;
+                    if (doc && doc.body) doc.body.style.zoom = factor * RT_HTML_ZOOM_CORRECTION;
+                } catch (e) { /* frame not ready */ }
+                try {
+                    const app = document.getElementById('pdf-iframe').contentWindow.PDFViewerApplication;
+                    if (app && app.pdfViewer && app.pdfDocument) app.pdfViewer.currentScaleValue = factor;
+                } catch (e) { /* viewer not ready */ }
+            }, 90);
         },
 
         /**
@@ -466,7 +484,7 @@ function workspaceController() {
                 try {
                     const body = rightDoc.body;
                     if (body) {
-                        body.style.zoom = self.zoomFactor;
+                        body.style.zoom = self.zoomFactor * RT_HTML_ZOOM_CORRECTION;
                     }
                 } catch (e) {
                     // Suppress failures if body zoom metrics are currently locked

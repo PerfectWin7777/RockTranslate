@@ -8,6 +8,25 @@
     x-transition:enter-end="progress-enter-end" x-transition:leave="progress-leave"
     x-transition:leave-start="progress-leave-start" x-transition:leave-end="progress-leave-end" x-cloak>
 
+    <!-- Panel controls (VS Code style): collapse / expand, close -->
+    <div class="progress-panel-actions">
+        <button class="progress-panel-btn" @click="toggleCollapsed()"
+            :title="$store.i18n.translate(collapsed ? 'panel_expand' : 'panel_collapse')"
+            x-text="collapsed ? '▴' : '▾'"></button>
+        <button class="progress-panel-btn" @click="closePanel()"
+            :title="$store.i18n.translate('panel_close')">✕</button>
+    </div>
+
+    <!-- Collapsed: one compact line -->
+    <div class="progress-compact" x-show="collapsed">
+        <span x-text="$store.i18n.translate('prop_pages_progress', { done: donePages, total: totalPages })"></span>
+        <span class="progress-compact-sep">·</span>
+        <span x-text="$store.i18n.translate('prop_segments_progress', { done: doneSegments, total: totalSegments })"></span>
+        <span class="progress-compact-sep" x-show="getUsageLine()">·</span>
+        <span class="progress-stats" x-text="getUsageLine()"></span>
+    </div>
+
+    <template x-if="!collapsed"><div class="progress-full">
     <!-- 1. Global Document Progress Row (Blue) -->
     <div class="progress-row">
         <div class="progress-label-row">
@@ -37,5 +56,6 @@
         <span class="progress-stats" x-text="getUsageLine()"></span>
         <span class="progress-model" x-text="getModelLabel()"></span>
     </div>
+    </div></template>
 
 </div>
