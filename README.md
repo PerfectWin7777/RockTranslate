@@ -275,44 +275,25 @@ RockTranslate also turns a PDF into **typed, positioned elements** — the schem
 }
 ```
 
-**2 · The document's real structure.** Input: page 1 of *Attention Is All You Need* (arXiv:1706.03762).
+**2 · The document's real structure.** Input: page 3 of *Attention Is All You Need* (arXiv:1706.03762).
 
-<p align="center"><img src="docs/assets/readme_extract_page_input.png" alt="First page of the paper" width="60%"></p>
+<p align="center"><img src="docs/assets/site_headings_input.png" alt="Page 3 of the paper with sections 3.1 and 3.2" width="75%"></p>
 
-Markdown outline produced by `rocktranslate extract` (headings with their real depth, numbering kept):
+Markdown outline produced by  (headings with their real depth, numbering kept):
 
-```markdown
-# Attention Is All You Need
-## Abstract
-## 1 Introduction
-## 2 Background
-## 3 Model Architecture
-### 3.1 Encoder and Decoder Stacks
-### 3.2 Attention
-#### 3.2.1 Scaled Dot-Product Attention
-#### 3.2.2 Multi-Head Attention
-### 3.3 Position-wise Feed-Forward Networks
-## 4 Why Self-Attention
-…
-```
 
-Author marks stay attached (`Ashish Vaswani<sup>∗</sup>`), footnotes are typed `Footnote`, the rotated arXiv stamp is read as one `Header` (`arXiv:1706.03762v7 [cs.CL] 2 Aug 2023`), and words drawn inside figures are kept apart as `FigureText`.
 
-**3 · Bilingual, aligned paragraph by paragraph.** `rocktranslate paper.pdf -l French -p 1 -f md --bilingual`:
+Author marks stay attached (), footnotes are typed , the rotated arXiv stamp is read as one  (), and words drawn inside figures are kept apart as .
 
-```markdown
-## Abstract
+**3 · Bilingual, aligned paragraph by paragraph.** Input: the abstract on page 1.
 
-> Résumé
+<p align="center"><img src="docs/assets/site_abstract_input.png" alt="Abstract of the paper in English" width="75%"></p>
 
-The dominant sequence transduction models are based on complex recurrent or convolutional
-neural networks that include an encoder and a decoder. […]
+ (output unedited):
 
-> Les modèles dominants de transduction de séquences reposent sur des réseaux neuronaux
-> récurrents ou convolutifs complexes comprenant un encodeur et un décodeur. […]
-```
 
-Unchanged text (names, e-mails, codes) is not repeated; tables are translated cell by cell (`table_translation`).
+
+Unchanged text (names, e-mails, codes) is not repeated; tables are translated cell by cell ().
 
 **4 · Find a passage, see it in the original PDF.** `doc.search()` looks into the original *and* the translation; `doc.highlight()` frames the hits at their exact position in a copy of the source PDF:
 
