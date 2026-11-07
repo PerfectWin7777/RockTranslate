@@ -1943,3 +1943,13 @@ html, body { max-width: 100%; overflow-x: clip; }
     .engine-split { grid-template-columns: minmax(0, 1fr); gap: 36px; }
 }
 .engine-text .section-tag { align-self: flex-start; }
+
+/* Source beside its output: the source image stays in view while a longer
+   output (two languages) scrolls past it */
+.extract-pair { align-items: start; }
+.extract-pair .extract-input { position: sticky; top: 104px; }
+.extract-prose { font-size: 0.8rem; line-height: 1.6; }
+
+@media (max-width: 960px) {
+    .extract-pair .extract-input { position: static; }
+}
