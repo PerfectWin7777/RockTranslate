@@ -245,19 +245,19 @@ RockTranslate also turns a PDF into **typed, positioned elements** — the schem
 
 #### 🔎 See it on real papers (outputs below are unedited)
 
-**1 · Tables rebuilt cell by cell.** Input: *Table 4* of an open-access geology paper (Wabo Defo et al., *Geological Magazine*, 2026, CC BY 4.0).
+**1 · Tables rebuilt cell by cell.** Input: a table from an open-access scientific paper (geology).
 
 <p align="center"><img src="docs/assets/readme_extract_table_input.png" alt="Source table in the PDF" width="90%"></p>
 
 **▶ Command**
 
 ```bash
-rocktranslate extract wabo.pdf -p 11 -f md,json
+rocktranslate extract paper.pdf -p 11 -f md,json
 ```
 
 ```python
 import rocktranslate
-table = rocktranslate.extract("wabo.pdf", pages="11").tables[0].table
+table = rocktranslate.extract("paper.pdf", pages="11").tables[0].table
 ```
 
 **⬇ Result** — Markdown (first rows):

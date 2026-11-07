@@ -120,7 +120,7 @@ print(doc.output_pdf, doc.report.cost_usd)</code></pre>
         <!-- ── Translate ── -->
         <section id="translate-cli" class="docs-section">
             <h2>Translate from the command line</h2>
-            <pre class="docs-code"><code>rocktranslate "Tankeu et al. 2026.pdf" -l German -p 1-2 -o out/tankeu_de.pdf</code></pre>
+            <pre class="docs-code"><code>rocktranslate paper.pdf -l German -p 1-2 -o out/paper_de.pdf</code></pre>
             <p>With <code>-p</code>, only the requested pages are converted, so a range of a large PDF starts in seconds. The layout analysis is cached per page range, and translations are cached per document, language and model: a second run of the same pages costs nothing.</p>
             <p>Measured on the 40-page reference paper (pages 1-2, Windows laptop): conversion 3 s, layout analysis 8 s, translation 10 s, PDF export 15 s on a warm run.</p>
         </section>
@@ -181,7 +181,7 @@ for table in doc.tables:
             <pre class="docs-code"><code>rocktranslate extract paper.pdf -f json,md,chunks -p 1-10</code></pre>
             <figure class="docs-figure">
                 <img src="assets/readme_extract_table_input.png" alt="Source table in the PDF" loading="lazy">
-                <figcaption>Input: Table 4, Wabo Defo et al., <em>Geological Magazine</em>, 2026 (CC BY 4.0). Output below, unedited.</figcaption>
+                <figcaption>Input: a table from an open-access scientific paper. Output below, unedited.</figcaption>
             </figure>
             <pre class="docs-code"><code>| 1 | 1.02 | 0.02 | 1.07 | 12.74 | 0.20 | 1.90 | 0.44 | 48.17 | 0.39 | 0.31 |
 | 2 | 0.80 | 0.01 | 1.33 | 2.42  | 0.20 | 1.79 | 0.29 | −21.74 | 0.18 | 0.26 |
