@@ -77,33 +77,39 @@ _PROBE_PAGE = ("<html><body><div id=x style='width:123px'>x</div><script>"
 
 def _probe_full_browser(browser: str, timeout: float = 10.0) -> bool:
     """
-    A desktop browser (Edge, Chrome) is used for measuring only if it answers a
-    tiny --dump-dom page within a few seconds. The verdict is remembered per
-    executable, so a browser that hangs costs those seconds once, ever.
+    A desktop browser (Edge, Chrome) is used for measuring if it answers a tiny
+    page through the DevTools protocol within a few seconds. The verdict is
+    remembered per executable (and version, via its mtime).
     """
     try:
         from .config_manager import config_db
-        verdicts = config_db.get("SystemConfig", "geometry_browser_ok", {}) or {}
+        verdicts = config_db.get("SystemConfig", "geometry_browser_ok_cdp", {}) or {}
     except Exception:
         config_db, verdicts = None, {}
     key = f"{browser}|{int(os.path.getmtime(browser)) if os.path.exists(browser) else 0}"
     if key in verdicts:
         return bool(verdicts[key])
     ok = False
+    tmp = tempfile.mkdtemp(prefix="rocktranslate-probe-")
     try:
-        with tempfile.TemporaryDirectory(prefix="rocktranslate-probe-") as tmp:
-            page = os.path.join(tmp, "probe.html")
-            with open(page, "w", encoding="utf-8") as f:
-                f.write(_PROBE_PAGE)
-            from .proc import run_with_timeout
-            code, out, _ = run_with_timeout(_cmd(browser, page, os.path.join(tmp, "profile")), timeout)
-            ok = code is not None and b'id="rt-probe">123<' in out
+        page = os.path.join(tmp, "probe.html")
+        with open(page, "w", encoding="utf-8") as f:
+            f.write("<html><body><div id=x style='width:123px'>x</div></body></html>")
+        from .cdp import evaluate_in_page
+        url = "file:///" + os.path.abspath(page).replace(os.sep, "/").lstrip("/")
+        value = evaluate_in_page(browser, url,
+                                 "location.href.startsWith('file:') ? document.getElementById('x').offsetWidth : null",
+                                 timeout)
+        ok = value == 123
     except Exception:
         ok = False
-    logger.info(f"Geometry browser probe: {browser} -> {'usable' if ok else 'unusable (hangs or fails headless)'}")
+    finally:
+        import shutil
+        shutil.rmtree(tmp, ignore_errors=True)
+    logger.info(f"Geometry browser probe: {browser} -> {'usable' if ok else 'unusable'}")
     if config_db is not None:
         verdicts[key] = ok
-        config_db.set("SystemConfig", "geometry_browser_ok", verdicts)
+        config_db.set("SystemConfig", "geometry_browser_ok_cdp", verdicts)
     return ok
 
 
@@ -173,7 +179,10 @@ def measure_line_boxes(raw_html_path: str, timeout: Optional[float] = None) -> O
         except OSError:
             pages = 10
         timeout = min(120.0, 20.0 + 1.5 * pages)
-    result = _measure_with(browser, raw_html_path, timeout)
+    if _is_headless_shell(browser):
+        result = _measure_with(browser, raw_html_path, timeout)
+    else:
+        result = _measure_via_devtools(browser, raw_html_path, timeout)
     if result is None:
         _FAILED_BROWSERS.add(browser)
     return result
@@ -212,3 +221,52 @@ def _measure_with(browser: str, raw_html_path: str, timeout: float) -> Optional[
     except Exception as e:
         logger.warning(f"Geometry pass failed ({e}); using estimates.")
         return None
+
+
+_CDP_MEASURE = r"""
+(async () => {
+  if (!location.href.startsWith('file:')) return null;
+  if (document.readyState !== 'complete') await new Promise(r => window.addEventListener('load', r, {once: true}));
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.forEach(f => { try { f.load(); } catch (e) {} });
+    await document.fonts.ready;
+  }
+  await new Promise(r => setTimeout(r, 50));
+  document.querySelectorAll('.pc').forEach(p => { p.style.display = 'block'; });
+  const out = [];
+  document.querySelectorAll('.pf').forEach(pf => {
+    const pr = pf.getBoundingClientRect();
+    const k = (pf.offsetWidth && pr.width) ? pr.width / pf.offsetWidth : 1;
+    const boxes = [];
+    pf.querySelectorAll('div.t').forEach(d => {
+      const r = d.getBoundingClientRect();
+      boxes.push([((r.left - pr.left) / k).toFixed(2), ((r.right - pr.left) / k).toFixed(2),
+                  ((r.top - pr.top) / k).toFixed(2), ((r.bottom - pr.top) / k).toFixed(2)].join(','));
+    });
+    out.push(boxes.join(';'));
+  });
+  return out.join('|');
+})()
+"""
+
+
+def _parse_blob(blob: str) -> List[List[Box]]:
+    pages: List[List[Box]] = []
+    for page_blob in blob.split("|"):
+        boxes: List[Box] = []
+        for item in filter(None, page_blob.split(";")):
+            l, r, t, b = (float(v) for v in item.split(","))
+            boxes.append((l, r, t, b))
+        pages.append(boxes)
+    return pages
+
+
+def _measure_via_devtools(browser: str, raw_html_path: str, timeout: float) -> Optional[List[List[Box]]]:
+    """Desktop Chrome / Edge, driven through the DevTools protocol."""
+    from .cdp import evaluate_in_page
+    url = "file:///" + os.path.abspath(raw_html_path).replace(os.sep, "/").lstrip("/")
+    blob = evaluate_in_page(browser, url, _CDP_MEASURE, timeout)
+    if not isinstance(blob, str):
+        logger.warning(f"Geometry pass via DevTools failed ({os.path.basename(browser)}); using estimates.")
+        return None
+    return _parse_blob(blob)
