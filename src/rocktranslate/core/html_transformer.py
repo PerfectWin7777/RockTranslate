@@ -453,7 +453,7 @@ SYMBOL_GLYPH_FIXES = str.maketrans({"ð": "(", "Þ": ")", "¼": "=", "þ": "+"})
 
 # Bump whenever instrument_html output changes: cached workspaces built by an
 # older pipeline are then re-instrumented from the cached raw HTML.
-PIPELINE_VERSION = 15
+PIPELINE_VERSION = 16
 
 
 def parse_font_sizes(soup: BeautifulSoup) -> Dict[str, float]:
