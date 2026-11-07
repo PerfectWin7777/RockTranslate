@@ -210,7 +210,7 @@ def convert_pdf_to_html(
 
     deadline: Optional[float] = (time.monotonic() + timeout) if timeout else None
     last_progress: Tuple[int, int] = (0, 0)
-    stderr_tail: "deque" = deque(maxlen=8)
+    stderr_tail: "deque" = deque(maxlen=40)
 
     seen_output = False
     while True:
