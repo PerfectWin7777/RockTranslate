@@ -625,14 +625,28 @@
                 <article class="extract-case">
                     <header class="extract-case-head">
                         <h3>Real headings, real depth</h3>
-                        <p><em>Attention Is All You Need</em>: numbering kept, depth taken from the numbering, author marks attached, the rotated arXiv stamp read as one header.</p>
+                        <p><em>Attention Is All You Need</em>, page 3: the same passage as Markdown, unedited. Headings keep their numbering and get their depth from it (3.1 → <code>###</code>).</p>
                     </header>
                     <div class="extract-pair">
                         <figure class="extract-input">
                             <figcaption>In the PDF, page 3</figcaption>
                             <img src="assets/site_headings_input.png" alt="Page 3 of the paper with sections 3.1 and 3.2" loading="lazy">
                         </figure>
-<pre class="extract-code"><code># Attention Is All You Need
+                        <div class="extract-output">
+                            <div class="extract-tabs" role="tablist">
+                                <button type="button" class="extract-tab active" data-target="h-page">This passage</button>
+                                <button type="button" class="extract-tab" data-target="h-outline">Whole paper outline</button>
+                            </div>
+<pre class="extract-code extract-prose" id="h-page"><code>### 3.1 Encoder and Decoder Stacks
+
+Encoder: The encoder is composed of a stack of N = 6 identical layers. Each layer has two sub-layers. The ﬁrst is a multi-head self-attention mechanism, and the second is a simple, positionwise fully connected feed-forward network. We employ a residual connection [ 11] around each of the two sub-layers, followed by layer normalization [ 1]. That is, the output of each sub-layer is LayerNorm(x + Sublayer(x)), where Sublayer(x) is the function implemented by the sub-layer itself. To facilitate these residual connections, all sub-layers in the model, as well as the embedding layers, produce outputs of dimension d&lt;sub&gt;model&lt;/sub&gt; = 512.
+
+Decoder: The decoder is also composed of a stack of N = 6 identical layers. In addition to the two sub-layers in each encoder layer, the decoder inserts a third sub-layer, which performs multi-head attention over the output of the encoder stack. Similar to the encoder, we employ residual connections around each of the sub-layers, followed by layer normalization. We also modify the self-attention sub-layer in the decoder stack to prevent positions from attending to subsequent positions. This masking, combined with fact that the output embeddings are offset by one position, ensures that the predictions for position i can depend only on the known outputs at positions less than i.
+
+### 3.2 Attention
+
+An attention function can be described as mapping a query and a set of key-value pairs to an output, where the query, keys, values, and output are all vectors. The output is computed as a weighted sum</code></pre>
+<pre class="extract-code" id="h-outline" hidden><code># Attention Is All You Need
 ## Abstract
 ## 1 Introduction
 ## 2 Background
@@ -644,6 +658,7 @@
 ### 3.3 Position-wise Feed-Forward Networks
 ## 4 Why Self-Attention
 …</code></pre>
+                        </div>
                     </div>
                 </article>
 

@@ -279,7 +279,21 @@ RockTranslate also turns a PDF into **typed, positioned elements** — the schem
 
 <p align="center"><img src="docs/assets/site_headings_input.png" alt="Page 3 of the paper with sections 3.1 and 3.2" width="75%"></p>
 
-Markdown outline produced by `rocktranslate extract` (headings with their real depth, numbering kept):
+The same passage as produced by `rocktranslate extract -f md` (unedited):
+
+```markdown
+### 3.1 Encoder and Decoder Stacks
+
+Encoder: The encoder is composed of a stack of N = 6 identical layers. Each layer has two sub-layers. The ﬁrst is a multi-head self-attention mechanism, and the second is a simple, positionwise fully connected feed-forward network. We employ a residual connection [ 11] around each of the two sub-layers, followed by layer normalization [ 1]. That is, the output of each sub-layer is LayerNorm(x + Sublayer(x)), where Sublayer(x) is the function implemented by the sub-layer itself. To facilitate these residual connections, all sub-layers in the model, as well as the embedding layers, produce outputs of dimension d<sub>model</sub> = 512.
+
+Decoder: The decoder is also composed of a stack of N = 6 identical layers. In addition to the two sub-layers in each encoder layer, the decoder inserts a third sub-layer, which performs multi-head attention over the output of the encoder stack. Similar to the encoder, we employ residual connections around each of the sub-layers, followed by layer normalization. We also modify the self-attention sub-layer in the decoder stack to prevent positions from attending to subsequent positions. This masking, combined with fact that the output embeddings are offset by one position, ensures that the predictions for position i can depend only on the known outputs at positions less than i.
+
+### 3.2 Attention
+
+An attention function can be described as mapping a query and a set of key-value pairs to an output, where the query, keys, values, and output are all vectors. The output is computed as a weighted sum
+```
+
+And the outline of the whole paper, headings with their real depth:
 
 ```markdown
 # Attention Is All You Need
