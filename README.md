@@ -58,6 +58,7 @@ Built with a local-first architecture, RockTranslate prioritizes performance, re
 *   **Fast & Economical:** Concurrent LLM requests (4 by default), hidden-reasoning disabled where supported (≈5× faster, ≈4× cheaper on DeepSeek), and a translation cache: nothing is ever paid twice for the same text.
 *   **Transparent Usage:** Live elapsed time, remaining time, tokens and estimated cost during each run, plus cumulative statistics per model.
 *   **Original Text on Hover:** Hover a translated paragraph to read the original in a bubble (toggle in Settings; Ctrl + hover always works).
+*   **Structured Extraction & Aligned Translation (new in 2.0.5):** `rocktranslate.extract()` turns a PDF into typed, positioned elements (sections, paragraphs, tables cell by cell, captions, formulas…) as JSON, Markdown or RAG chunks — and `rocktranslate.translate()` attaches each element's translation. Search a passage and highlight it in the original PDF. [See real outputs →](#d-structured-extraction--aligned-translation-new-in-205)
 *   **Native pdf2htmlEX 0.18.8 on Windows (new in 2.0.5):** The first public native 64-bit Windows build of pdf2htmlEX 0.18.8 — built by our CI from source ([build recipe](tools/pdf2htmlex-windows), [engine release](https://github.com/PerfectWin7777/RockTranslate/releases/tag/engine-pdf2htmlex-0.18.8.rc1-win64)) — 1.4–2.5× faster than the old 32-bit 0.14.6 and free of its 2 GB memory limit.
 *   **Synchronized Side-by-Side View:** Original PDF on the left; on the right, the reconstructed layout, prepared in the background as soon as the PDF opens (no AI, no cost), so translation starts instantly. Same zoom and synchronized scrolling; a collapsible progress panel shows pages, segments, time, tokens and cost.
 *   **Exact Layout Measurement with Your Browser:** Paragraph geometry is measured with the installed Edge or Chrome (driven through the DevTools protocol), or with a small headless engine fetched in the background — nothing to install by hand.
@@ -151,9 +152,9 @@ pip install git+https://github.com/PerfectWin7777/RockTranslate.git
 
 ---
 
-## 5. The Three Versions
+## 5. The Four Ways to Use RockTranslate
 
-RockTranslate provides three entry points to support any workflow:
+RockTranslate provides four entry points to support any workflow: the desktop GUI, the CLI, the Python API, and structured extraction (§5.D):
 
 ### A. Graphical User Interface (GUI)
 A responsive desktop application featuring:
@@ -240,40 +241,152 @@ The library never reads hidden GUI settings for what you pass explicitly (model,
 
 ### D. Structured Extraction & Aligned Translation (new in 2.0.5)
 
-RockTranslate also turns a PDF into **typed, positioned elements** — the schema popularized by [Unstructured](https://docs.unstructured.io) — and, unlike layout-only extractors, every element can carry its **aligned translation**.
+RockTranslate also turns a PDF into **typed, positioned elements** — the schema popularized by [Unstructured](https://docs.unstructured.io) — and, unlike layout-only extractors, every element can carry its **aligned translation**. Local and free for extraction (no API key); translation uses your own LLM key, or a local Ollama model.
+
+#### 🔎 See it on real papers (outputs below are unedited)
+
+**1 · Tables rebuilt cell by cell.** Input: *Table 4* of an open-access geology paper (Wabo Defo et al., *Geological Magazine*, 2026, CC BY 4.0).
+
+<p align="center"><img src="docs/assets/readme_extract_table_input.png" alt="Source table in the PDF" width="90%"></p>
+
+`rocktranslate extract paper.pdf -p 11 -f md` → Markdown (first rows):
+
+```markdown
+| 1 | 1.02 | 0.02 | 1.07 | 12.74 | 0.20 | 1.90 | 0.44 | 48.17 | 0.39 | 0.31 |
+| 2 | 0.80 | 0.01 | 1.33 | 2.42 | 0.20 | 1.79 | 0.29 | −21.74 | 0.18 | 0.26 |
+| 3 | 0.44 | 0.01 | 5.63 | 3.88 | 0.39 | 2.37 | 0.47 | 9.95 | 0.25 | 0.06 |
+| 4 | 0.72 | 0.02 | 1.75 | 22.14 | 0.33 | 0.37 | 0.18 | 66.71 | 0.53 | 0.23 |
+| 5 | 0.77 | 0.01 | 1.75 | 26.98 | 0.34 | 1.27 | 0.38 | 12.88 | 0.20 | 0.09 |
+```
+
+…all 45 rows, every value in its column. The same table in JSON (`-f json`), with its page and its box in PDF points:
+
+```json
+{
+  "type": "Table",
+  "element_id": "48bf2b723bd45202892c544214d92c4c",
+  "text": "Geomorphic indices | Parameters of the normalised profiles\nRe | Rr | Bs | A\nTTSF | Vf | HI...",
+  "metadata": {
+    "page_number": 11,
+    "coordinates": { "points": [[50.0, 97.12], [50.0, 747.27], [546.89, 747.27], [546.89, 97.12]],
+                     "system": "PDFPoints", "origin": "top-left" },
+    "text_as_html": "<table><tr><td>1</td><td>1.02</td>…</table>"
+  }
+}
+```
+
+**2 · The document's real structure.** Input: page 1 of *Attention Is All You Need* (arXiv:1706.03762).
+
+<p align="center"><img src="docs/assets/readme_extract_page_input.png" alt="First page of the paper" width="60%"></p>
+
+Markdown outline produced by `rocktranslate extract` (headings with their real depth, numbering kept):
+
+```markdown
+# Attention Is All You Need
+## Abstract
+## 1 Introduction
+## 2 Background
+## 3 Model Architecture
+### 3.1 Encoder and Decoder Stacks
+### 3.2 Attention
+#### 3.2.1 Scaled Dot-Product Attention
+#### 3.2.2 Multi-Head Attention
+### 3.3 Position-wise Feed-Forward Networks
+## 4 Why Self-Attention
+…
+```
+
+Author marks stay attached (`Ashish Vaswani<sup>∗</sup>`), footnotes are typed `Footnote`, the rotated arXiv stamp is read as one `Header` (`arXiv:1706.03762v7 [cs.CL] 2 Aug 2023`), and words drawn inside figures are kept apart as `FigureText`.
+
+**3 · Bilingual, aligned paragraph by paragraph.** `rocktranslate paper.pdf -l French -p 1 -f md --bilingual`:
+
+```markdown
+## Abstract
+
+> Résumé
+
+The dominant sequence transduction models are based on complex recurrent or convolutional
+neural networks that include an encoder and a decoder. […]
+
+> Les modèles dominants de transduction de séquences reposent sur des réseaux neuronaux
+> récurrents ou convolutifs complexes comprenant un encodeur et un décodeur. […]
+```
+
+Unchanged text (names, e-mails, codes) is not repeated; tables are translated cell by cell (`table_translation`).
+
+**4 · Find a passage, see it in the original PDF.** `doc.search()` looks into the original *and* the translation; `doc.highlight()` frames the hits at their exact position in a copy of the source PDF:
+
+```python
+doc = rocktranslate.extract("attention.pdf")
+hits = doc.search("multi-head attention")          # 10 elements, pages 1-5
+doc.highlight(hits, "attention.pdf", "attention_hits.pdf")
+```
+
+<p align="center"><img src="docs/assets/readme_extract_highlight.png" alt="Search hit highlighted in the original PDF" width="60%"></p>
+
+**5 · RAG-ready chunks.** `doc.chunks(1500)` never mixes two sections nor cuts an element, and keeps where every piece comes from:
+
+```json
+{
+  "text": "Recurrent neural networks, long short-term memory [13] and gated recurrent [7] …",
+  "section": "1 Introduction",
+  "pages": [2],
+  "element_ids": ["b47cb8d9461009d29cd4b9a1b623f9c8", "74fe378b8679534ef389b177167f53f2"],
+  "boxes": [[2, [108.0, 85.56, 504.36, 150.28]], [2, [108.0, 145.58, 504.47, 243.03]]]
+}
+```
+
+#### 🐍 Python API
 
 ```python
 import rocktranslate
 
-# 1. Structure only: local, free, no API key
-doc = rocktranslate.extract("paper.pdf")
+# Structure only: local, free, no API key
+doc = rocktranslate.extract("paper.pdf")              # optional: pages="1-5", password="..."
 print(doc)            # <Document 'paper.pdf': 531 elements (135 NarrativeText, 31 Section, 4 Table, ...)>
-doc.to_markdown("paper.md")                     # headings, paragraphs, lists, tables, captions
-doc.to_json("paper.json")                       # elements with page + box in PDF points
+doc.to_markdown("paper.md")
+doc.to_json("paper.json")                             # our element types
 doc.to_json("paper.unstructured.json", unstructured=True)   # Unstructured's category names
-chunks = doc.chunks(max_characters=1500)        # section-aware chunks for RAG, with their boxes
+chunks = doc.chunks(max_characters=1500)
+for table in doc.tables:
+    print(table.table[:3])                            # rows x cells; table.html for HTML
 
-for table in doc.tables:                        # real rows x cells, also as HTML
-    print(table.table[:3], table.html[:80])
-
-# 2. Find a passage and show it in the ORIGINAL PDF
-hits = doc.search("multi-head attention")
-doc.highlight(hits, "paper.pdf", "paper_highlighted.pdf")
-
-# 3. Translate: the same elements, each with its translation
-doc = rocktranslate.translate("paper.pdf", lang="German", pages="1-2")   # also writes the translated PDF
-doc.to_markdown("paper.de.md", bilingual=True)  # original paragraph, then its translation
-doc.search("Aufmerksamkeit")                    # search in German, get the English source too
+# Translation: the same elements, each with its translation (+ the translated PDF)
+doc = rocktranslate.translate("paper.pdf", lang="German", pages="1-2")
+doc.to_markdown("paper.de.md", bilingual=True)
+doc.search("Aufmerksamkeit")                          # search in German, get the English source too
 print(doc.report.cost_usd, doc.output_pdf)
 ```
 
+#### ⌨️ CLI
+
 ```bash
-rocktranslate extract paper.pdf -f json,md,chunks          # structure only
-rocktranslate paper.pdf -l German -f pdf,json,md --bilingual
+rocktranslate extract paper.pdf -f json,md,chunks             # structure only
+rocktranslate paper.pdf -l German -f pdf,json,md --bilingual  # translated PDF + aligned JSON/Markdown
 ```
 
 | Element type | What it is |
 |---|---|
+| `Title` / `Section` | document title; numbered or typographic headings, with `category_depth` (3.2.1 → 2) |
+| `NarrativeText`, `ListItem`, `Reference` | paragraphs (regrouped across lines), list items, bibliography entries |
+| `Table` | rows × cells (`table`), `text_as_html`, translated cell by cell |
+| `FigureCaption`, `TableCaption`, `Formula`, `Footnote` | captions, displayed equations, notes |
+| `Header`, `Footer`, `FigureText` | page furniture and labels inside figures (kept in JSON, left out of Markdown/chunks) |
+
+#### 📊 Measured against Unstructured
+
+Same PDFs, Unstructured 0.18 with `strategy="fast"` (its pdfminer-based mode that needs no ML model):
+
+| | Unstructured fast | RockTranslate `extract` |
+|---|---|---|
+| *Attention Is All You Need* (15 p.) | 158 `Title` (every author block), arXiv stamp garbled (`"3 2 0 2"`, `"] L C . s c ["`), 0 tables | 1 title + 31 sections with depth, 4 tables, captions, formulas, stamp read correctly |
+| Geology paper, 35 p., many tables | 3,482 elements, **2,898 `UncategorizedText`** (tables shattered into numbers) | 780 elements, **9 tables** rebuilt row by row |
+| Translation aligned to the structure | — | ✅ every element, tables cell by cell |
+| Search + highlight in the source PDF | — | ✅ |
+
+**Honest limits:** displayed equations are only partly reassembled; table header rows spanning several levels can be split; tables whose rows are drawn as one text run (e.g. some LaTeX tables) are not split into cells yet; scanned PDFs (no text layer) would need OCR; PDF input only. Unstructured's heavier `hi_res` mode (ML layout models) was not part of this comparison.
+
+---|---|
 | `Title` / `Section` | document title; numbered or typographic headings, with `category_depth` (3.2.1 → 2) |
 | `NarrativeText`, `ListItem`, `Reference` | paragraphs (regrouped across lines), list items, bibliography entries |
 | `Table` | rows × cells (`table`), `text_as_html`, translated cell by cell |
@@ -301,10 +414,12 @@ Limits: scanned PDFs (no text layer) need OCR, which RockTranslate does not do; 
 *   **pdf2htmlEX on Windows** is our own native x64 build of pdf2htmlEX 0.18.8 (recipe in `tools/pdf2htmlex-windows/`), bundled by the installer and downloaded on first use otherwise (~16 MB). If a conversion stops making progress, RockTranslate stops the process and reports the reason.
 
 ### Roadmap:
-*   [ ] **Structured extraction (`to_json`, `to_markdown`)**: expose the document model (titles, paragraphs, tables, captions, reading order) for RAG and analysis pipelines.
-*   [ ] **Bilingual export (TMX / JSON)** of every translated segment.
+*   [x] **Structured extraction** (`rocktranslate.extract`, `to_json`, `to_markdown`, `chunks`, `search`, `highlight`) — see §5.D.
+*   [x] **Bilingual export** of every translated element (JSON, bilingual Markdown).
+*   [ ] **TMX export** (translation-memory format for CAT tools).
+*   [ ] **Tables drawn as single text runs** split into cells; multi-level table headers.
 *   [ ] **Scanned PDF support** through a local OCR fallback.
-*   [ ] **Sliced parallel conversion** of very large documents (merger already prototyped in `core/html_merger.py`).
+*   [ ] **Sliced parallel conversion** of very large documents in the GUI (the CLI already converts only the requested pages; merger prototyped in `core/html_merger.py`).
 
 ---
 
