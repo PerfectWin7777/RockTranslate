@@ -987,6 +987,37 @@ class TranslationApiMixin:
     # 3. EXPOSED PDF EXPORT ENDPOINT
     # ==============================================================================
 
+    def open_translated_in_browser(self) -> None:
+        """
+        Opens the translated document in the user's default browser with its
+        print dialog ("Save as PDF"): the browser's own, warm print pipeline,
+        an alternative to the headless export.
+        """
+        if not self._active_html_path or not os.path.exists(self._active_html_path):
+            self._send_toast_i18n("toast_export_failed_extract", "error")
+            return
+        try:
+            import webbrowser
+            from pathlib import Path
+            translations = {seg_id: text for page in self._translated_pages.values() for seg_id, text in page.items()}
+            out = os.path.join(os.path.dirname(os.path.abspath(self._active_html_path)), "rocktranslate-print.html")
+            apply_translations_offline(self._active_html_path, out, translations)
+            with open(out, "r", encoding="utf-8") as f:
+                html = f.read()
+            # Print dialog once fonts are loaded and paragraphs laid out again
+            hook = ("<script>window.addEventListener('load',function(){var go=function(){"
+                    "setTimeout(function(){window.print();},700);};"
+                    "if(document.fonts&&document.fonts.ready){document.fonts.ready.then(go);}else{go();}});</script>")
+            idx = html.rfind("</body>")
+            html = html[:idx] + hook + html[idx:] if idx != -1 else html + hook
+            with open(out, "w", encoding="utf-8") as f:
+                f.write(html)
+            webbrowser.open(Path(out).as_uri())
+            self._send_toast_i18n("toast_opened_in_browser", "info", duration=7000)
+        except Exception as e:
+            logger.error(f"Could not open the translated document in the browser: {e}")
+            self._send_toast_i18n("toast_export_error", "error", variables={"error": str(e)})
+
     def export_translated_pdf(self) -> None:
         """
         Builds the translated document from the backend state (workspace HTML +

@@ -37,6 +37,13 @@
                     </span>
                     <span class="dropdown-shortcut">Ctrl+S</span>
                 </div>
+                <div class="dropdown-item" :class="{ 'disabled': !isDocumentLoaded() }"
+                    @click="isDocumentLoaded() && triggerAction('open-in-browser')">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('item_open_in_browser')"></span>
+                    </span>
+                </div>
 
                 <div class="dropdown-divider"></div>
 
