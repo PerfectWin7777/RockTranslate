@@ -27,7 +27,9 @@ window.rtFormat = {
     cost(usd) {
         usd = Number(usd || 0);
         if (usd === 0) return '$0';
-        if (usd < 0.01) return '< $0.01';
+        // Real amount even when tiny (a page costs fractions of a cent)
+        if (usd < 0.0001) return '< $0.0001';
+        if (usd < 0.01) return '$' + usd.toFixed(4);
         return '$' + usd.toFixed(usd < 1 ? 3 : 2);
     },
     duration(sec) {
