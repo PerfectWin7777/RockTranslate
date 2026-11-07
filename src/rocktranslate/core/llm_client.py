@@ -112,11 +112,17 @@ class LLMClient:
     
     
 
-    def _log_status(self, message: str) -> None:
-        """ Notifies the UI status bar (via the callback) and logs debug info. """
+    def _log_status(self, message: str, key: Optional[str] = None, variables: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Logs the (English) message and notifies the UI status bar. With an i18n
+        key, the UI shows the message in the interface language instead.
+        """
         logger.info(message)
         if self.on_status:
-            self.on_status(message)
+            try:
+                self.on_status(message, key, variables or {})
+            except TypeError:  # legacy single-argument callbacks
+                self.on_status(message)
 
     # ==============================================================================
     # PUBLIC TRANSLATION INTERFACE
@@ -199,7 +205,7 @@ class LLMClient:
 
         for attempt in range(max_retries):
             if check_cancelled and check_cancelled():
-                self._log_status("Translation batch aborted: cancellation requested.")
+                self._log_status("Translation batch aborted: cancellation requested.", "llm_cancelled")
                 return None
 
             # Provider-isolated fallback on the last attempts only
@@ -208,7 +214,9 @@ class LLMClient:
                 if fallback_model and fallback_model != current_model:
                     self._log_status(
                         f"🔄 '{current_model}' keeps failing: switching to '{fallback_model}' "
-                        f"from the same provider (attempt {attempt + 1}/{max_retries})."
+                        f"from the same provider (attempt {attempt + 1}/{max_retries}).",
+                        "llm_model_fallback",
+                        {"from": current_model, "to": fallback_model, "attempt": attempt + 1, "max": max_retries},
                     )
                     current_model, current_key = fallback_model, fallback_key
 
@@ -223,7 +231,7 @@ class LLMClient:
                 logger.warning(f"LLM call failed ({type(e).__name__}): {str(e)[:300]}")
 
             if error is not None and self._is_fatal_error(error):
-                self._log_status(f"❌ {type(error).__name__}: {str(error)[:200]}")
+                self._log_status(f"❌ {type(error).__name__}: {str(error)[:200]}", "llm_error", {"error": type(error).__name__})
                 return None
             if attempt == max_retries - 1:
                 break
@@ -234,9 +242,9 @@ class LLMClient:
                 wait_time = 1.0  # unparseable JSON: retry quickly
             elif self._is_rate_limit_error(error):
                 wait_time *= 2
-                self._log_status(f"⏳ Rate limit or quota reached. Retrying in {int(wait_time)}s...")
+                self._log_status(f"⏳ Rate limit or quota reached. Retrying in {int(wait_time)}s...", "llm_rate_limit", {"seconds": int(wait_time)})
             else:
-                self._log_status(f"❌ API error ({type(error).__name__}). Retrying in {int(wait_time)}s...")
+                self._log_status(f"❌ API error ({type(error).__name__}). Retrying in {int(wait_time)}s...", "llm_api_retry", {"error": type(error).__name__, "seconds": int(wait_time)})
 
             deadline = time.monotonic() + wait_time
             while time.monotonic() < deadline:

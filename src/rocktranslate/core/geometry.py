@@ -47,7 +47,14 @@ _PROBE = """
     document.body.appendChild(pre);
   }
   window.addEventListener('load', function () {
-    var go = function () { setTimeout(measure, 50); };
+    // Immediate pass: what a full browser's --dump-dom captures (no virtual
+    // time there); refined once fonts settle when virtual time is available.
+    var old = document.getElementById('rt-geometry'); if (old) old.remove();
+    measure();
+    var go = function () { setTimeout(function () {
+      var prev = document.getElementById('rt-geometry'); if (prev) prev.remove();
+      measure();
+    }, 50); };
     if (document.fonts && document.fonts.ready) {
       document.fonts.forEach(function (f) { try { f.load(); } catch (e) {} });
       document.fonts.ready.then(go);
@@ -58,20 +65,90 @@ _PROBE = """
 """
 
 
+def _is_headless_shell(path: str) -> bool:
+    return "headless" in os.path.basename(path).lower()
+
+
+_PROBE_PAGE = ("<html><body><div id=x style='width:123px'>x</div><script>"
+               "window.addEventListener('load',function(){var p=document.createElement('pre');"
+               "p.id='rt-probe';p.textContent=document.getElementById('x').offsetWidth;"
+               "document.body.appendChild(p);});</script></body></html>")
+
+
+def _probe_full_browser(browser: str, timeout: float = 10.0) -> bool:
+    """
+    A desktop browser (Edge, Chrome) is used for measuring only if it answers a
+    tiny --dump-dom page within a few seconds. The verdict is remembered per
+    executable, so a browser that hangs costs those seconds once, ever.
+    """
+    try:
+        from .config_manager import config_db
+        verdicts = config_db.get("SystemConfig", "geometry_browser_ok", {}) or {}
+    except Exception:
+        config_db, verdicts = None, {}
+    key = f"{browser}|{int(os.path.getmtime(browser)) if os.path.exists(browser) else 0}"
+    if key in verdicts:
+        return bool(verdicts[key])
+    ok = False
+    try:
+        with tempfile.TemporaryDirectory(prefix="rocktranslate-probe-") as tmp:
+            page = os.path.join(tmp, "probe.html")
+            with open(page, "w", encoding="utf-8") as f:
+                f.write(_PROBE_PAGE)
+            from .proc import run_with_timeout
+            code, out, _ = run_with_timeout(_cmd(browser, page, os.path.join(tmp, "profile")), timeout)
+            ok = code is not None and b'id="rt-probe">123<' in out
+    except Exception:
+        ok = False
+    logger.info(f"Geometry browser probe: {browser} -> {'usable' if ok else 'unusable (hangs or fails headless)'}")
+    if config_db is not None:
+        verdicts[key] = ok
+        config_db.set("SystemConfig", "geometry_browser_ok", verdicts)
+    return ok
+
+
+def _cmd(browser: str, page: str, profile: str) -> List[str]:
+    shell = _is_headless_shell(browser)
+    cmd = [browser, "--headless" if shell else "--headless=new", "--disable-gpu", "--no-first-run",
+           "--no-default-browser-check", "--disable-extensions", f"--user-data-dir={profile}",
+           "--window-size=1600,1200", "--dump-dom", "file://" + os.path.abspath(page).replace(os.sep, "/")]
+    if shell:
+        # Virtual time is reliable in the headless shell only: in a desktop
+        # browser's new headless mode it can stall --dump-dom indefinitely.
+        cmd.insert(-2, "--virtual-time-budget=20000")
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        cmd.insert(1, "--no-sandbox")
+    return cmd
+
+
 def _browser() -> Optional[str]:
     """
-    Only a dedicated, already-present headless engine is used: an installed
-    desktop Chrome may hang in headless mode (seen on Windows and Linux) and a
-    download must never delay a translation. No engine -> estimates are used.
+    Measuring engine, in order: ROCKTRANSLATE_BROWSER, the downloaded
+    chrome-headless-shell, then an installed browser (Edge first on Windows,
+    Chrome / Chromium / Brave, macOS apps) that passes a quick probe.
+    Nothing usable -> None, callers use estimates. Never downloads anything.
     """
     env = os.environ.get("ROCKTRANSLATE_BROWSER")
     if env and os.path.isfile(env):
         return env
     try:
         from .downloader import find_downloaded_headless_shell
-        return find_downloaded_headless_shell()
+        shell = find_downloaded_headless_shell()
+        if shell:
+            return shell
     except Exception:
-        return None
+        pass
+    try:
+        from .renderer import _candidate_browser_paths
+        candidates = [p for p in _candidate_browser_paths() if p and os.path.isfile(p)]
+    except Exception:
+        candidates = []
+    # Edge first: present on every Windows 10/11
+    candidates.sort(key=lambda p: 0 if "edge" in p.lower() else 1)
+    for path in candidates:
+        if path not in _FAILED_BROWSERS and _probe_full_browser(path):
+            return path
+    return None
 
 
 # Browsers that failed to measure in this process (e.g. a full Chrome that
@@ -113,12 +190,7 @@ def _measure_with(browser: str, raw_html_path: str, timeout: float) -> Optional[
             page = os.path.join(tmp, "probe.html")
             with open(page, "w", encoding="utf-8") as f:
                 f.write(probe_html)
-            cmd = [browser, "--headless" if "headless-shell" in os.path.basename(browser).lower() else "--headless=new",
-                   "--disable-gpu", "--no-first-run", f"--user-data-dir={os.path.join(tmp, 'profile')}",
-                   "--virtual-time-budget=20000", "--window-size=1600,1200", "--dump-dom",
-                   "file://" + os.path.abspath(page).replace(os.sep, "/")]
-            if hasattr(os, "geteuid") and os.geteuid() == 0:
-                cmd.insert(1, "--no-sandbox")
+            cmd = _cmd(browser, page, os.path.join(tmp, "profile"))
             from .proc import run_with_timeout
             code, out, _err = run_with_timeout(cmd, timeout)
             if code is None:

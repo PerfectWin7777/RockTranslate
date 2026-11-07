@@ -474,7 +474,8 @@ class TranslationApiMixin:
             custom_base_url=active_base_url,
             all_keys=keys_dict,
             custom_glossary=config_db.get("TranslationConfig", "custom_glossary", ""),
-            on_status=lambda msg: self._send_status(msg),
+            on_status=lambda msg, key=None, variables=None: (
+                self._send_status_i18n(key, variables) if key else self._send_status(msg)),
         )
 
     def _run_translation(self, target_pages: Optional[List[int]], cancel_event: threading.Event) -> None:

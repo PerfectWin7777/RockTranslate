@@ -176,6 +176,20 @@ def main() -> None:
         # to start" and left drag & drop disabled.
         threading.Thread(target=bind_native_events_safely, name="rocktranslate-dnd", daemon=True).start()
 
+        # Exact line geometry (paragraph reflow) needs chrome-headless-shell:
+        # fetched once in the background so it is ready for the next documents.
+        def ensure_measuring_engine() -> None:
+            try:
+                from rocktranslate.core.downloader import (
+                    check_and_download_headless_shell, find_downloaded_headless_shell)
+                if not find_downloaded_headless_shell():
+                    logger.info("Fetching chrome-headless-shell in the background (exact layout measurement)...")
+                    check_and_download_headless_shell()
+            except Exception as e:
+                logger.warning(f"Background chrome-headless-shell download failed: {e}")
+
+        threading.Thread(target=ensure_measuring_engine, name="rocktranslate-engine-fetch", daemon=True).start()
+
     window.events.loaded += on_window_loaded
 
     dnd_bound = threading.Event()
