@@ -43,7 +43,7 @@ STALL_TIMEOUT_SECONDS = 30.0
 # long time (Windows: font cache build on a cold start).
 STARTUP_GRACE_SECONDS = 120.0
 # Bumped when the raw conversion options change (cached raw HTML is redone)
-RAW_LAYOUT_VERSION = 2
+RAW_LAYOUT_VERSION = 3
 # Liveness while pdf2htmlEX is silent: CPU time is sampled every few seconds;
 # a busy process is given more time, up to a hard cap of silence.
 CPU_CHECK_SECONDS = 5.0
@@ -156,6 +156,10 @@ def convert_pdf_to_html(
     cmd: List[str] = [os.path.abspath(pdf2htmlex_exe), "--zoom", "1.3", "--no-drm", "1"]
     if external_images:
         cmd += ["--embed-image", "0"]
+    if sys.platform == "win32":
+        # Windows build: the Splash raster background renderer (png/jpg) crashes
+        # on some machines; the Cairo SVG renderer is stable and vector-sharp.
+        cmd += ["--bg-format", "svg"]
     if user_password:
         cmd += ["--user-password", user_password]
     data_dir = pdf2htmlex_data_dir(pdf2htmlex_exe)
