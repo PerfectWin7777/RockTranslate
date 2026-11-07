@@ -211,8 +211,12 @@ def print_to_pdf(browser: str, html_path: str, output_pdf: str, timeout: float) 
     url = "file:///" + os.path.abspath(html_path).replace(os.sep, "/").lstrip("/")
     session = None
     try:
+        t0 = time.monotonic()
         session = _Session(browser, url, timeout)
-        if session.evaluate(_READY_FOR_PRINT) is not True:
+        t1 = time.monotonic()
+        ready = session.evaluate(_READY_FOR_PRINT)
+        t2 = time.monotonic()
+        if ready is not True:
             from loguru import logger
             logger.warning(f"DevTools: the page never became ready to print ({os.path.basename(browser)}).")
             return False
@@ -222,10 +226,14 @@ def print_to_pdf(browser: str, html_path: str, output_pdf: str, timeout: float) 
         data = result.get("data")
         if not data:
             return False
+        t3 = time.monotonic()
         tmp = output_pdf + ".part"
         with open(tmp, "wb") as f:
             f.write(b64.b64decode(data))
         os.replace(tmp, output_pdf)
+        from loguru import logger
+        logger.info(f"Export timing: browser start {t1 - t0:.1f}s | page load + fonts {t2 - t1:.1f}s | "
+                    f"print {t3 - t2:.1f}s | PDF {len(data) * 3 / 4 / 1e6:.1f} MB")
         return os.path.getsize(output_pdf) > 0
     except Exception as e:
         from loguru import logger
