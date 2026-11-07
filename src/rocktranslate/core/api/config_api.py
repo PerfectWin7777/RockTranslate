@@ -152,7 +152,11 @@ class ConfigApiMixin:
         try:
             provider = config_db.get("APIConfig", "provider", "Google Gemini")
             keys_dict = config_db.get("APIConfig", "api_keys_by_provider", {})
-            
+            if isinstance(keys_dict, str):
+                try:
+                    keys_dict = json.loads(keys_dict)
+                except ValueError:
+                    keys_dict = {}
             if not isinstance(keys_dict, dict):
                 keys_dict = {}
                 
@@ -630,12 +634,25 @@ class ConfigApiMixin:
             Dict[str, str]: Status dictionary.
         """
         try:
-            current_provider = config.get("current_provider", "Google Gemini")
-            isolated_configs = config.get("isolated_configs", {})
+            current_provider = (config or {}).get("current_provider")
+            isolated_configs = (config or {}).get("isolated_configs") or {}
+            # Never persist an empty / half-loaded form: that wiped every saved
+            # key and reset the provider when the dialog opened before the
+            # Python bridge was ready.
+            if current_provider not in DEFAULT_PROVIDERS or not isolated_configs:
+                logger.warning("save_api_config refused: the settings form was not loaded.")
+                return {"status": "error", "message": "Settings not loaded yet: please reopen this window."}
 
             config_db.set("APIConfig", "provider", current_provider)
 
-            keys_dict = {}
+            # Start from the stored keys: providers absent from the payload keep theirs
+            keys_dict = config_db.get("APIConfig", "api_keys_by_provider", {})
+            if isinstance(keys_dict, str):
+                try:
+                    keys_dict = json.loads(keys_dict)
+                except ValueError:
+                    keys_dict = {}
+            keys_dict = dict(keys_dict) if isinstance(keys_dict, dict) else {}
             for prov_name, prov_data in isolated_configs.items():
                 config_db.set("APIConfig", f"use_custom_base_{prov_name}", bool(prov_data.get("use_custom_base", False)))
                 config_db.set("APIConfig", f"custom_base_url_{prov_name}", str(prov_data.get("custom_base_url", "")).strip())

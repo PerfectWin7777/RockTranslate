@@ -164,6 +164,8 @@ function apiConfigController() {
                 window.addEventListener('pywebviewready', load);
                 window.addEventListener('python-api-ready', load);
             }
+            // Always show fresh values when the dialog opens
+            this.$watch('$store.modals.active', (v) => { if (v === 'api_config') this.loadConfig(); });
 
             // Realtime model updates when background LiteLLM sync finishes
             window.addEventListener('models-refreshed', (event) => {
@@ -174,15 +176,24 @@ function apiConfigController() {
             });
         },
 
-        async loadConfig() {
+        async loadConfig(attempt = 0) {
             try {
                 this.loading = true; // Start loading state
+                // The bridge may not expose its methods yet at startup: retry
+                if (!(window.pywebview && window.pywebview.api && window.pywebview.api.get_api_config)) {
+                    if (attempt < 20) setTimeout(() => this.loadConfig(attempt + 1), 300);
+                    return;
+                }
 
                 // Fetch dynamic providers details from constants.py
                 this.providersConfig = await window.pywebview.api.get_providers_config();
 
                 // Fetch current user database keys
                 const data = await window.pywebview.api.get_api_config();
+                if (data && (!data.isolated_configs || !Object.keys(data.isolated_configs).length) && attempt < 20) {
+                    setTimeout(() => this.loadConfig(attempt + 1), 300);
+                    return;
+                }
                 if (data) {
                     this.isolatedConfigs = data.isolated_configs;
 

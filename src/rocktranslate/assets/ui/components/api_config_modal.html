@@ -161,7 +161,7 @@
         <div class="modal-actions" style="gap: 10px;">
             <button class="modal-btn-close" @click="$store.modals.close()"
                 x-text="$store.i18n.translate('cancel_btn')"></button>
-            <button class="modal-btn-close modal-btn-primary" x-show="!loading" @click="save()"
+            <button class="modal-btn-close modal-btn-primary" x-show="!loading && Object.keys(isolatedConfigs).length > 0" @click="save()"
                 x-text="$store.i18n.translate('save_btn')"></button>
         </div>
 
