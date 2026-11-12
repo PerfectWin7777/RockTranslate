@@ -5,6 +5,143 @@
 
 <div id="workspace-container" x-data="workspaceController()">
 
+    <!-- Document tabs (open documents of the session) -->
+    <div id="rt-tabs" class="unselectable" x-show="$store.reader.tabs.length > 1" x-cloak>
+        <template x-for="tab in $store.reader.tabs" :key="tab.path">
+            <div class="rt-tab" :class="{ active: tab.path === $store.reader.activePath }" :title="tab.path"
+                @click="RT.switchTab(tab.path)" @mousedown.middle.prevent="RT.closeTab(tab.path)">
+                <span class="rt-tab-name" x-text="tab.name"></span>
+                <button type="button" class="rt-tab-close" :title="$store.i18n.translate('rd_tab_close')"
+                    @click.stop="RT.closeTab(tab.path)">✕</button>
+            </div>
+        </template>
+        <button type="button" class="rt-tab-new" :title="$store.i18n.translate('rd_new_tab')"
+            @click="window.dispatchEvent(new CustomEvent('trigger-file-picker'))">+</button>
+    </div>
+
+    <div id="workspace-body">
+
+    <!-- Reader side panel: contents, search, ask, notes, glossary -->
+    <aside id="rt-sidepanel" x-data="sidePanel()" x-show="$store.reader.panelOpen" x-cloak>
+        <nav class="rt-sp-tabs unselectable">
+            <template x-for="tb in ['toc', 'search', 'ask', 'notes', 'glossary']" :key="tb">
+                <button type="button" :class="{ active: $store.reader.panelTab === tb }"
+                    @click="$store.reader.panelTab = tb; localStorage.setItem('rt-reader-panelTab', JSON.stringify(tb))"
+                    x-text="t('rd_tab_' + tb)"></button>
+            </template>
+            <button type="button" class="rt-sp-close" @click="$store.reader.togglePanel()" :title="t('rd_close')">✕</button>
+        </nav>
+
+        <!-- Contents -->
+        <section class="rt-sp-body" x-show="$store.reader.panelTab === 'toc'">
+            <p class="rt-sp-hint" x-show="tocLoading" x-text="t('rd_toc_loading')"></p>
+            <p class="rt-sp-hint" x-show="!tocLoading && tocAuto && toc.length" x-text="t('rd_toc_auto')"></p>
+            <p class="rt-sp-hint" x-show="!tocLoading && !toc.length" x-text="t('rd_toc_empty')"></p>
+            <template x-for="(item, i) in toc" :key="i">
+                <div class="rt-toc-item" :style="'padding-left:' + (8 + item.depth * 14) + 'px'">
+                    <div class="rt-toc-row">
+                        <a href="#" class="rt-toc-title" :class="{ 'rt-toc-top': item.depth === 0 }"
+                            @click.prevent="goToc(item)" x-text="item.title"></a>
+                        <span class="rt-toc-page" x-text="item.page || ''"></span>
+                        <button type="button" class="rt-mini-btn" x-show="item.page && !item.isTitle"
+                            @click="summarize(i)" :title="t('rd_summarize')">∑</button>
+                    </div>
+                    <div class="rt-toc-summary" x-show="summaries[i]" :class="{ 'rt-typing': summaries[i] && summaries[i].loading }"
+                        x-text="summaries[i] ? (summaries[i].text || t('rd_working')) : ''"></div>
+                </div>
+            </template>
+        </section>
+
+        <!-- Bilingual search -->
+        <section class="rt-sp-body" x-show="$store.reader.panelTab === 'search'">
+            <input type="search" class="rt-sp-input" x-ref="search" x-model="q" :placeholder="t('rd_search_ph')"
+                @input.debounce.300ms="search()" @keydown.enter="search()">
+            <p class="rt-sp-hint" x-show="searched && !results.length && !searching" x-text="t('rd_search_none')"></p>
+            <p class="rt-sp-hint" x-show="results.length" x-text="t('rd_search_count', { n: results.length })"></p>
+            <template x-for="(r, i) in results" :key="i">
+                <div class="rt-result" @click="openResult(r)">
+                    <div class="rt-result-meta">
+                        <span x-text="'p. ' + r.page"></span>
+                        <span class="rt-badge" :class="r.side" x-text="t(r.side === 'original' ? 'rd_side_orig' : 'rd_side_trans')"></span>
+                    </div>
+                    <div class="rt-result-text" x-text="r.snippet"></div>
+                </div>
+            </template>
+        </section>
+
+        <!-- Ask the paper -->
+        <section class="rt-sp-body rt-ask" x-show="$store.reader.panelTab === 'ask'">
+            <p class="rt-sp-hint" x-text="t('rd_ask_hint')"></p>
+            <div class="rt-thread" x-ref="thread">
+                <template x-for="(e, i) in thread" :key="i">
+                    <div class="rt-qa">
+                        <div class="rt-q" x-text="e.q"></div>
+                        <div class="rt-a" :class="{ 'rt-typing': e.loading }" x-text="e.loading ? t('rd_working') : e.a"></div>
+                        <template x-for="(qt, k) in e.quotes" :key="k">
+                            <button type="button" class="rt-quote" @click="openQuote(qt)">
+                                <span class="rt-quote-page" x-text="'p. ' + qt.page"></span>
+                                <span x-text="'“' + qt.quote + '”'"></span>
+                            </button>
+                        </template>
+                    </div>
+                </template>
+            </div>
+            <form class="rt-ask-form" @submit.prevent="ask()">
+                <textarea class="rt-sp-input" rows="2" x-ref="ask" x-model="question" :placeholder="t('rd_ask_ph')"
+                    @keydown.enter.prevent="if (!$event.shiftKey) ask()"></textarea>
+                <button type="submit" class="rt-sp-btn" :disabled="asking || !question.trim()" x-text="t('rd_send')"></button>
+            </form>
+        </section>
+
+        <!-- Notes -->
+        <section class="rt-sp-body" x-show="$store.reader.panelTab === 'notes'">
+            <p class="rt-sp-hint" x-show="!notes.length" x-text="t('rd_notes_empty')"></p>
+            <button type="button" class="rt-sp-btn rt-sp-btn-ghost" x-show="notes.length" @click="exportNotes()" x-text="t('rd_notes_export')"></button>
+            <template x-for="h in notes" :key="h.id">
+                <div class="rt-note" :style="'border-left-color:' + h.color">
+                    <div class="rt-note-head">
+                        <a href="#" @click.prevent="RT.showPassage(h.page, h.text)" x-text="'p. ' + h.page"></a>
+                        <span class="rt-grow"></span>
+                        <template x-for="c in RT.HL_COLORS" :key="c">
+                            <button type="button" class="rt-dot" :style="'background:' + c" @click="updateNote(h, { color: c })"></button>
+                        </template>
+                        <button type="button" class="rt-mini-btn" @click="deleteNote(h)" :title="t('rd_delete')">✕</button>
+                    </div>
+                    <div class="rt-note-text" x-text="h.text"></div>
+                    <textarea class="rt-sp-input rt-note-input" rows="2" :placeholder="t('rd_note_ph')" :value="h.note"
+                        @change="updateNote(h, { note: $event.target.value })"></textarea>
+                </div>
+            </template>
+        </section>
+
+        <!-- Glossary -->
+        <section class="rt-sp-body" x-show="$store.reader.panelTab === 'glossary'">
+            <p class="rt-sp-hint" x-text="t('rd_gloss_hint')"></p>
+            <div class="rt-gloss-actions">
+                <button type="button" class="rt-sp-btn" :disabled="glossBusy" @click="generateGlossary()"
+                    x-text="glossBusy ? t('rd_gloss_generating') : t('rd_gloss_generate')"></button>
+                <label class="rt-check"><input type="checkbox" x-model="glossUse" @change="saveGlossary()">
+                    <span x-text="t('rd_gloss_use')"></span></label>
+            </div>
+            <table class="rt-gloss" x-show="glossary.length">
+                <thead><tr><th x-text="t('rd_gloss_term')"></th><th x-text="t('rd_gloss_translation')"></th><th></th></tr></thead>
+                <tbody>
+                    <template x-for="(g, i) in glossary" :key="i">
+                        <tr :title="g.note">
+                            <td><input class="rt-sp-input" x-model="g.term" @input="glossDirty = true"></td>
+                            <td><input class="rt-sp-input" x-model="g.translation" @input="glossDirty = true"></td>
+                            <td><button type="button" class="rt-mini-btn" @click="removeTerm(i)">✕</button></td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+            <div class="rt-gloss-actions">
+                <button type="button" class="rt-sp-btn rt-sp-btn-ghost" @click="addTerm()" x-text="t('rd_gloss_add')"></button>
+                <button type="button" class="rt-sp-btn" x-show="glossDirty" @click="saveGlossary()" x-text="t('rd_gloss_save')"></button>
+            </div>
+        </section>
+    </aside>
+
     <div id="workspace-grid">
 
         <!-- LEFT PANE: Original Vector PDF (Mozilla PDF.js) -->
@@ -42,5 +179,7 @@
         </div>
 
     </div>
+
+    </div><!-- /workspace-body -->
 
 </div>

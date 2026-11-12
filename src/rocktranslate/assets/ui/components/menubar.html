@@ -245,6 +245,110 @@
             </div>
         </div>
 
+        <!-- ── 3b. TOOLS MENU (reader features) ── -->
+        <div class="menu-item" :class="{ 'active': activeMenu === 'tools' }" @click="toggleMenu('tools')"
+            @mouseenter="hoverMenu('tools')">
+            <span x-text="$store.i18n.translate('rd_menu')"></span>
+
+            <div class="dropdown-menu" x-show="activeMenu === 'tools'" @click.stop x-cloak>
+                <div class="dropdown-item" @click="(RT.palette.open()); closeAll()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('rd_palette')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+K</span>
+                </div>
+                <div class="dropdown-divider"></div>
+                <div class="dropdown-item" :class="{ 'disabled': !isDocumentLoaded() }" @click="isDocumentLoaded() && ($store.reader.togglePanel()); closeAll()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark" x-text="$store.reader.panelOpen ? '✓' : ''"></span>
+                        <span x-text="$store.i18n.translate('rd_panel')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+B</span>
+                </div>
+                <div class="dropdown-item" :class="{ 'disabled': !isDocumentLoaded() }" @click="isDocumentLoaded() && (RT.commands().find(c => c.id === 'search').run()); closeAll()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('rd_search_doc')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+F</span>
+                </div>
+                <div class="dropdown-item" :class="{ 'disabled': !isDocumentLoaded() }" @click="isDocumentLoaded() && (RT.commands().find(c => c.id === 'ask').run()); closeAll()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('rd_ask_doc')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+J</span>
+                </div>
+                <div class="dropdown-item" :class="{ 'disabled': !isDocumentLoaded() }" @click="isDocumentLoaded() && ($store.reader.togglePanel('glossary')); closeAll()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('rd_tab_glossary')"></span>
+                    </span>
+                </div>
+                <div class="dropdown-divider"></div>
+                <div class="dropdown-item" :class="{ 'disabled': !isDocumentLoaded() }" @click="isDocumentLoaded() && (RT.setContinuous(!$store.reader.continuous)); closeAll()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark" x-text="$store.reader.continuous ? '✓' : ''"></span>
+                        <span x-text="$store.i18n.translate('rd_continuous')"></span>
+                    </span>
+                </div>
+                <div class="dropdown-item" :class="{ 'disabled': !isDocumentLoaded() }" @click="isDocumentLoaded() && (RT.setNight(!$store.reader.night)); closeAll()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark" x-text="$store.reader.night ? '✓' : ''"></span>
+                        <span x-text="$store.i18n.translate('rd_night')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+Shift+N</span>
+                </div>
+                <div class="dropdown-divider"></div>
+                <div class="dropdown-item" :class="{ 'disabled': !isDocumentLoaded() }" @click="isDocumentLoaded() && (RT.startSnapshot('original')); closeAll()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('rd_snapshot')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+Shift+S</span>
+                </div>
+                <div class="dropdown-item" :class="{ 'disabled': !isDocumentLoaded() }" @click="isDocumentLoaded() && (RT.copyOriginalPage()); closeAll()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('rd_page_image')"></span>
+                    </span>
+                </div>
+                <div class="dropdown-item" :class="{ 'disabled': !isDocumentLoaded() }" @click="isDocumentLoaded() && (RT.copyTranslatedPage()); closeAll()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('rd_trans_page_image')"></span>
+                    </span>
+                </div>
+                <div class="dropdown-divider"></div>
+                <div class="dropdown-item" :class="{ 'disabled': !isDocumentLoaded() }" @click="isDocumentLoaded() && (window.pywebview.api.export_side_by_side()); closeAll()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('rd_sbs')"></span>
+                    </span>
+                </div>
+                <div class="dropdown-item" :class="{ 'disabled': !isDocumentLoaded() }" @click="isDocumentLoaded() && (window.dispatchEvent(new CustomEvent('reader-export-notes'))); closeAll()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('rd_export_notes')"></span>
+                    </span>
+                </div>
+                <div class="dropdown-item" @click="(RT.commands().find(c => c.id === 'open-link').run()); closeAll()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('rd_open_link')"></span>
+                    </span>
+                </div>
+                <div class="dropdown-divider"></div>
+                <div class="dropdown-item" @click="(RT.toast($store.i18n.translate('rd_shortcut_list'), 'info', 12000)); closeAll()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark"></span>
+                        <span x-text="$store.i18n.translate('rd_shortcuts')"></span>
+                    </span>
+                </div>
+            </div>
+        </div>
+
         <!-- ── 4. SETTINGS MENU ── -->
         <div class="menu-item" :class="{ 'active': activeMenu === 'settings' }" @click="toggleMenu('settings')"
             @mouseenter="hoverMenu('settings')">

@@ -63,6 +63,14 @@ def main() -> None:
     # Accurately record the Splash Screen startup time
     start_time = datetime.datetime.now()
 
+    # "Open with RockTranslate" / double-click on a PDF: if the app is already
+    # running, the file opens in that window and this launch stops here.
+    from rocktranslate.core.single_instance import documents_from_argv, hand_off, serve
+    startup_documents = documents_from_argv(sys.argv[1:])
+    if hand_off(startup_documents):
+        print("RockTranslate is already running: document sent to the open window.")
+        return
+
     try:
         if hasattr(sys, "_MEIPASS"):
             if os.name == "nt":
@@ -191,6 +199,32 @@ def main() -> None:
         threading.Thread(target=ensure_measuring_engine, name="rocktranslate-engine-fetch", daemon=True).start()
 
     window.events.loaded += on_window_loaded
+
+    # Documents given on the command line, then those sent by later launches
+    def open_documents(documents) -> None:
+        for doc in documents:
+            if doc.lower().startswith(("http://", "https://")):
+                api.open_pdf_url(doc)
+            else:
+                api.extract_pdf(doc)
+        try:
+            window.restore()
+            window.show()
+        except Exception:
+            pass
+
+    instance_started = threading.Event()
+
+    def on_ui_ready_open() -> None:
+        if instance_started.is_set():      # 'loaded' fires again on a UI reload
+            return
+        instance_started.set()
+        serve(open_documents)
+        if startup_documents:
+            # Leave the UI a moment to bind its bridge before the first document
+            threading.Timer(1.8, open_documents, args=(startup_documents,)).start()
+
+    window.events.loaded += on_ui_ready_open
 
     dnd_bound = threading.Event()
 

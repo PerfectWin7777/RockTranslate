@@ -36,6 +36,8 @@ SetupIconFile={#SourcePath}\..\src\rocktranslate\assets\rocktranslate_icon.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
+; Refreshes Explorer after registering "Open with RockTranslate" for PDFs
+ChangesAssociations=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -45,6 +47,21 @@ Name: "german"; MessagesFile: "compiler:Languages\German.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+; Optional, unchecked: proposes RockTranslate as the PDF reader. Windows 10/11
+; still ask the user to confirm the default app (a setup cannot force it).
+Name: "pdfdefault"; Description: "{cm:AssocFileExtension,{#MyAppName},.pdf}"; GroupDescription: "{cm:AssocingFileExtension,{#MyAppName},.pdf}"; Flags: unchecked
+
+[Registry]
+; Always: "Open with > RockTranslate" on PDF files (no change of the default app)
+Root: HKA; Subkey: "Software\Classes\RockTranslate.PDF"; ValueType: string; ValueName: ""; ValueData: "PDF - RockTranslate"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\RockTranslate.PDF\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"
+Root: HKA; Subkey: "Software\Classes\RockTranslate.PDF\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\.pdf\OpenWithProgids"; ValueType: string; ValueName: "RockTranslate.PDF"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\Applications\{#MyAppExeName}\SupportedTypes"; ValueType: string; ValueName: ".pdf"; ValueData: ""; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\Applications\{#MyAppExeName}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
+; Task "pdfdefault": registers RockTranslate as the .pdf handler of this user
+Root: HKA; Subkey: "Software\Classes\.pdf"; ValueType: string; ValueName: ""; ValueData: "RockTranslate.PDF"; Flags: uninsdeletevalue; Tasks: pdfdefault
+
 
 [Files]
 ; Copy all compiled binaries and resources from PyInstaller output recursively.

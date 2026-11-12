@@ -12,13 +12,16 @@ License: MIT License
 """
 
 import os
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
 from .core.constants import DEFAULT_MODEL, DEFAULT_PARALLEL_REQUESTS, DEFAULT_TEMPERATURE
 from .core.llm_client import LLMClient
 from .core.pipeline import ProgressCallback, TranslationReport, extract_document, translate_pdf
+from .core import assist
+from .core.assist import glossary_to_rules
+from .core.side_by_side import make_side_by_side
 from .core.sources import default_output_dir, is_url, resolve_pdf_source
 from .document import Document
 
@@ -151,7 +154,7 @@ def extract(pdf_path: str, pages: Optional[str] = None, password: Optional[str] 
 def translate(pdf_path: str, lang: str = "French", model: str = DEFAULT_MODEL, api_key: Optional[str] = None,
               pages: Optional[str] = None, output_pdf: Optional[str] = None, render_pdf: bool = True,
               parallel: int = DEFAULT_PARALLEL_REQUESTS, password: Optional[str] = None,
-              **options) -> Document:
+              side_by_side: Optional[str] = None, **options) -> Document:
     """
     PDF -> translated Document (and, by default, the translated PDF with the
     original layout). Every element keeps its original text AND its aligned
@@ -161,8 +164,14 @@ def translate(pdf_path: str, lang: str = "French", model: str = DEFAULT_MODEL, a
         >>> doc.output_pdf, doc.report.cost_usd
         >>> doc.to_markdown("paper.de.md", translated=True)
 
+    side_by_side: optional path of a bilingual study copy (original page |
+    translated page on each sheet). glossary: "term -> translation" lines, or
+    the list returned by rocktranslate.glossary(), applied to every segment.
+
     Raises RuntimeError when nothing could be translated (key, network...).
     """
+    if isinstance(options.get("glossary"), list):
+        options["glossary"] = glossary_to_rules(options["glossary"])
     translator = RockTranslator(model=model, api_key=api_key, target_lang=lang, parallel=parallel, **options)
     report = translator.translate_document(pdf_path, output_pdf, pages=pages, password=password,
                                            structured=True, render_pdf=render_pdf)
@@ -171,7 +180,83 @@ def translate(pdf_path: str, lang: str = "French", model: str = DEFAULT_MODEL, a
     doc: Document = report.document
     doc.report = report
     doc.output_pdf = report.output_path if render_pdf and report.output_path and os.path.exists(report.output_path) else None
+    if side_by_side and doc.output_pdf:
+        first = int(str(pages).split(",")[0].split("-")[0]) if pages else 1
+        make_side_by_side(resolve_pdf_source(pdf_path), doc.output_pdf, side_by_side, first_page=first,
+                          password=password)
+        doc.side_by_side_pdf = side_by_side
     return doc
+
+
+# ── Reading assistant (short LLM calls) ──────────────────────────────────────
+
+def _assistant(model: str, api_key: Optional[str], lang: str, glossary: Optional[str] = None,
+               base_url: Optional[str] = None) -> LLMClient:
+    return LLMClient(model=model, api_key=api_key, target_lang=lang, custom_glossary=glossary,
+                     custom_base_url=base_url)
+
+
+def translate_text(text: str, lang: str = "French", model: str = DEFAULT_MODEL, api_key: Optional[str] = None,
+                   on_delta=None) -> str:
+    """
+    Translates a passage copied from a PDF (broken lines and hyphenated words
+    are rebuilt first). on_delta(piece) receives the answer while it streams.
+
+        >>> rocktranslate.translate_text("The encoder is com-\nposed of a stack", "French")
+    """
+    return assist.translate_text(_assistant(model, api_key, lang), text, lang, on_delta=on_delta)
+
+
+def explain(text: str, lang: str = "French", model: str = DEFAULT_MODEL, api_key: Optional[str] = None,
+            on_delta=None) -> str:
+    """Explains a passage or a formula in plain words, in `lang`."""
+    return assist.explain_text(_assistant(model, api_key, lang), text, lang, on_delta=on_delta)
+
+
+def summarize(pdf_path: str, lang: str = "French", section: Optional[str] = None,
+              model: str = DEFAULT_MODEL, api_key: Optional[str] = None, password: Optional[str] = None,
+              on_delta=None) -> str:
+    """
+    Summary of a paper, or of one of its sections ("3.2", "Results"), in `lang`.
+    A section is located with the structured extraction (headings and depth).
+    """
+    local = resolve_pdf_source(pdf_path)
+    if section:
+        text = extract(local, password=password).section_text(section)
+        if text is None:
+            raise ValueError(f"Section not found: {section}")
+    else:
+        text = "\n\n".join(assist.page_texts(local, password))
+    return assist.summarize_text(_assistant(model, api_key, lang), text, lang, title=section, on_delta=on_delta)
+
+
+def glossary(pdf_path: str, lang: str = "French", max_terms: int = 30, model: str = DEFAULT_MODEL,
+             api_key: Optional[str] = None, password: Optional[str] = None) -> List[Dict[str, str]]:
+    """
+    Key terms of a paper with one consistent translation each:
+    [{"term", "translation", "note"}]. Pass it to translate(glossary=...).
+    """
+    pages = assist.page_texts(resolve_pdf_source(pdf_path), password)
+    return assist.build_glossary(_assistant(model, api_key, lang), "\n\n".join(pages), lang, max_terms)
+
+
+def ask(pdf_path: str, question: str, lang: str = "French", model: str = DEFAULT_MODEL,
+        api_key: Optional[str] = None, password: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Answers a question from the paper: {"answer", "quotes": [{"page", "quote"}]}.
+    Quotes are verbatim passages of the paper with their page (checked).
+
+        >>> rocktranslate.ask("paper.pdf", "Which dataset is used?", lang="French")
+    """
+    pages = assist.page_texts(resolve_pdf_source(pdf_path), password)
+    return assist.ask_document(_assistant(model, api_key, lang), pages, question, lang)
+
+
+def side_by_side(original_pdf: str, translated_pdf: str, output_pdf: str, first_page: int = 1,
+                 password: Optional[str] = None) -> int:
+    """Bilingual study copy: original page | translated page. Returns the sheet count."""
+    return make_side_by_side(resolve_pdf_source(original_pdf), translated_pdf, output_pdf,
+                             first_page=first_page, password=password)
 
 
 if __name__ == "__main__":  # pragma: no cover - manual smoke test

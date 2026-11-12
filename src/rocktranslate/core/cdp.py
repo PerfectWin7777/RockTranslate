@@ -294,3 +294,37 @@ def print_to_pdf(browser: str, html_path: str, output_pdf: str, timeout: float,
     finally:
         if session is not None:
             session.close()
+
+
+def screenshot_page(browser: str, html_path: str, page_index: int, timeout: float = 120.0,
+                    scale: float = 2.0) -> Optional[str]:
+    """
+    PNG (base64) of one page (.pf, 0-based) of an export HTML, rendered by a
+    headless browser at `scale` x resolution. Used to copy a translated page
+    to the clipboard. None on failure.
+    """
+    url = "file:///" + os.path.abspath(html_path).replace(os.sep, "/").lstrip("/")
+    session = None
+    try:
+        session = _Session(browser, url, timeout)
+        if not _wait_until_printable(session, None):
+            return None
+        rect = session.evaluate(
+            "(() => { const p = document.querySelectorAll('.pf')[%d]; if (!p) return 'none';"
+            " p.scrollIntoView(); const r = p.getBoundingClientRect();"
+            " return JSON.stringify({x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height}); })()"
+            % int(page_index))
+        if not rect or rect == "none":
+            return None
+        box = json.loads(rect)
+        result = session.call("Page.captureScreenshot", {
+            "format": "png", "captureBeyondViewport": True,
+            "clip": {"x": box["x"], "y": box["y"], "width": box["w"], "height": box["h"], "scale": scale}})
+        return result.get("data")
+    except Exception as e:
+        from loguru import logger
+        logger.warning(f"DevTools screenshot failed with {os.path.basename(browser)}: {type(e).__name__}: {e}")
+        return None
+    finally:
+        if session is not None:
+            session.close()

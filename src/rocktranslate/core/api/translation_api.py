@@ -576,7 +576,8 @@ class TranslationApiMixin:
             target_lang=config_db.get("SystemConfig", "target_lang", "French"),
             custom_base_url=active_base_url,
             all_keys=keys_dict,
-            custom_glossary=config_db.get("TranslationConfig", "custom_glossary", ""),
+            custom_glossary=(self._effective_glossary() if hasattr(self, "_effective_glossary")
+                             else config_db.get("TranslationConfig", "custom_glossary", "")),
             on_status=lambda msg, key=None, variables=None: (
                 self._send_status_i18n(key, variables) if key else self._send_status(msg)),
         )

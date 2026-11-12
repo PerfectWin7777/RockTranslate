@@ -122,6 +122,7 @@ class Document:
         self.target_language = target_language
         self.report = None              # TranslationReport, set by rocktranslate.translate()
         self.output_pdf: Optional[str] = None
+        self.side_by_side_pdf: Optional[str] = None
 
     # ── Navigation ──────────────────────────────────────────────────────────
     def __iter__(self) -> Iterator[Element]:
@@ -159,6 +160,37 @@ class Document:
             elif current is not None and e.type not in FURNITURE:
                 current[1].append(e)
         return result
+
+    def toc(self) -> List[Dict[str, Any]]:
+        """
+        Table of contents built from the detected headings (also for PDFs that
+        have no bookmarks): [{"title", "depth", "page"}] in reading order.
+        """
+        return [{"title": e.text, "depth": e.depth, "page": e.page}
+                for e in self.elements if e.type in (TITLE, SECTION)]
+
+    def section_text(self, heading: str, translated: bool = False) -> Optional[str]:
+        """
+        Text of the section whose heading starts with (or contains) `heading`
+        ("3.2", "Results"), sub-sections included. None if not found.
+        """
+        wanted = heading.strip().lower()
+        elements = self.elements
+        start = next((i for i, e in enumerate(elements) if e.type == SECTION
+                      and strip_markup(e.text).lower().startswith(wanted)), None)
+        if start is None:
+            start = next((i for i, e in enumerate(elements) if e.type == SECTION
+                          and wanted in strip_markup(e.text).lower()), None)
+        if start is None:
+            return None
+        depth = elements[start].depth
+        parts = [strip_markup(_pick(elements[start], translated))]
+        for e in elements[start + 1:]:
+            if e.type in (TITLE, SECTION) and e.depth <= depth:
+                break
+            if e.type not in FURNITURE:
+                parts.append(strip_markup(_pick(e, translated)))
+        return "\n\n".join(p for p in parts if p)
 
     # ── Exports ────────────────────────────────────────────────────────────
     def to_dicts(self, unstructured: bool = False) -> List[Dict[str, Any]]:
