@@ -970,10 +970,12 @@ class TranslationApiMixin:
 
         return False
 
-    def reset_translation_range(self, range_str: Optional[str]) -> None:
+    def reset_translation_range(self, range_str: Optional[str], forget_saved: bool = False) -> None:
         """
         Clears translation caches for the target range (or the entire document
         if range_str is None) and triggers selective DOM restoration in JS.
+        forget_saved=True (explicit "translate again") also drops these pages from
+        the translations saved on disk for the current language and model.
         """
         total_pages = max(self._tid_to_page.values()) + 1 if self._tid_to_page else 1
         
@@ -988,7 +990,8 @@ class TranslationApiMixin:
 
         # The on-disk copy must forget these pages too, otherwise the next run
         # restores them from the file and "translate again" changes nothing.
-        self._forget_persisted_pages(set(target_pages))
+        if forget_saved:
+            self._forget_persisted_pages(set(target_pages))
 
         # Trigger DOM restoration on the frontend specifically for these pages
         self._send_js(

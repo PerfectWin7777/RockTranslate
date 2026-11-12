@@ -659,7 +659,9 @@ def test_reset_pages_really_translates_again(tmp_path, monkeypatch):
     api.start_range_translation("2")
     api._trans_thread.join(10)
 
-    api.reset_translation_range("2")
+    api.reset_translation_range("2")          # language switch style: the disk copy is kept
+    assert api._load_persisted_translations("stub/model", "French") == 4
+    api.reset_translation_range("2", forget_saved=True)   # explicit "translate again"
     monkeypatch.setattr(api, "_resolve_llm_client", lambda: SlowClient(0.0, "NEW"))
     api.start_range_translation("2")
     api._trans_thread.join(10)
