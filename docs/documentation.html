@@ -280,6 +280,7 @@ doc.highlight(hits, "attention.pdf", "attention_hits.pdf")</code></pre>
                 <table class="docs-table">
                     <thead><tr><th scope="col">Option</th><th scope="col">Description</th></tr></thead>
                     <tbody>
+                        <tr><td><code>input</code></td><td>A PDF file, or an <code>http(s)</code> link to one (arXiv <code>/abs/</code> pages work)</td></tr>
                         <tr><td><code>-l, --lang</code></td><td>Target language (default: French)</td></tr>
                         <tr><td><code>-o, --output</code></td><td>Output PDF (default: <code>&lt;input&gt;_translated.pdf</code>)</td></tr>
                         <tr><td><code>-p, --pages</code></td><td>Page range, e.g. <code>"1-3, 5"</code>; only those pages are converted</td></tr>
@@ -288,6 +289,7 @@ doc.highlight(hits, "attention.pdf", "attention_hits.pdf")</code></pre>
                         <tr><td><code>-t, --temp</code></td><td>Sampling temperature</td></tr>
                         <tr><td><code>-f, --format</code></td><td><code>pdf</code>, <code>json</code>, <code>md</code>, <code>chunks</code>, comma-separated</td></tr>
                         <tr><td><code>--bilingual</code></td><td>Markdown with each original paragraph followed by its translation</td></tr>
+                        <tr><td><code>--skip-references</code></td><td>Keep the bibliography in its original language (fewer tokens)</td></tr>
                         <tr><td><code>--parallel</code></td><td>Concurrent LLM requests (default: 4)</td></tr>
                         <tr><td><code>--base-url</code></td><td>Custom API endpoint (Ollama, proxies)</td></tr>
                         <tr><td><code>--password</code></td><td>Password of a protected PDF</td></tr>

@@ -986,7 +986,7 @@ doc.highlight(hits, "attention.pdf",
                             <div class="code-line"><span class="code-prompt">$ </span>pip install rocktranslate</div>
                             <div class="code-line"><span class="code-comment">Installing beautifulsoup4, litellm, lxml...</span></div>
                             <div class="code-line"><span class="code-string">Successfully installed rocktranslate-2.0.5</span></div>
-                            <div class="code-line"><span class="code-prompt">$ </span>rocktranslate paper.pdf --target-lang French --model gemini/gemini-3.8-flash</div>
+                            <div class="code-line"><span class="code-prompt">$ </span>rocktranslate paper.pdf -l French -m gemini/gemini-3.5-flash-lite</div>
                             <div class="code-line"><span class="code-string">[SUCCESS] Pixel-perfect PDF created: "paper_fr.pdf"</span></div>
                         </div>
 
@@ -999,7 +999,7 @@ doc.highlight(hits, "attention.pdf",
                             <div class="code-line">&nbsp;</div>
                             <div class="code-line"><span class="code-comment"># Initialize layout-preserved translation engine</span></div>
                             <div class="code-line">translator = RockTranslator(</div>
-                            <div class="code-line">&nbsp;&nbsp;&nbsp;&nbsp;model=<span class="code-string">"gemini/gemini-3.8-flash"</span>,  <span class="code-comment"># or "gpt-5.6-terra", "claude-5-sonnet"</span></div>
+                            <div class="code-line">&nbsp;&nbsp;&nbsp;&nbsp;model=<span class="code-string">"gemini/gemini-3.5-flash-lite"</span>,  <span class="code-comment"># or "gpt-5.6-terra", "claude-5-sonnet"</span></div>
                             <div class="code-line">&nbsp;&nbsp;&nbsp;&nbsp;target_lang=<span class="code-string">"French"</span>,</div>
                             <div class="code-line">&nbsp;&nbsp;&nbsp;&nbsp;temperature=0.2</div>
                             <div class="code-line">)</div>

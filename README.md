@@ -189,11 +189,15 @@ A lightweight execution engine that can be run globally from the terminal once i
     ```bash
     rocktranslate paper.pdf -m ollama/llama4 --base-url http://localhost:11434
     ```
-5.  **Password-protected PDF:**
+5.  **Straight from a link (arXiv `/abs/` pages work), keeping the bibliography in English:**
+    ```bash
+    rocktranslate https://arxiv.org/abs/2109.03697 -l French -p 1-5 --skip-references
+    ```
+6.  **Password-protected PDF:**
     ```bash
     rocktranslate locked.pdf --password "secret"
     ```
-6.  **Check the environment (pdf2htmlEX, PDF engine, API keys):**
+7.  **Check the environment (pdf2htmlEX, PDF engine, API keys):**
     ```bash
     rocktranslate doctor
     ```
@@ -418,6 +422,7 @@ print(doc.report.cost_usd, doc.output_pdf)
 
 ```bash
 rocktranslate extract paper.pdf -f json,md,chunks             # structure only
+rocktranslate extract https://arxiv.org/abs/1706.03762 -f md  # a link works too
 rocktranslate paper.pdf -l German -f pdf,json,md --bilingual  # translated PDF + aligned JSON/Markdown
 ```
 
@@ -442,21 +447,6 @@ Same PDFs, Unstructured 0.18 with `strategy="fast"` (its pdfminer-based mode tha
 
 **Honest limits:** displayed equations are only partly reassembled; table header rows spanning several levels can be split; tables whose rows are drawn as one text run (e.g. some LaTeX tables) are not split into cells yet; scanned PDFs (no text layer) would need OCR; PDF input only. Unstructured's heavier `hi_res` mode (ML layout models) was not part of this comparison.
 
----|---|
-| `Title` / `Section` | document title; numbered or typographic headings, with `category_depth` (3.2.1 → 2) |
-| `NarrativeText`, `ListItem`, `Reference` | paragraphs (regrouped across lines), list items, bibliography entries |
-| `Table` | rows × cells (`table`), `text_as_html`, translated cell by cell |
-| `FigureCaption`, `TableCaption`, `Formula`, `Footnote` | captions, displayed equations, notes |
-| `Header`, `Footer`, `FigureText` | page furniture and labels inside figures (kept in JSON, left out of Markdown/chunks) |
-
-**Measured on the same PDFs** (Unstructured 0.18 `strategy="fast"`, the pdfminer-based mode that needs no ML model):
-
-| | Unstructured fast | RockTranslate `extract` |
-|---|---|---|
-| *Attention Is All You Need* (15 p.) | 158 `Title` (every author block), garbled arXiv stamp, 0 tables | 1 title + 31 sections with depth, 4 tables, captions, formulas, stamp read correctly |
-| Geological paper, 35 p., many tables | 3,482 elements, **2,898 `UncategorizedText`** (tables shattered into numbers) | 780 elements, **9 tables** rebuilt row by row |
-
-Limits: scanned PDFs (no text layer) need OCR, which RockTranslate does not do; only PDF input.
 
 ---
 
