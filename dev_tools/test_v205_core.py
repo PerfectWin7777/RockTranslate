@@ -24,8 +24,9 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
 # Isolate the user config: tests must never touch the real settings/cache
-_REAL_HOME = os.path.expanduser("~")
-_REAL_LOCALAPPDATA = os.environ.get("LOCALAPPDATA", "")
+# (another suite may already have isolated HOME: it records the real one)
+_REAL_HOME = os.environ.get("RT_REAL_HOME") or os.path.expanduser("~")
+_REAL_LOCALAPPDATA = os.environ.get("RT_REAL_LOCALAPPDATA", os.environ.get("LOCALAPPDATA", ""))
 _TMP_HOME = tempfile.mkdtemp(prefix="rt_test_home_")
 os.environ["HOME"] = _TMP_HOME
 os.environ["LOCALAPPDATA"] = _TMP_HOME

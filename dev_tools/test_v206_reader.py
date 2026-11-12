@@ -17,6 +17,18 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 
+# Isolate the user config BEFORE importing rocktranslate (its settings object
+# is created at import): tests never read nor write the real settings/cache,
+# whatever the order the test files run in.
+import tempfile  # noqa: E402
+if "rocktranslate" not in sys.modules:
+    # The real locations stay known to other suites (downloaded browser...)
+    os.environ.setdefault("RT_REAL_HOME", os.path.expanduser("~"))
+    os.environ.setdefault("RT_REAL_LOCALAPPDATA", os.environ.get("LOCALAPPDATA", ""))
+    _TMP_HOME = tempfile.mkdtemp(prefix="rt_test_home_")
+    os.environ["HOME"] = _TMP_HOME
+    os.environ["LOCALAPPDATA"] = _TMP_HOME
+
 from rocktranslate.core import assist  # noqa: E402
 from rocktranslate.core.chunker import reference_segment_ids, should_translate  # noqa: E402
 
