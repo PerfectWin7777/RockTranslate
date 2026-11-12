@@ -94,6 +94,7 @@ class RockTranslator:
         password: Optional[str] = None,
         structured: bool = False,
         render_pdf: bool = True,
+        images: bool = True,
     ) -> TranslationReport:
         """
         Translates a PDF and returns a detailed report (tokens, cost, failures).
@@ -124,7 +125,7 @@ class RockTranslator:
             pages=pages, parallel=self.parallel, progress=progress,
             keep_html=keep_html, user_password=password,
             structured=structured, render_pdf=render_pdf,
-            translate_references=self.translate_references,
+            translate_references=self.translate_references, images=images,
         )
 
     def translate(self, input_pdf_path: str, output_pdf_path: Optional[str] = None,
@@ -137,7 +138,7 @@ class RockTranslator:
 
 
 def extract(pdf_path: str, pages: Optional[str] = None, password: Optional[str] = None,
-            measure: bool = True) -> Document:
+            measure: bool = True, images: bool = True) -> Document:
     """
     PDF -> structured Document: titles, sections, paragraphs, lists, tables,
     captions, formulas, footnotes, headers/footers, each with its page and its
@@ -147,14 +148,19 @@ def extract(pdf_path: str, pages: Optional[str] = None, password: Optional[str] 
         >>> doc.to_markdown("paper.md"); doc.to_json("paper.json")
         >>> chunks = doc.chunks(max_characters=1500)        # RAG-ready
         >>> doc = rocktranslate.extract("https://arxiv.org/abs/1706.03762")   # links work too
+        >>> doc.images; doc.to_markdown("paper.md")    # figures -> paper_images/*.png, linked
+
+    images=True (default) renders every captioned figure as a PNG Image element
+    (vector plots included); images=False skips it (faster, text only).
     """
-    return extract_document(resolve_pdf_source(pdf_path), pages=pages, user_password=password, measure=measure)
+    return extract_document(resolve_pdf_source(pdf_path), pages=pages, user_password=password, measure=measure,
+                            images=images)
 
 
 def translate(pdf_path: str, lang: str = "French", model: str = DEFAULT_MODEL, api_key: Optional[str] = None,
               pages: Optional[str] = None, output_pdf: Optional[str] = None, render_pdf: bool = True,
               parallel: int = DEFAULT_PARALLEL_REQUESTS, password: Optional[str] = None,
-              side_by_side: Optional[str] = None, **options) -> Document:
+              side_by_side: Optional[str] = None, images: bool = True, **options) -> Document:
     """
     PDF -> translated Document (and, by default, the translated PDF with the
     original layout). Every element keeps its original text AND its aligned
@@ -174,7 +180,7 @@ def translate(pdf_path: str, lang: str = "French", model: str = DEFAULT_MODEL, a
         options["glossary"] = glossary_to_rules(options["glossary"])
     translator = RockTranslator(model=model, api_key=api_key, target_lang=lang, parallel=parallel, **options)
     report = translator.translate_document(pdf_path, output_pdf, pages=pages, password=password,
-                                           structured=True, render_pdf=render_pdf)
+                                           structured=True, render_pdf=render_pdf, images=images)
     if report.document is None:
         raise RuntimeError(report.error or "Translation failed.")
     doc: Document = report.document

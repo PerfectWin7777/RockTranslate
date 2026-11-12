@@ -118,6 +118,8 @@ def run_extract(argv: List[str]) -> int:
     parser.add_argument("-o", "--output", help="Output base path without extension (default: next to the PDF).")
     parser.add_argument("-p", "--pages", help="Page range, e.g. '1-3, 5'.")
     parser.add_argument("--password", help="Password of a protected PDF.")
+    parser.add_argument("--no-images", action="store_true",
+                        help="Do not render the figures as PNG files (text only, faster).")
     args = parser.parse_args(argv)
     source = args.input
     try:
@@ -129,7 +131,7 @@ def run_extract(argv: List[str]) -> int:
         logger.error(f"File not found: {source}")
         return 1
     from .api import extract
-    doc = extract(local_pdf, pages=args.pages, password=args.password)
+    doc = extract(local_pdf, pages=args.pages, password=args.password, images=not args.no_images)
     stem = os.path.splitext(os.path.basename(local_pdf))[0]
     base = args.output or os.path.join(default_output_dir(source, local_pdf), stem)
     formats = [f.strip().lower() for f in args.format.split(",") if f.strip()]
@@ -305,6 +307,8 @@ def main() -> None:
                         help="Build the paper's glossary first, then translate with it (one extra short request).")
     parser.add_argument("--skip-references", action="store_true",
                         help="Keep the bibliography in its original language (fewer tokens).")
+    parser.add_argument("--no-images", action="store_true",
+                        help="json/md outputs: do not render the figures as PNG files.")
     parser.add_argument("--bilingual", action="store_true",
                         help="Markdown output: original paragraph followed by its translation.")
     parser.add_argument("--version", action="version", version=f"rocktranslate {__version__}")
@@ -360,7 +364,7 @@ def main() -> None:
         report = translator.translate_document(
             args.input, pdf_output, pages=args.pages, progress=progress,
             keep_html=args.keep_html, password=args.password,
-            structured=structured, render_pdf="pdf" in formats,
+            structured=structured, render_pdf="pdf" in formats, images=not args.no_images,
         )
     except KeyboardInterrupt:
         logger.warning("Interrupted.")

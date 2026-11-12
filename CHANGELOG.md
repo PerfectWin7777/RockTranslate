@@ -14,6 +14,9 @@
 - **Exports**: bilingual side-by-side PDF.
 - **Default reader**: open a PDF passed on the command line, single instance, "Open with RockTranslate" and an optional
   default-app task in the installer.
+- **Figures as images in extraction**: every captioned figure (pictures and vector plots) is rendered as PNG, written
+  beside the Markdown/JSON and linked (`![Figure 1](paper_images/page003_figure1.png)`); `Image` elements with
+  `image_path` in JSON. On by default; `images=False` / `--no-images` turns it off.
 - **Python API / CLI**: `translate_text`, `explain`, `summarize`, `glossary`, `ask`, `side_by_side`, `Document.toc()`;
   `rocktranslate ask | summarize | glossary | explain`, `--side-by-side`, `--glossary`, `--auto-glossary`.
 

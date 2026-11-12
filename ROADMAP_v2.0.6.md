@@ -1,6 +1,6 @@
 # RockTranslate — v2.0.6 : du traducteur au lecteur de PDF
 
-_Rédigé le 2026-11-12. Fait suite à [ROADMAP_v2.0.5.md](ROADMAP_v2.0.5.md)._
+_Rédigé le 2026-11-12._
 
 La 2.0.6 regroupe deux choses :
 
@@ -49,6 +49,8 @@ Légende : ✅ fait et testé · 🧪 fait, à valider par l'auteur sur Windows.
 | 17 | **Export bilingue côte à côte** (page originale \| page traduite, vectoriel) | ✅ | `core/side_by_side.py` ; menu Outils ; CLI `--side-by-side` ; API `side_by_side=` |
 | 18 | **Surlignages et notes**, export Markdown | ✅ | `reader.js` (`addHighlight`), onglet Notes de `sidepanel.js` |
 | 19 | **Palette de commandes** `Ctrl+K` et raccourcis | ✅ | `reader.js` (`RT.palette`, `shortcutFor`) |
+
+Plus : **images dans l'extraction** (option, activée par défaut) — chaque figure légendée, image intégrée ou tracé vectoriel, est rendue en PNG à côté du Markdown/JSON (`core/figures.py`, `cdp.screenshot_regions`, `Document.save_images`) ; `images=False` / `--no-images`.
 
 Plus, repris de Foxit : **Instantané** (zone ou page, original ou traduction → presse-papiers), menu **Outils**.
 

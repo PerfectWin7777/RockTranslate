@@ -39,9 +39,11 @@ HEADER = "Header"
 FOOTER = "Footer"
 UNCATEGORIZED = "UncategorizedText"
 FIGURE_TEXT = "FigureText"       # labels drawn inside figures (axis ticks, rotated words)
+IMAGE = "Image"                  # a figure rendered as PNG (rocktranslate.extract(images=True))
 
-# Categories left out of Markdown / chunks by default (page furniture, figure labels)
-FURNITURE = {HEADER, FOOTER, FIGURE_TEXT}
+# Categories left out of plain text / chunks / search (page furniture, figure
+# labels, images). Images still appear in Markdown, as image links.
+FURNITURE = {HEADER, FOOTER, FIGURE_TEXT, IMAGE}
 
 # Unstructured's own names for a few of our categories (to_json(unstructured=True))
 _UNSTRUCTURED_NAMES = {SECTION: "Title", TABLE_CAPTION: "FigureCaption", REFERENCE: "ListItem",
@@ -66,6 +68,8 @@ class Element:
     table: Optional[List[List[str]]] = None      # rows x cells, for Table elements
     table_translation: Optional[List[List[str]]] = None
     segment_ids: List[str] = field(default_factory=list)   # internal ids (translation mapping)
+    image_png: Optional[bytes] = field(default=None, repr=False)   # Image elements: the PNG
+    image_path: Optional[str] = None             # where the PNG was written (save_images)
 
     def to_dict(self, unstructured: bool = False) -> Dict[str, Any]:
         """Element as a dict; `unstructured=True` uses Unstructured's exact field layout."""
@@ -92,6 +96,14 @@ class Element:
                 metadata["translation_as_html"] = self.translation_html
         if self.table_translation is not None:
             metadata["table_translation"] = self.table_translation
+        if self.type == IMAGE:
+            # Unstructured's fields: a file path, or the PNG inline when not saved
+            if self.image_path:
+                metadata["image_path"] = self.image_path
+            elif self.image_png:
+                import base64
+                metadata["image_base64"] = base64.b64encode(self.image_png).decode("ascii")
+            metadata["image_mime_type"] = "image/png"
         category = _UNSTRUCTURED_NAMES.get(self.type, self.type) if unstructured else self.type
         return {"type": category, "element_id": self.element_id, "text": self.text, "metadata": metadata}
 
@@ -196,8 +208,47 @@ class Document:
     def to_dicts(self, unstructured: bool = False) -> List[Dict[str, Any]]:
         return [e.to_dict(unstructured) for e in self.elements]
 
+    @property
+    def images(self) -> List[Element]:
+        return self.by_type(IMAGE)
+
+    def save_images(self, folder: str, relative_to: Optional[str] = None) -> int:
+        """
+        Writes the figure images as PNG files in `folder` and records their
+        path on each Image element (relative to `relative_to` when given, so
+        Markdown/JSON written in that directory link to them). Returns the
+        number of files written.
+        """
+        import os
+        todo = [e for e in self.elements if e.type == IMAGE and e.image_png]
+        if not todo:
+            return 0
+        os.makedirs(folder, exist_ok=True)
+        counts: Dict[int, int] = {}
+        for e in todo:
+            counts[e.page] = counts.get(e.page, 0) + 1
+            target = os.path.join(folder, f"page{e.page:03d}_figure{counts[e.page]}.png")
+            with open(target, "wb") as f:
+                f.write(e.image_png)
+            e.image_path = (os.path.relpath(target, relative_to).replace(os.sep, "/") if relative_to
+                            else os.path.abspath(target))
+        return len(todo)
+
+    def _save_images_next_to(self, path: str) -> None:
+        """Images of a Markdown/JSON file go to '<name>_images/' beside it."""
+        import os
+        if any(e.type == IMAGE and e.image_png for e in self.elements):
+            base = os.path.splitext(os.path.abspath(path))[0]
+            self.save_images(base + "_images", relative_to=os.path.dirname(base))
+
     def to_json(self, path: Optional[str] = None, unstructured: bool = False, indent: int = 2) -> str:
-        """Elements as JSON (written to `path` when given). Returns the JSON text."""
+        """
+        Elements as JSON (written to `path` when given). Returns the JSON text.
+        Figure images are written to '<name>_images/' beside `path` and
+        referenced by metadata.image_path (inline image_base64 without a path).
+        """
+        if path:
+            self._save_images_next_to(path)
         payload = json.dumps(self.to_dicts(unstructured), ensure_ascii=False, indent=indent)
         if path:
             with open(path, "w", encoding="utf-8") as f:
@@ -215,10 +266,20 @@ class Document:
         translated: write the translation instead of the original.
         bilingual:  original paragraph followed by its translation (quoted).
         page_markers: insert <!-- page N --> comments at page changes.
+
+        Figure images are written to '<name>_images/' beside `path` and linked
+        (![Figure 3](paper_images/page004_figure1.png)); without a path, only
+        images already saved with save_images() are linked.
         """
+        if path:
+            self._save_images_next_to(path)
         out: List[str] = []
         page = None
         for e in self.elements:
+            if e.type == IMAGE:
+                if e.image_path:
+                    out.append(f"![{e.text or 'Figure'}]({e.image_path})")
+                continue
             if e.type in FURNITURE:
                 continue
             if page_markers and e.page != page:

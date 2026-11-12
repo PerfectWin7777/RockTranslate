@@ -409,6 +409,22 @@ doc.highlight(hits, "attention.pdf", "attention_hits.pdf")
 }
 ```
 
+**6 · Figures as images.** Every captioned figure (photos, maps, and vector plots or diagrams alike) is rendered from the page and written beside the Markdown/JSON; `--no-images` / `images=False` turns it off:
+
+```bash
+rocktranslate extract attention.pdf -p 3 -f md        # attention.md + attention_images/page003_figure1.png
+```
+
+```markdown
+![Figure 1](attention_images/page003_figure1.png)
+
+*Figure 1: The Transformer - model architecture.*
+```
+
+<p align="center"><img src="docs/assets/web/extract_figure.webp" alt="Figure 1 of Attention Is All You Need, extracted as PNG" width="38%"></p>
+
+In JSON, each figure is an `Image` element with its page, its box and `metadata.image_path` (or `image_base64` when no file is written), like Unstructured.
+
 #### 🐍 Python API
 
 ```python
@@ -445,6 +461,7 @@ rocktranslate paper.pdf -l German -f pdf,json,md --bilingual  # translated PDF +
 | `NarrativeText`, `ListItem`, `Reference` | paragraphs (regrouped across lines), list items, bibliography entries |
 | `Table` | rows × cells (`table`), `text_as_html`, translated cell by cell |
 | `FigureCaption`, `TableCaption`, `Formula`, `Footnote` | captions, displayed equations, notes |
+| `Image` | a figure rendered as PNG (file beside the Markdown/JSON, `image_path`) |
 | `Header`, `Footer`, `FigureText` | page furniture and labels inside figures (kept in JSON, left out of Markdown/chunks) |
 
 #### 📊 Measured against Unstructured

@@ -160,3 +160,41 @@ def test_pdf_links_are_normalized():
     assert normalize_pdf_url("https://arxiv.org/abs/2109.03697v3") == "https://arxiv.org/pdf/2109.03697v3"
     assert normalize_pdf_url("https://openreview.net/forum?id=abc") == "https://openreview.net/pdf?id=abc"
     assert is_url("HTTPS://x.org/a.pdf") and not is_url("C:/papers/a.pdf")
+
+
+def _doc(elements, size=(612.0, 792.0)):
+    from rocktranslate.document import Document
+    return Document(elements, "paper.pdf", {1: size})
+
+
+def test_figure_regions_above_and_beside_the_caption():
+    from rocktranslate.core.figures import locate_figures
+    from rocktranslate.document import Element
+    para = Element(type="NarrativeText", text="Body text above.", page=1, bbox=(72, 72, 540, 150))
+    cap = Element(type="FigureCaption", text="Figure 1: A plot.", page=1, bbox=(72, 420, 540, 440))
+    regions = locate_figures(_doc([para, cap]))
+    assert len(regions) == 1
+    _, page, (x0, y0, x1, y1), above = regions[0]
+    assert page == 1 and above and y0 >= 150 and y1 <= 420 and x0 <= 72 and x1 >= 540
+
+    # Side caption (narrow, left column): the figure is the empty area on its right
+    side_cap = Element(type="FigureCaption", text="Figure 2. Map of the area.", page=1, bbox=(40, 80, 180, 300))
+    text_below = Element(type="NarrativeText", text="Body text.", page=1, bbox=(40, 650, 560, 760))
+    _, _, (x0, y0, x1, y1), _ = locate_figures(_doc([side_cap, text_below], (595.0, 842.0)))[0]
+    assert x0 > 180 and x1 >= 550 and y1 <= 650 and (y1 - y0) > 400
+
+
+def test_images_saved_next_to_markdown_and_json(tmp_path):
+    from rocktranslate.document import Element
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 32
+    doc = _doc([Element(type="Image", text="Figure 1", page=1, bbox=(0, 0, 10, 10), image_png=png),
+                Element(type="FigureCaption", text="Figure 1: A plot.", page=1, bbox=(0, 12, 10, 20))])
+    md = doc.to_markdown(str(tmp_path / "paper.md"))
+    assert md.startswith("![Figure 1](paper_images/page001_figure1.png)")
+    assert (tmp_path / "paper_images" / "page001_figure1.png").read_bytes() == png
+    data = json.loads(doc.to_json(str(tmp_path / "paper.json")))
+    assert data[0]["type"] == "Image" and data[0]["metadata"]["image_path"].endswith("page001_figure1.png")
+    # Without a file: the PNG travels inline (Unstructured's image_base64)
+    doc.elements[0].image_path = None
+    assert "image_base64" in json.loads(doc.to_json())[0]["metadata"]
+    assert doc.chunks() and all("Figure 1](" not in c.text for c in doc.chunks())

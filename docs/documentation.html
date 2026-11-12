@@ -222,6 +222,7 @@ for table in doc.tables:
                         <tr><td><code>FigureCaption</code>, <code>TableCaption</code></td><td>Captions starting with Figure / Fig. / Table</td><td>italic</td></tr>
                         <tr><td><code>Formula</code></td><td>Displayed equation pieces</td><td>code block</td></tr>
                         <tr><td><code>Footnote</code></td><td>Small text at the bottom of the page, with its mark</td><td>quote</td></tr>
+                        <tr><td><code>Image</code></td><td>A captioned figure rendered as PNG (photos, maps, vector plots); <code>image_path</code> in JSON</td><td><code>![Figure 1](paper_images/…png)</code></td></tr>
                         <tr><td><code>Header</code>, <code>Footer</code>, <code>FigureText</code></td><td>Running headers, page numbers, stamps, words drawn inside figures</td><td>left out</td></tr>
                     </tbody>
                 </table>
@@ -340,7 +341,7 @@ rocktranslate.extract("paper.pdf").toc()     # contents, even without bookmarks<
                 </table>
             </div>
             <h3><code>rocktranslate extract &lt;pdf&gt;</code></h3>
-            <p><code>-f json,md,chunks</code> (default <code>json,md</code>), <code>-o</code> output base path, <code>-p</code> page range, <code>--password</code>.</p>
+            <p><code>-f json,md,chunks</code> (default <code>json,md</code>), <code>-o</code> output base path, <code>-p</code> page range, <code>--password</code>, <code>--no-images</code> (figures are written as PNG beside the outputs by default).</p>
             <h3><code>rocktranslate ask | summarize | glossary | explain</code></h3>
             <p><code>ask &lt;pdf&gt; "question"</code> (<code>--json</code>), <code>summarize &lt;pdf&gt; [--section 3.2]</code>, <code>glossary &lt;pdf&gt; [-o FILE] [--max-terms 30]</code>, <code>explain "text"</code> (<code>-</code> reads stdin); all take <code>-l</code>, <code>-m</code>, <code>-k</code>, <code>--base-url</code>.</p>
             <h3><code>rocktranslate doctor</code></h3>
@@ -351,7 +352,7 @@ rocktranslate.extract("paper.pdf").toc()     # contents, even without bookmarks<
             <h2>Python API reference</h2>
             <dl class="docs-api">
                 <dt><code>rocktranslate.extract(pdf_path, pages=None, password=None, measure=True) → Document</code></dt>
-                <dd>Structure only. <code>measure=False</code> skips the browser measurement and estimates line widths.</dd>
+                <dd>Structure only. <code>measure=False</code> skips the browser measurement and estimates line widths. <code>images=True</code> (default) renders every captioned figure as an <code>Image</code> element (PNG); <code>doc.images</code>, <code>doc.save_images(folder)</code>.</dd>
                 <dt><code>rocktranslate.translate(pdf_path, lang="French", model=…, api_key=None, pages=None, output_pdf=None, render_pdf=True, parallel=4, password=None, **options) → Document</code></dt>
                 <dd>Translated Document; <code>doc.output_pdf</code> and <code>doc.report</code> (tokens, cost, seconds, failures). Raises <code>RuntimeError</code> when nothing could be translated.</dd>
                 <dt><code>rocktranslate.translate_text(text, lang) / explain(text, lang) → str</code></dt>

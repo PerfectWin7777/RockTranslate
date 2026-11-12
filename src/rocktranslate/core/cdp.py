@@ -328,3 +328,72 @@ def screenshot_page(browser: str, html_path: str, page_index: int, timeout: floa
     finally:
         if session is not None:
             session.close()
+
+
+def screenshot_regions(browser: str, html_path: str, regions: list, scale: float = 2.0,
+                       timeout: float = 180.0) -> Optional[list]:
+    """
+    PNG bytes of several page regions of a pdf2htmlEX HTML, in one browser
+    session. regions: [(page_index (0-based .pf), (x0, y0, x1, y1) in PDF
+    points from the top-left, (page_width_pt, page_height_pt))]. Returns a
+    list aligned with `regions` (None for a region that failed), or None if
+    the page could not be rendered at all.
+    """
+    import base64 as b64
+    url = "file:///" + os.path.abspath(html_path).replace(os.sep, "/").lstrip("/")
+    session = None
+    try:
+        session = _Session(browser, url, timeout)
+        if not _wait_until_printable(session, None):
+            return None
+        # A tall, fixed viewport (resizing later would re-layout the pages)
+        session.call("Emulation.setDeviceMetricsOverride", {"width": 1400, "height": 1600,
+                                                            "deviceScaleFactor": 1, "mobile": False})
+        # pdf2htmlEX opens pages lazily (when scrolled into view): open them
+        # all and wait for their page images, or off-screen regions come out blank
+        # pdf2htmlEX scrolls inside #page-container (absolute, overflow:auto):
+        # unwrap it so every page is part of the document and can be painted
+        session.evaluate(
+            "(() => { const st = document.createElement('style');"
+            " st.textContent = '#sidebar{display:none!important} #page-container{position:static!important;"
+            "overflow:visible!important;height:auto!important;width:auto!important;top:0!important;left:0!important}';"
+            " document.head.appendChild(st); return true; })()")
+        session.evaluate(
+            "(async () => { document.querySelectorAll('.pc').forEach(p => p.classList.add('opened'));"
+            " await Promise.all(Array.from(document.images).map(i => i.complete ? 0 : i.decode().catch(() => 0)));"
+            " await new Promise(r => setTimeout(r, 300)); return true; })()")
+        out = []
+        for page_index, (x0, y0, x1, y1), (pw, ph) in regions:
+            if not pw or not ph:
+                out.append(None)
+                continue
+            try:
+                # Bring the region into view (only what is near the viewport is
+                # painted), then measure the page where it now is
+                found = session.evaluate(
+                    "(async () => { const p = document.querySelectorAll('.pf')[%d]; if (!p) return 'none';"
+                    " const r0 = p.getBoundingClientRect(); window.scrollTo(0, r0.top + scrollY + %f - 20);"
+                    " await new Promise(r => requestAnimationFrame(() => setTimeout(r, 150)));"
+                    " const r = p.getBoundingClientRect();"
+                    " return JSON.stringify([r.left + scrollX, r.top + scrollY, r.width, r.height]); })()"
+                    % (int(page_index), float(y0) * 1.3))
+                if not found or found == "none":
+                    out.append(None)
+                    continue
+                left, top, width, height = json.loads(found)
+                kx, ky = width / pw, height / ph
+                result = session.call("Page.captureScreenshot", {
+                    "format": "png", "captureBeyondViewport": True,
+                    "clip": {"x": left + x0 * kx, "y": top + y0 * ky, "width": max(1.0, (x1 - x0) * kx),
+                             "height": max(1.0, (y1 - y0) * ky), "scale": scale}})
+                out.append(b64.b64decode(result["data"]) if result.get("data") else None)
+            except Exception:
+                out.append(None)
+        return out
+    except Exception as e:
+        from loguru import logger
+        logger.warning(f"DevTools region screenshots failed with {os.path.basename(browser)}: {type(e).__name__}: {e}")
+        return None
+    finally:
+        if session is not None:
+            session.close()

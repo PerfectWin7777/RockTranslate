@@ -286,14 +286,28 @@ def _resolve_pages(input_pdf: str, pages: Optional[str]) -> Tuple[Optional[List[
     return page_list, page_list[0] + 1, page_list[-1] + 1
 
 
+def _attach_images(doc: "Document", raw_html: str, page_offset: int, page_list: Optional[List[int]]) -> None:
+    """Figure images (only for the requested pages); never fails the extraction."""
+    from .figures import attach_figure_images
+    try:
+        if page_list is not None:
+            wanted = {p + 1 for p in page_list}
+            kept = doc.elements
+            doc.elements = [e for e in kept if e.page in wanted]
+        attach_figure_images(doc, raw_html, page_offset=page_offset)
+    except Exception as e:
+        logger.warning(f"Figure images skipped: {e}")
+
+
 def extract_document(input_pdf: str, pages: Optional[str] = None, user_password: Optional[str] = None,
-                     assets_dir: str = DEFAULT_ASSETS_DIR, measure: bool = True) -> "Document":
+                     assets_dir: str = DEFAULT_ASSETS_DIR, measure: bool = True, images: bool = True) -> "Document":
     """
     PDF -> structured Document (no LLM, no API key, no cost).
 
     Same conversion, cache and layout analysis as the translator. `measure`
     uses an installed Edge/Chrome (or the headless shell) for exact line
     widths; without a browser, widths are estimated from font sizes.
+    `images` renders every captioned figure as a PNG Image element.
     """
     from .structure import build_document
     page_list, first_page, last_page = _resolve_pages(input_pdf, pages)
@@ -317,6 +331,8 @@ def extract_document(input_pdf: str, pages: Optional[str] = None, user_password:
             boxes = measure_line_boxes(raw_html)
         doc = build_document(workspace_html, original_texts, tid_to_page, input_pdf,
                              page_offset=(first_page - 1) if first_page else 0, boxes=boxes)
+        if images:
+            _attach_images(doc, raw_html, (first_page - 1) if first_page else 0, page_list)
     if page_list is not None:
         wanted = {p + 1 for p in page_list}
         doc.elements = [e for e in doc.elements if e.page in wanted]
@@ -337,6 +353,7 @@ def translate_pdf(
     structured: bool = False,
     render_pdf: bool = True,
     translate_references: bool = True,
+    images: bool = True,
 ) -> TranslationReport:
     """
     Full headless pipeline. Untranslated pages are left in the original language.
@@ -468,6 +485,8 @@ def translate_pdf(
             if page_list is not None:
                 wanted = {p + 1 for p in page_list}
                 doc.elements = [e for e in doc.elements if e.page in wanted]
+            if images:
+                _attach_images(doc, raw_html, (first_page - 1) if first_page else 0, None)
             attach_translations(doc, translations, original_texts_all, client.target_lang)
             report.document = doc
 
