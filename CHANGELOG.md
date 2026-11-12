@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.0.6 — in progress
+## 2.0.6 — 2026-11
 
 ### A PDF reader that understands the paper (new)
 - **Selection bubble**: select a passage, read its translation or a plain explanation streamed in a bubble (~1 s to the first
