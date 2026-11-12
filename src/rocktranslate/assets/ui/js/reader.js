@@ -464,6 +464,7 @@
         doc.addEventListener('dragover', (e) => { if (hasFiles(e)) { e.preventDefault(); e.stopPropagation(); showDropZone(); } }, true);
         doc.addEventListener('drop', (e) => { if (hasFiles(e)) { e.preventDefault(); e.stopPropagation(); } }, true);
         if (side === 'translation' && RT.store().night) applyNightToTranslation(true);
+        setTimeout(applySideRoom, 300);
     }
 
     function hasFiles(e) {
@@ -862,7 +863,33 @@
     let altHeld = false, altUsed = false;
     window.addEventListener('trigger-layout-change', (e) => {
         if (!altHeld && e.detail && e.detail.mode) RT.store().layout = e.detail.mode;
+        setTimeout(applySideRoom, 60);
     });
+
+    // ── Single view: room on both sides of the page ─────────────────────────
+    // With one pane only, the page can be slid left or right (horizontal
+    // scrollbar), e.g. to read the original next to a translation bubble.
+    function applySideRoom() {
+        const single = RT.store().layout !== 'both';
+        const css = {
+            pdf: '#viewerContainer .pdfViewer{padding-left:40vw!important;padding-right:40vw!important;width:max-content!important;min-width:100%;box-sizing:content-box}',
+            html: '#page-container .pf{margin-left:40vw!important;margin-right:40vw!important}',
+        };
+        [[RT.pdfFrame(), css.pdf, '#viewerContainer'], [RT.htmlFrame(), css.html, '#page-container']].forEach(([frame, rule, scroller]) => {
+            try {
+                const doc = frame && frame.contentDocument;
+                if (!doc || !doc.head) return;
+                let st = doc.getElementById('rt-side-room');
+                if (!st) { st = doc.createElement('style'); st.id = 'rt-side-room'; doc.head.appendChild(st); }
+                const was = st.textContent;
+                st.textContent = single ? rule : '';
+                const box = doc.querySelector(scroller);
+                // Entering single view: start centered (the page where it was)
+                if (box && single && !was) box.scrollLeft = (box.scrollWidth - box.clientWidth) / 2;
+            } catch (e) { }
+        });
+    }
+    RT.applySideRoom = applySideRoom;
     function altDown() {
         if (altHeld || RT.store().layout !== 'trans_only') return;
         altHeld = true; altUsed = false;
