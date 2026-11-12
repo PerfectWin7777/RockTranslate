@@ -37,6 +37,55 @@
         esc: (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])),
     };
 
+    /**
+     * Minimal, safe Markdown for model answers: the text is HTML-escaped
+     * FIRST, then only these forms are rebuilt: headings, '- ' / '1.' lists,
+     * **bold**, *italic*, `code`, paragraphs and line breaks. Nothing from
+     * the model is ever inserted as raw HTML.
+     */
+    RT.md = function (text) {
+        const inline = (s) => s
+            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            .replace(/(^|[\s(])\*([^*\s][^*]*)\*(?=[\s).,;:!?]|$)/g, '$1<em>$2</em>');
+        const lines = RT.esc(String(text || '')).replace(/\r/g, '').split('\n');
+        const out = []; let list = null; let para = [];
+        const flushPara = () => { if (para.length) { out.push('<p>' + inline(para.join('<br>')) + '</p>'); para = []; } };
+        const flushList = () => { if (list) { out.push(`<${list.tag}>` + list.items.map((i) => '<li>' + inline(i) + '</li>').join('') + `</${list.tag}>`); list = null; } };
+        lines.forEach((raw) => {
+            const line = raw.trim();
+            let m;
+            if (!line) { flushPara(); flushList(); return; }
+            if ((m = /^(#{1,4})\s+(.*)$/.exec(line))) { flushPara(); flushList(); out.push(`<h${Math.min(6, m[1].length + 3)}>${inline(m[2])}</h${Math.min(6, m[1].length + 3)}>`); return; }
+            if ((m = /^[-*•]\s+(.*)$/.exec(line)) || (m = /^\d+[.)]\s+(.*)$/.exec(line))) {
+                flushPara();
+                const tag = /^\d/.test(line) ? 'ol' : 'ul';
+                if (!list || list.tag !== tag) { flushList(); list = { tag, items: [] }; }
+                list.items.push(m[1]); return;
+            }
+            if (list && /^\s{2,}/.test(raw)) { list.items[list.items.length - 1] += ' ' + line; return; }
+            flushList(); para.push(line);
+        });
+        flushPara(); flushList();
+        return out.join('');
+    };
+
+    // Toast with the thumbnail of the image just copied
+    RT.imageToast = function (dataUrl, message) {
+        let el = document.getElementById('rt-image-toast');
+        if (!el) {
+            el = document.createElement('div'); el.id = 'rt-image-toast'; el.className = 'rt-pop';
+            el.innerHTML = '<img alt=""><span></span>';
+            el.addEventListener('click', () => el.classList.remove('show'));
+            document.body.appendChild(el);
+        }
+        el.querySelector('img').src = dataUrl;
+        el.querySelector('span').textContent = message;
+        el.classList.add('show');
+        clearTimeout(el._timer);
+        el._timer = setTimeout(() => el.classList.remove('show'), 4000);
+    };
+
     function pref(key, fallback) {
         try { const v = localStorage.getItem('rt-reader-' + key); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; }
     }
@@ -56,6 +105,7 @@
             activePath: null,
             currentPage: 1,
             highlights: [],
+            translateRefs: true,
             togglePanel(tab) {
                 if (tab && (!this.panelOpen || this.panelTab !== tab)) { this.panelOpen = true; this.panelTab = tab; }
                 else this.panelOpen = !this.panelOpen;
@@ -63,6 +113,20 @@
                 setTimeout(() => { try { RT.pdfFrame().contentWindow.dispatchEvent(new Event('resize')); } catch (e) { } }, 60);
             },
         });
+    });
+
+    // ── "Translate the references" (same setting as Preferences > Translation) ─
+    RT.refreshReferencesSetting = async function () {
+        try { const p = await RT.api().get_preferences(); RT.store().translateRefs = p.translate_references !== false; } catch (e) { }
+    };
+    RT.toggleReferences = async function () {
+        const on = !RT.store().translateRefs;
+        RT.store().translateRefs = on;
+        try { await RT.api().set_preference('translate_references', on); } catch (e) { }
+        RT.toast(RT.t('rd_translate_refs_menu') + (on ? ' ✓' : ' ✗'), 'info', 2500);
+    };
+    document.addEventListener('alpine:initialized', () => {
+        if (window.rtBridge) rtBridge.whenReady(() => RT.refreshReferencesSetting());
     });
 
     // ── Assistant requests (answers stream from Python) ─────────────────────
@@ -97,11 +161,11 @@
         try {
             const blob = await (await fetch(dataUrl)).blob();
             await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-            RT.toast(RT.t('rd_img_copied'), 'success', 2500);
+            RT.imageToast(dataUrl, RT.t('rd_img_copied'));
         } catch (e) {
             // Clipboard refused (permissions): save the PNG instead
             const res = await RT.api().save_png_file(dataUrl, name || 'rocktranslate.png');
-            if (res && res.status === 'success') RT.toast(RT.t('rd_img_saved', { path: res.path }), 'success', 5000);
+            if (res && res.status === 'success') RT.imageToast(dataUrl, RT.t('rd_img_saved', { path: res.path }));
         }
     };
 
@@ -230,7 +294,7 @@
             const b = e.target.closest('button'); if (!b) return;
             if (b.dataset.mode && bubble._sel) openBubble(b.dataset.mode, bubble._sel, true);
             else if (b.dataset.act === 'close') closeBubble();
-            else if (b.dataset.act === 'copy') RT.copyText(bubble.querySelector('.rt-bubble-body').textContent);
+            else if (b.dataset.act === 'copy') RT.copyText(bubble.querySelector('.rt-bubble-body').innerText);
         });
         document.body.appendChild(bubble);
     }
@@ -276,27 +340,29 @@
         if (bubbleCache.has(cacheKey)) {
             const hit = bubbleCache.get(cacheKey);
             body.classList.remove('rt-typing');
-            body.textContent = hit.text; foot.textContent = hit.foot;
+            body.innerHTML = RT.md(hit.text); foot.textContent = hit.foot;
             bubbleReq = null;
             return;
         }
         const started = performance.now();
         let first = 0;
+        let raw = '';
         const reqId = RT.assist(mode, sel.text, (piece) => {
             if (bubbleReq !== reqId) return;
             if (!first) first = performance.now();
-            body.textContent += piece;
+            raw += piece;
+            body.innerHTML = RT.md(raw);
         }, (res) => {
             if (bubbleReq !== reqId) return;
             body.classList.remove('rt-typing');
             if (!res.ok) { foot.textContent = RT.t('rd_error', { error: res.error || '?' }); return; }
-            if (!body.textContent) body.textContent = res.text || '';
+            if (!raw) { raw = res.text || ''; body.innerHTML = RT.md(raw); }
             const secs = ((performance.now() - started) / 1000).toFixed(1);
             const firstMs = first ? Math.round(first - started) : null;
             const cost = window.rtShowCost !== false && res.cost ? ` · ~$${Number(res.cost).toFixed(4)}` : '';
             foot.textContent = `${(res.model || '').split('/').pop()} · ${secs} s${firstMs ? ` (${RT.t('rd_first_word', { ms: firstMs })})` : ''}${cost}`;
             if (bubbleCache.size > 200) bubbleCache.delete(bubbleCache.keys().next().value);
-            bubbleCache.set(cacheKey, { text: body.textContent, foot: foot.textContent });
+            bubbleCache.set(cacheKey, { text: raw, foot: foot.textContent });
         });
         bubbleReq = reqId;
     }
@@ -383,7 +449,34 @@
         doc.addEventListener('keydown', (e) => { if (shortcutFor(e)) e.preventDefault(); }, true);
         doc.addEventListener('keyup', (e) => { if (e.key === 'Alt') altUp(); });
         doc.addEventListener('mouseover', (e) => linkHover(e, side, info.frame));
+        // A PDF dragged over a pane must not replace the viewer's document
+        // (PDF.js opens dropped files by itself): the main window takes the
+        // drop, which opens it as a new tab with its real path.
+        doc.addEventListener('dragenter', (e) => { if (hasFiles(e)) { e.preventDefault(); showDropZone(); } }, true);
+        doc.addEventListener('dragover', (e) => { if (hasFiles(e)) { e.preventDefault(); e.stopPropagation(); showDropZone(); } }, true);
+        doc.addEventListener('drop', (e) => { if (hasFiles(e)) { e.preventDefault(); e.stopPropagation(); } }, true);
         if (side === 'translation' && RT.store().night) applyNightToTranslation(true);
+    }
+
+    function hasFiles(e) {
+        return !!(e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files'));
+    }
+    // Full-window drop target in the MAIN document: pywebview gives the dropped
+    // file's real path there (bound in web_gui.py) and opens it in a new tab.
+    let dropZone = null, dropTimer = null;
+    function showDropZone() {
+        if (!dropZone) {
+            dropZone = document.createElement('div'); dropZone.id = 'rt-dropzone';
+            dropZone.innerHTML = '<div class="rt-drop-card"><span class="rt-drop-icon">⇣</span><span class="rt-drop-text"></span></div>';
+            const hide = () => { dropZone.style.display = 'none'; };
+            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); clearTimeout(dropTimer); dropTimer = setTimeout(hide, 900); });
+            dropZone.addEventListener('dragleave', (e) => { if (e.target === dropZone) hide(); });
+            dropZone.addEventListener('drop', () => setTimeout(hide, 50));
+            document.body.appendChild(dropZone);
+        }
+        dropZone.querySelector('.rt-drop-text').textContent = RT.t('rd_drop_here');
+        dropZone.style.display = 'flex';
+        clearTimeout(dropTimer); dropTimer = setTimeout(() => { dropZone.style.display = 'none'; }, 1500);
     }
 
     function attachPdfViewer() {

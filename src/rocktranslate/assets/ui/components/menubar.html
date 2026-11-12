@@ -99,7 +99,7 @@
         </div>
 
         <!-- ── 2. TRANSLATION MENU ── -->
-        <div class="menu-item" :class="{ 'active': activeMenu === 'trans' }" @click="toggleMenu('trans')"
+        <div class="menu-item" :class="{ 'active': activeMenu === 'trans' }" @click="toggleMenu('trans'); RT.refreshReferencesSetting()"
             @mouseenter="hoverMenu('trans')">
             <span x-text="$store.i18n.translate('menu_translation')"></span>
 
@@ -120,6 +120,12 @@
                         <span x-text="$store.i18n.translate('item_trans_range')"></span>
                     </span>
                     <span class="dropdown-shortcut">Ctrl+Shift+Enter</span>
+                </div>
+                <div class="dropdown-item" @click="RT.toggleReferences(); closeAll()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark" x-text="$store.reader.translateRefs ? '✓' : ''"></span>
+                        <span x-text="$store.i18n.translate('rd_translate_refs_menu')"></span>
+                    </span>
                 </div>
 
                 <div class="dropdown-divider"></div>
@@ -187,6 +193,14 @@
 
                 <div class="dropdown-divider"></div>
 
+                <div class="dropdown-item" :class="{ 'disabled': !isDocumentLoaded() }"
+                    @click="isDocumentLoaded() && $store.reader.togglePanel(); closeAll()">
+                    <span class="dropdown-label">
+                        <span class="dropdown-checkmark" x-text="$store.reader.panelOpen ? '✓' : ''"></span>
+                        <span x-text="$store.i18n.translate('rd_panel')"></span>
+                    </span>
+                    <span class="dropdown-shortcut">Ctrl+B</span>
+                </div>
                 <div class="dropdown-item" @click="toggleProgressPanel(); closeAll()">
                     <span class="dropdown-label">
                         <span class="dropdown-checkmark" x-text="showProgressPanel ? '✓' : ''"></span>

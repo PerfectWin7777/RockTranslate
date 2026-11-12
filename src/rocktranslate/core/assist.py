@@ -161,12 +161,15 @@ def explain_text(client: LLMClient, text: str, lang: Optional[str] = None,
         "for a reader who is not a specialist of this exact topic: first what it says in one or two plain "
         "sentences, then the technical terms it relies on. If the passage is or contains a formula, explain "
         "what each symbol stands for and what the formula computes. Be precise and brief (at most about 180 "
-        "words). Plain text: short paragraphs or '- ' bullets, math written inline with Unicode symbols, no "
-        "Markdown headings, no LaTeX."
+        "words). Light Markdown: short paragraphs, '- ' bullets, **bold** for the key terms; math written inline "
+        "with Unicode symbols; no headings, no LaTeX."
+        f" Write the whole answer in {lang}, even though the passage is in another language."
     )
     user = clean_selection(text)
     if context:
         user = f"Paper: {context}\n\nSelected passage:\n{user}"
+    # Repeated last: models follow the language of the passage otherwise
+    user += f"\n\n(Answer in {lang}.)"
     return chat(client, system, user, on_delta=on_delta, max_tokens=1200, temperature=0.2)
 
 
@@ -178,9 +181,10 @@ def summarize_text(client: LLMClient, text: str, lang: Optional[str] = None,
         f"Summarize this part of a scientific paper in {lang} as 3 to 6 short '- ' bullets: the question, "
         "the method or argument, the key numbers and the conclusion when present. Keep technical terms "
         "precise, do not invent anything that is not in the text. No heading, no preamble."
+        f" Write in {lang}, even though the paper is in another language."
     )
     body = clean_selection(text)[:MAX_DOCUMENT_CHARS]
-    user = f"Section: {title}\n\n{body}" if title else body
+    user = (f"Section: {title}\n\n{body}" if title else body) + f"\n\n(Answer in {lang}.)"
     return chat(client, system, user, on_delta=on_delta, max_tokens=1200, temperature=0.2)
 
 
@@ -248,8 +252,10 @@ def ask_document(client: LLMClient, pages: List[str], question: str,
         "the paper (same language and spelling as the paper, 5 to 25 consecutive words taken from a single "
         "line or sentence, no ellipsis) with the page number shown before them. Answer with JSON only: "
         '{"answer": "...", "quotes": [{"page": 3, "quote": "..."}]}'
+        f" The answer is in {lang} even when the question or the paper is in another language; the quotes stay in "
+        "the paper's language."
     )
-    user = "PAPER\n" + "\n\n".join(numbered) + f"\n\nQUESTION\n{question.strip()}"
+    user = "PAPER\n" + "\n\n".join(numbered) + f"\n\nQUESTION\n{question.strip()}\n\n(Answer in {lang}.)"
     raw = chat(client, system, user, max_tokens=2048, temperature=0.1)
     try:
         data = _json_from(raw)

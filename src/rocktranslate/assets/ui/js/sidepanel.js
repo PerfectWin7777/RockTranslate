@@ -119,7 +119,7 @@ async function rtOutline(app) {
 
 function sidePanel() {
     return {
-        toc: [], tocAuto: false, tocLoading: false, summaries: {},
+        toc: [], tocAuto: false, tocLoading: false, summaries: {}, collapsed: {},
         q: '', results: [], searching: false, searched: false,
         question: '', thread: [], asking: false,
         glossary: [], glossUse: true, glossBusy: false, glossDirty: false,
@@ -137,7 +137,7 @@ function sidePanel() {
         t(key, vars) { return Alpine.store('i18n').translate(key, vars || {}); },
 
         async load() {
-            this.toc = []; this.summaries = {}; this.results = []; this.thread = []; this.searched = false;
+            this.toc = []; this.summaries = {}; this.collapsed = {}; this.results = []; this.thread = []; this.searched = false;
             this.loadGlossary();
             this.tocLoading = true;
             try {
@@ -150,6 +150,29 @@ function sidePanel() {
         },
 
         // ── Contents ──
+        // (the list can be replaced while the template still renders old rows)
+        hasChildren(i) { const it = this.toc[i], next = this.toc[i + 1]; return !!it && !!next && next.depth > it.depth; },
+        // Hidden when one of its ancestors is collapsed
+        isVisible(i) {
+            if (!this.toc[i]) return false;
+            let depth = this.toc[i].depth;
+            for (let k = i - 1; k >= 0 && depth > 0; k--) {
+                if (this.toc[k].depth < depth) {
+                    if (this.collapsed[k]) return false;
+                    depth = this.toc[k].depth;
+                }
+            }
+            return true;
+        },
+        toggleSection(i) { this.collapsed = { ...this.collapsed, [i]: !this.collapsed[i] }; },
+        collapseAll(on) {
+            const next = {};
+            if (on) this.toc.forEach((_, i) => { if (this.hasChildren(i)) next[i] = true; });
+            this.collapsed = next;
+        },
+        toggleSummary(i) { const s = this.summaries[i]; if (s) this.summaries = { ...this.summaries, [i]: { ...s, open: !s.open } }; },
+        closeSummary(i) { const next = { ...this.summaries }; delete next[i]; this.summaries = next; },
+
         goToc(item) {
             if (item.dest) { RT.app().pdfLinkService.goToDestination(item.dest); return; }
             RT.goTo({ pageIndex: item.page - 1, y: item.y, dest: null });
@@ -173,13 +196,14 @@ function sidePanel() {
         async summarize(i) {
             const item = this.toc[i];
             if (!item.page) return;
-            this.summaries = { ...this.summaries, [i]: { text: '', loading: true } };
+            if (this.summaries[i] && !this.summaries[i].loading) { this.toggleSummary(i); return; }
+            this.summaries = { ...this.summaries, [i]: { text: '', loading: true, open: true } };
             const text = await this.sectionText(i);
             RT.assist('summarize', text, (piece) => {
                 const s = this.summaries[i]; this.summaries = { ...this.summaries, [i]: { ...s, text: s.text + piece } };
             }, (res) => {
                 const s = this.summaries[i] || { text: '' };
-                this.summaries = { ...this.summaries, [i]: { text: s.text || res.text || (res.ok ? '' : this.t('rd_error', { error: res.error })), loading: false } };
+                this.summaries = { ...this.summaries, [i]: { text: s.text || res.text || (res.ok ? '' : this.t('rd_error', { error: res.error })), loading: false, open: s.open !== false } };
             }, { title: item.title });
         },
 

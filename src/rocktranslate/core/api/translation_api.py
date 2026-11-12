@@ -116,13 +116,26 @@ class TranslationApiMixin:
 
         def worker() -> None:
             self._send_status_i18n("status_downloading_pdf")
+            last = [0.0]
+
+            def on_progress(done: int, total: int) -> None:
+                # Same status-bar progress bar as the PDF export (~5 updates/s)
+                now = time.monotonic()
+                if now - last[0] < 0.2 and done < total:
+                    return
+                last[0] = now
+                self._send_js("window.dispatchEvent(new CustomEvent('export-progress', "
+                              f"{{ detail: {{ stage: 'download', done: {done}, total: {total} }} }}))")
+
             try:
-                local_path = download_pdf(url)
+                local_path = download_pdf(url, progress=on_progress)
             except (OSError, ValueError) as e:
+                self._send_js("window.dispatchEvent(new CustomEvent('export-progress', { detail: { stage: 'end' } }))")
                 logger.warning(f"Download failed for {url}: {e}")
                 self._send_status_i18n("status_ready")
                 self._send_toast_i18n("toast_download_failed", "error", duration=10000, variables={"error": str(e)})
                 return
+            self._send_js("window.dispatchEvent(new CustomEvent('export-progress', { detail: { stage: 'end' } }))")
             self.extract_pdf(local_path)
 
         threading.Thread(target=worker, name="rocktranslate-download", daemon=True).start()

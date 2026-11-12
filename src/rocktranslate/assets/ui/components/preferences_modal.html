@@ -137,6 +137,16 @@
                 <!-- ── TRANSLATION ENGINE ── -->
                 <div x-show="section === 'translation'" class="prefs-group-list">
                     <div class="prefs-group">
+                        <div class="prefs-row">
+                            <div class="prefs-row-text">
+                                <div class="prefs-label" x-text="t('prefs_translate_refs')"></div>
+                                <div class="prefs-hint" x-text="t('prefs_translate_refs_hint')"></div>
+                            </div>
+                            <label class="rt-switch"><input type="checkbox" x-model="p.translate_references"
+                                    @change="save('translate_references')"><span></span></label>
+                        </div>
+                    </div>
+                    <div class="prefs-group">
                         <template x-for="f in numericFields" :key="f.key">
                             <div class="prefs-row">
                                 <div class="prefs-row-text">
@@ -154,16 +164,6 @@
                         </template>
                     </div>
 
-                    <div class="prefs-group">
-                        <div class="prefs-row">
-                            <div class="prefs-row-text">
-                                <div class="prefs-label" x-text="t('prefs_translate_refs')"></div>
-                                <div class="prefs-hint" x-text="t('prefs_translate_refs_hint')"></div>
-                            </div>
-                            <label class="rt-switch"><input type="checkbox" x-model="p.translate_references"
-                                    @change="save('translate_references')"><span></span></label>
-                        </div>
-                    </div>
 
                     <div class="prefs-group">
                         <div class="prefs-row prefs-row-stacked">

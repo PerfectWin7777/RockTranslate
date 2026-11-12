@@ -19,14 +19,16 @@ function statusbarController() {
         // Long background work (PDF export...): animated dots after the message
         busy: false,
 
-        // PDF export in progress: { stage, done, total } (null when idle)
+        // PDF export / download in progress: { stage, done, total } (null when idle)
         exportState: null,
+        printStarted: 0,
 
         get exportPercent() {
             const st = this.exportState;
             if (!st) return 0;
             // Pages = 0-80 %, fonts = 85 %, printing = 92 % (Chrome gives no finer signal)
             if (st.stage === 'pages' && st.total > 0) return Math.round(80 * st.done / st.total);
+            if (st.stage === 'download') return st.total > 0 ? Math.round(100 * st.done / st.total) : 50;
             return { building: 3, loading: 5, fonts: 85, ready: 88, print: 92 }[st.stage] || 0;
         },
 
@@ -36,7 +38,15 @@ function statusbarController() {
             const i18n = Alpine.store('i18n');
             if (st.stage === 'pages') return i18n.translate('export_stage_pages', { done: st.done, total: st.total });
             if (st.stage === 'fonts' || st.stage === 'ready') return i18n.translate('export_stage_fonts');
-            if (st.stage === 'print') return i18n.translate('export_stage_print');
+            if (st.stage === 'print') {
+                // Chrome gives no progress while it writes the PDF: show the time spent
+                const secs = this.printStarted ? Math.round((Date.now() - this.printStarted) / 1000) : 0;
+                return i18n.translate('export_stage_print') + (secs >= 3 ? ` (${secs} s)` : '');
+            }
+            if (st.stage === 'download') {
+                const mb = (n) => (n / 1048576).toFixed(1);
+                return i18n.translate('export_stage_download', { done: mb(st.done), total: st.total ? mb(st.total) : '?' });
+            }
             return i18n.translate('export_stage_building');
         },
 
@@ -54,8 +64,11 @@ function statusbarController() {
             window.addEventListener('app-busy', (e) => { this.busy = !!(e.detail && e.detail.on); });
             window.addEventListener('export-progress', (e) => {
                 const d = e.detail || {};
+                if (d.stage === 'print' && (!this.exportState || this.exportState.stage !== 'print')) this.printStarted = Date.now();
                 this.exportState = d.stage === 'end' ? null : d;
             });
+            // Re-render the elapsed seconds of the printing step
+            setInterval(() => { if (this.exportState && this.exportState.stage === 'print') this.exportState = { ...this.exportState }; }, 1000);
             window.addEventListener('update-status-text', (event) => {
                 const d = event.detail || {};
                 if (d.key) {

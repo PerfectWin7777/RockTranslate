@@ -12,7 +12,7 @@
 
         <!-- PDF export: pages being prepared, then fonts, then printing -->
         <span class="export-progress" x-show="exportState" x-cloak :title="exportLabel">
-            <span class="export-progress-track"><span class="export-progress-fill" :style="'width:' + exportPercent + '%'"></span></span>
+            <span class="export-progress-track"><span class="export-progress-fill" :class="{ 'rt-indeterminate': exportState && (exportState.stage === 'print' || exportState.stage === 'fonts' || (exportState.stage === 'download' && !exportState.total)) }" :style="'width:' + exportPercent + '%'"></span></span>
             <span class="export-progress-label" x-text="exportLabel"></span>
         </span>
     </div>

@@ -20,7 +20,7 @@ import re
 import urllib.parse
 import urllib.request
 from email.message import Message
-from typing import Optional
+from typing import Callable, Optional
 
 from loguru import logger
 
@@ -68,9 +68,11 @@ def _file_name(url: str, content_disposition: Optional[str]) -> str:
     return name[:150]
 
 
-def download_pdf(url: str) -> str:
+def download_pdf(url: str, progress: Optional[Callable[[int, int], None]] = None) -> str:
     """
     Downloads a PDF link into the cache and returns the local path.
+    progress(bytes_done, bytes_total) is called as the file arrives
+    (bytes_total is 0 when the server does not announce the size).
 
     Raises:
         ValueError: the link does not lead to a PDF (HTML page, paywall...).
@@ -96,11 +98,20 @@ def download_pdf(url: str) -> str:
                 "Use the direct link of the PDF (for example the 'Download PDF' button of the page).")
         chunks = [head]
         size = len(head)
+        try:
+            total = int(response.headers.get("Content-Length") or 0)
+        except ValueError:
+            total = 0
         while True:
-            block = response.read(1024 * 1024)
+            block = response.read(256 * 1024)
             if not block:
                 break
             size += len(block)
+            if progress:
+                try:
+                    progress(size, total)
+                except Exception:
+                    pass
             if size > MAX_DOWNLOAD_BYTES:
                 raise ValueError(f"The PDF is larger than {MAX_DOWNLOAD_BYTES // (1024 * 1024)} MB.")
             chunks.append(block)
