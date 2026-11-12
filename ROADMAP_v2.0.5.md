@@ -2,6 +2,8 @@
 
 _Rédigé le 2026-11-05 à partir de l'état du code au commit `2adfe77` (branche `second`)._
 
+> **Suite : [ROADMAP_v2.0.6.md](ROADMAP_v2.0.6.md)** — correctifs de la 2.0.5 et les 19 fonctions de lecture (bulle de traduction, aperçus de citations, questions sur l'article, glossaire, lecteur par défaut…).
+
 Ce document a deux buts :
 
 1. **Lister tous les problèmes constatés** dans le code (bugs, sécurité, performance, packaging, UX), avec le fichier concerné et la correction proposée.

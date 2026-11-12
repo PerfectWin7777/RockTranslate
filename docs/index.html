@@ -134,6 +134,7 @@
             <!-- Navigation Links -->
             <ul class="nav-links">
                 <li><a href="#showcase" class="nav-link">Showcase</a></li>
+                <li><a href="#reader" class="nav-link">Reader</a></li>
                 <li><a href="#extract" class="nav-link">Extract</a></li>
                 <li><a href="#platform" class="nav-link">Platform</a></li>
                 <li><a href="#engine" class="nav-link">pdf2htmlEX</a></li>
@@ -657,6 +658,64 @@
         </section>
 
         <!-- ── DEVELOPERS SECTION (Split Layout: CLI & API) ── -->
+        <!-- ═══ READER (2.0.6) ═══ -->
+        <section id="reader" class="reader-section">
+            <div class="container">
+                <div class="extract-intro">
+                    <span class="section-tag">New in 2.0.6 · A reader that understands the paper</span>
+                    <h2 class="section-title">Read the original. Get help on the line you are reading.</h2>
+                    <p class="section-subtitle">
+                        Select four lines that resist you: their translation or a plain explanation streams into a bubble in about two seconds.
+                        Hover a citation or a figure to see it without losing your place. Ask the paper a question and land on the exact passage.
+                    </p>
+                </div>
+
+                <div class="reader-grid">
+                    <figure class="reader-shot">
+                        <img src="assets/web/reader_bubble.webp" alt="A selection translated in a bubble next to the paper" width="640" height="540" loading="lazy">
+                        <figcaption><strong>Select, translate, explain.</strong> First words in about a second; one click switches to a plain explanation, or what every symbol of a formula means.</figcaption>
+                    </figure>
+                    <figure class="reader-shot">
+                        <img src="assets/web/reader_preview.webp" alt="Preview of a reference when hovering a citation" width="800" height="380" loading="lazy">
+                        <figcaption><strong>Hover a citation.</strong> [7], Figure 3, Table 2, Eq. (5): the target appears in place, with its DOI and “open &amp; translate” for arXiv papers.</figcaption>
+                    </figure>
+                    <figure class="reader-shot">
+                        <img src="assets/web/reader_ask.webp" alt="A question answered with the exact table cells highlighted" width="920" height="750" loading="lazy">
+                        <figcaption><strong>Ask the paper.</strong> The answer comes with verbatim quotes and their page; a click highlights the exact cells or sentence.</figcaption>
+                    </figure>
+                    <figure class="reader-shot">
+                        <img src="assets/web/reader_toc.webp" alt="Contents panel with a section summary" width="920" height="770" loading="lazy">
+                        <figcaption><strong>Contents and summaries.</strong> Bookmarks, or headings detected when the PDF has none; ∑ summarizes a section in your language.</figcaption>
+                    </figure>
+                </div>
+
+                <ul class="reader-features">
+                    <li><strong>Clean copy</strong> without line breaks nor hyphens, or with its citation and DOI</li>
+                    <li><strong>Snapshot</strong> of an area or a page, original or translated, to the clipboard</li>
+                    <li><strong>Bilingual search</strong> in the original and its translation</li>
+                    <li><strong>Paper glossary</strong>: one translation per term, applied to the whole document</li>
+                    <li><strong>Notes</strong> and highlights, exported as Markdown</li>
+                    <li><strong>Continuous translation</strong> of the pages you read</li>
+                    <li><strong>Night reading</strong> that keeps figures intact, resume where you stopped</li>
+                    <li><strong>Tabs</strong>, command palette <kbd>Ctrl</kbd>+<kbd>K</kbd>, open with a double-click</li>
+                    <li><strong>Side-by-side PDF</strong>: original page | translated page, for print and study</li>
+                </ul>
+
+                <div class="cmd-bubbles">
+                    <div class="cmd-bubble">
+                        <span class="cmd-label">CLI</span>
+                        <code>rocktranslate ask paper.pdf "Which dataset is used?" -l French</code>
+                        <button type="button" class="cmd-copy" data-copy="rocktranslate ask paper.pdf &quot;Which dataset is used?&quot; -l French">Copy</button>
+                    </div>
+                    <div class="cmd-bubble">
+                        <span class="cmd-label">Python</span>
+                        <code>rocktranslate.translate("paper.pdf", "French", glossary=rocktranslate.glossary("paper.pdf", "French"), side_by_side="bilingual.pdf")</code>
+                        <button type="button" class="cmd-copy" data-copy="rocktranslate.translate(&quot;paper.pdf&quot;, &quot;French&quot;, glossary=rocktranslate.glossary(&quot;paper.pdf&quot;, &quot;French&quot;), side_by_side=&quot;bilingual.pdf&quot;)">Copy</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- ═══ STRUCTURED EXTRACTION (2.0.5) ═══ -->
         <section id="extract" class="extract-section">
             <div class="container">

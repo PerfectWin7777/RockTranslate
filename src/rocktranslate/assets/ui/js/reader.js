@@ -122,6 +122,23 @@
                  width: r.width, height: r.height };
     }
 
+    // Union of the visible line boxes: the range's own box can include
+    // invisible helpers of the text layer (PDF.js "endOfContent").
+    function rangeBox(range) {
+        const boxes = Array.from(range.getClientRects()).filter((x) => x.width > 0.5 && x.height > 0.5 && x.height < 120);
+        if (!boxes.length) return null;
+        const r = { left: Math.min(...boxes.map((x) => x.left)), top: Math.min(...boxes.map((x) => x.top)),
+                    right: Math.max(...boxes.map((x) => x.right)), bottom: Math.max(...boxes.map((x) => x.bottom)) };
+        r.width = r.right - r.left; r.height = r.bottom - r.top;
+        return r;
+    }
+
+    // Current position of a selection (the pane may have scrolled since)
+    function freshRect(sel) {
+        try { const r = rangeBox(sel.range); if (r) return toMain(sel.frame, r); } catch (e) { }
+        return sel.rect;
+    }
+
     function readSelection(doc) {
         const info = frameOf(doc);
         if (!info) return null;
@@ -130,13 +147,8 @@
         const text = sel.toString();
         if (!text || text.trim().length < 2) return null;
         const range = sel.getRangeAt(0);
-        // Union of the visible line boxes: the range's own box can include
-        // invisible helpers of the text layer (PDF.js "endOfContent").
-        const boxes = Array.from(range.getClientRects()).filter((x) => x.width > 0.5 && x.height > 0.5 && x.height < 120);
-        if (!boxes.length) return null;
-        const r = { left: Math.min(...boxes.map((x) => x.left)), top: Math.min(...boxes.map((x) => x.top)),
-                    right: Math.max(...boxes.map((x) => x.right)), bottom: Math.max(...boxes.map((x) => x.bottom)) };
-        r.width = r.right - r.left; r.height = r.bottom - r.top;
+        const r = rangeBox(range);
+        if (!r) return null;
         const page = (range.startContainer.parentElement || range.startContainer).closest &&
             (range.startContainer.parentElement || range.startContainer).closest('.page, .pf');
         let pageNumber = null;
@@ -175,6 +187,7 @@
         const w = toolbar.offsetWidth, h = toolbar.offsetHeight;
         let top = sel.rect.top - h - 8;
         if (top < 40) top = sel.rect.bottom + 8;
+        top = Math.min(Math.max(40, top), window.innerHeight - h - 8);
         const left = Math.min(Math.max(8, sel.rect.left + sel.rect.width / 2 - w / 2), window.innerWidth - w - 8);
         toolbar.style.left = left + 'px'; toolbar.style.top = top + 'px';
     }
@@ -247,10 +260,12 @@
         bubble.style.display = 'flex';
         if (!keepPosition) {
             const w = Math.min(480, window.innerWidth - 24);
+            const rect = freshRect(sel);
             bubble.style.width = w + 'px';
-            let top = sel.rect.bottom + 10;
-            if (top + 260 > window.innerHeight) top = Math.max(50, sel.rect.top - 270);
-            bubble.style.left = Math.min(Math.max(10, sel.rect.left), window.innerWidth - w - 10) + 'px';
+            let top = rect.bottom + 10;
+            if (top + 260 > window.innerHeight) top = rect.top - 270;
+            top = Math.min(Math.max(44, top), window.innerHeight - 220);   // always on screen
+            bubble.style.left = Math.min(Math.max(10, rect.left), window.innerWidth - w - 10) + 'px';
             bubble.style.top = top + 'px';
         }
         const started = performance.now();
@@ -815,8 +830,8 @@
             { id: 'translate-all', label: t('item_start_trans'), run: () => window.dispatchEvent(new CustomEvent('trigger-toggle-translation')) },
             { id: 'translate-page', label: t('rd_translate_page') + ` (${s.currentPage})`, run: () => translatePages([s.currentPage - 1], true) },
             { id: 'continuous', label: t('rd_continuous') + (s.continuous ? ' ✓' : ''), run: () => RT.setContinuous(!s.continuous) },
-            { id: 'translate-sel', label: t('rd_translate') + ' (sélection)', sc: 'Ctrl+T', run: () => runOnSelection('translate') },
-            { id: 'explain-sel', label: t('rd_explain') + ' (sélection)', sc: 'Ctrl+E', run: () => runOnSelection('explain') },
+            { id: 'translate-sel', label: t('rd_translate') + ' · Ctrl+T', sc: 'Ctrl+T', run: () => runOnSelection('translate') },
+            { id: 'explain-sel', label: t('rd_explain') + ' · Ctrl+E', sc: 'Ctrl+E', run: () => runOnSelection('explain') },
             { id: 'panel', label: t('rd_panel'), sc: 'Ctrl+B', run: () => s.togglePanel() },
             { id: 'toc', label: t('rd_tab_toc'), run: () => s.togglePanel('toc') },
             { id: 'search', label: t('rd_search_doc'), sc: 'Ctrl+F', run: () => { s.panelOpen = false; s.togglePanel('search'); setTimeout(() => window.dispatchEvent(new CustomEvent('reader-focus-search')), 80); } },

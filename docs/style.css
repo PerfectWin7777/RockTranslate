@@ -2020,3 +2020,27 @@ html, body { max-width: 100%; overflow-x: clip; }
 }
 
 .extract-solo { border-radius: 8px; }
+
+
+/* ── Reader section (2.0.6) ── */
+.reader-section { padding: 100px 0; border-top: 1px solid var(--border-subtle); }
+.reader-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+.reader-shot { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.reader-shot img {
+    width: 100%; height: auto; display: block; border-radius: 12px;
+    border: 1px solid var(--border-medium); box-shadow: var(--shadow-lg); background: var(--bg-surface);
+}
+.reader-shot figcaption { color: var(--text-secondary); font-size: 0.95rem; line-height: 1.5; }
+.reader-shot figcaption strong { color: var(--text-primary); }
+.reader-features {
+    list-style: none; padding: 0; margin: 40px 0 28px;
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 28px;
+}
+.reader-features li { color: var(--text-secondary); line-height: 1.5; padding-left: 18px; position: relative; font-size: 0.95rem; }
+.reader-features li::before { content: ""; position: absolute; left: 0; top: 0.55em; width: 7px; height: 7px; border-radius: 50%; background: var(--accent-primary); }
+.reader-features li strong { color: var(--text-primary); }
+.reader-features kbd { font-family: "JetBrains Mono", monospace; font-size: 0.8em; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border-medium); background: var(--bg-subtle); }
+@media (max-width: 960px) {
+    .reader-grid { grid-template-columns: 1fr; }
+    .reader-features { grid-template-columns: 1fr; }
+}

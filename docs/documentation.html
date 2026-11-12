@@ -69,6 +69,9 @@
         <a href="#json">JSON schema</a>
         <a href="#chunks">Chunks for RAG</a>
         <a href="#search">Search and highlight</a>
+        <p class="docs-group">Read</p>
+        <a href="#reader">Reading assistant</a>
+        <a href="#reader-cli">Ask, summarize, glossary</a>
         <p class="docs-group">Reference</p>
         <a href="#cli-reference">CLI</a>
         <a href="#api-reference">Python API</a>
@@ -272,6 +275,42 @@ doc.highlight(hits, "attention.pdf", "attention_hits.pdf")</code></pre>
             </figure>
         </section>
 
+        <!-- ── Read (2.0.6) ── -->
+        <section id="reader" class="docs-section">
+            <h2>Reading assistant <span class="docs-version">2.0.6</span></h2>
+            <p>In the desktop app, read the original and get help on the passage you are reading. Every action uses the model of <em>Settings → AI model</em> and shows its time and cost.</p>
+            <figure class="docs-figure">
+                <img src="assets/web/reader_bubble.webp" alt="A selection translated in a bubble" width="640" height="540" loading="lazy">
+                <figcaption>Four lines selected, translated in a bubble in 2 s (DeepSeek Flash, $0.0002).</figcaption>
+            </figure>
+            <ul class="docs-list">
+                <li><strong>Selection</strong>: a toolbar appears; <em>Translate</em> (Ctrl+T), <em>Explain</em> (Ctrl+E), <em>Copy</em> (clean text), <em>Copy + citation</em>, <em>Highlight</em> (Ctrl+H). The same actions are in the right-click menu.</li>
+                <li><strong>Links</strong>: hover a citation, figure, table or equation link to preview its target; <em>Go there</em>, DOI, <em>Open &amp; translate</em> for arXiv references.</li>
+                <li><strong>Side panel</strong> (Ctrl+B): Contents (bookmarks, or detected headings; ∑ summarizes a section), Search in the original and the translation (Ctrl+F), Ask (Ctrl+J) with verbatim quotes that open the exact passage, Notes (exported as Markdown), Glossary.</li>
+                <li><strong>Paper glossary</strong>: <em>Generate</em> builds the key terms with one translation each; edit them; when <em>Use for translations</em> is on, every translation of the document follows them.</li>
+                <li><strong>Tools menu</strong>: continuous translation of the pages you read, night reading, snapshot of an area (Ctrl+Shift+S), page as an image, bilingual side-by-side PDF, notes export, command palette (Ctrl+K).</li>
+                <li><strong>Reading comfort</strong>: the app reopens each document at the last page read; tabs keep several PDFs open; hold Alt in the translation-only view to see the original.</li>
+                <li><strong>Default reader</strong>: the installer registers <em>Open with RockTranslate</em> for PDFs and can make it the default app; a PDF opened while the app runs goes to the open window.</li>
+            </ul>
+        </section>
+
+        <section id="reader-cli" class="docs-section">
+            <h2>Ask, summarize, glossary</h2>
+            <p>The same assistant from the command line and from Python. Inputs can be files or links.</p>
+            <pre class="docs-code"><code>rocktranslate ask paper.pdf "Which dataset is used?" -l French     # answer + quotes with pages
+rocktranslate summarize paper.pdf --section 3.2 -l French
+rocktranslate glossary paper.pdf -l French -o terms.txt
+rocktranslate paper.pdf -l French --glossary terms.txt --side-by-side paper_bilingual.pdf
+rocktranslate explain "softmax(QK^T / sqrt(d_k)) V" -l French</code></pre>
+            <pre class="docs-code"><code>import rocktranslate
+result = rocktranslate.ask("https://arxiv.org/abs/2109.03697", "What is the test MPE of U-FNO?", lang="French")
+result["answer"], result["quotes"]          # [{"page": 32, "quote": "test µ 0.0299 0.0276 0.0224 0.0161"}]
+terms = rocktranslate.glossary("paper.pdf", "French")
+doc = rocktranslate.translate("paper.pdf", "French", glossary=terms, side_by_side="paper_bilingual.pdf")
+rocktranslate.extract("paper.pdf").toc()     # contents, even without bookmarks</code></pre>
+            <p>Measured on a 37-page paper: a question ≈ $0.006, a glossary ≈ $0.006, a translated selection ≈ $0.0002.</p>
+        </section>
+
         <!-- ── Reference ── -->
         <section id="cli-reference" class="docs-section">
             <h2>CLI reference</h2>
@@ -290,6 +329,9 @@ doc.highlight(hits, "attention.pdf", "attention_hits.pdf")</code></pre>
                         <tr><td><code>-f, --format</code></td><td><code>pdf</code>, <code>json</code>, <code>md</code>, <code>chunks</code>, comma-separated</td></tr>
                         <tr><td><code>--bilingual</code></td><td>Markdown with each original paragraph followed by its translation</td></tr>
                         <tr><td><code>--skip-references</code></td><td>Keep the bibliography in its original language (fewer tokens)</td></tr>
+                        <tr><td><code>--glossary FILE</code></td><td>Terminology to follow, one <code>term -&gt; translation</code> per line</td></tr>
+                        <tr><td><code>--auto-glossary</code></td><td>Build the paper's glossary first, then translate with it</td></tr>
+                        <tr><td><code>--side-by-side PDF</code></td><td>Also write a bilingual copy: original page | translated page</td></tr>
                         <tr><td><code>--parallel</code></td><td>Concurrent LLM requests (default: 4)</td></tr>
                         <tr><td><code>--base-url</code></td><td>Custom API endpoint (Ollama, proxies)</td></tr>
                         <tr><td><code>--password</code></td><td>Password of a protected PDF</td></tr>
@@ -299,6 +341,8 @@ doc.highlight(hits, "attention.pdf", "attention_hits.pdf")</code></pre>
             </div>
             <h3><code>rocktranslate extract &lt;pdf&gt;</code></h3>
             <p><code>-f json,md,chunks</code> (default <code>json,md</code>), <code>-o</code> output base path, <code>-p</code> page range, <code>--password</code>.</p>
+            <h3><code>rocktranslate ask | summarize | glossary | explain</code></h3>
+            <p><code>ask &lt;pdf&gt; "question"</code> (<code>--json</code>), <code>summarize &lt;pdf&gt; [--section 3.2]</code>, <code>glossary &lt;pdf&gt; [-o FILE] [--max-terms 30]</code>, <code>explain "text"</code> (<code>-</code> reads stdin); all take <code>-l</code>, <code>-m</code>, <code>-k</code>, <code>--base-url</code>.</p>
             <h3><code>rocktranslate doctor</code></h3>
             <p>Checks pdf2htmlEX, the PDF renderer, the GUI package and the API keys.</p>
         </section>
@@ -310,8 +354,14 @@ doc.highlight(hits, "attention.pdf", "attention_hits.pdf")</code></pre>
                 <dd>Structure only. <code>measure=False</code> skips the browser measurement and estimates line widths.</dd>
                 <dt><code>rocktranslate.translate(pdf_path, lang="French", model=…, api_key=None, pages=None, output_pdf=None, render_pdf=True, parallel=4, password=None, **options) → Document</code></dt>
                 <dd>Translated Document; <code>doc.output_pdf</code> and <code>doc.report</code> (tokens, cost, seconds, failures). Raises <code>RuntimeError</code> when nothing could be translated.</dd>
+                <dt><code>rocktranslate.translate_text(text, lang) / explain(text, lang) → str</code></dt>
+                <dd>A passage copied from a PDF, translated or explained (broken lines and hyphens are rebuilt). <code>on_delta=callable</code> receives the answer while it streams.</dd>
+                <dt><code>rocktranslate.ask(pdf, question, lang) → {"answer", "quotes": [{"page", "quote"}]}</code></dt>
+                <dd>Quotes are verbatim and checked against the paper.</dd>
+                <dt><code>rocktranslate.summarize(pdf, lang, section=None) → str</code> · <code>rocktranslate.glossary(pdf, lang) → [{"term", "translation", "note"}]</code></dt>
+                <dd>Pass the glossary to <code>translate(glossary=…)</code>; <code>translate(side_by_side="out.pdf")</code> also writes the bilingual copy (or call <code>rocktranslate.side_by_side(original, translated, output)</code>).</dd>
                 <dt><code>Document</code></dt>
-                <dd><code>elements</code>, <code>title</code>, <code>tables</code>, <code>by_type(*types)</code>, <code>sections()</code>, <code>to_json(path=None, unstructured=False)</code>, <code>to_markdown(path=None, translated=False, bilingual=False, page_markers=False)</code>, <code>to_text(translated=False)</code>, <code>chunks(max_characters=1500)</code>, <code>search(query)</code>, <code>highlight(elements, source_pdf, output_pdf)</code>.</dd>
+                <dd><code>elements</code>, <code>title</code>, <code>tables</code>, <code>by_type(*types)</code>, <code>sections()</code>, <code>toc()</code>, <code>section_text(heading)</code>, <code>to_json(path=None, unstructured=False)</code>, <code>to_markdown(path=None, translated=False, bilingual=False, page_markers=False)</code>, <code>to_text(translated=False)</code>, <code>chunks(max_characters=1500)</code>, <code>search(query)</code>, <code>highlight(elements, source_pdf, output_pdf)</code>.</dd>
                 <dt><code>Element</code></dt>
                 <dd><code>type</code>, <code>text</code>, <code>html</code>, <code>page</code>, <code>bbox</code> (x0, y0, x1, y1 in points from the top-left), <code>element_id</code>, <code>parent_id</code>, <code>depth</code>, <code>font_size</code>, <code>table</code>, <code>translation</code>, <code>translation_html</code>, <code>table_translation</code>.</dd>
                 <dt><code>RockTranslator(model, api_key, target_lang, temperature, parallel, glossary, …)</code></dt>

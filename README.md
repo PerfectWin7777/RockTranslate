@@ -54,6 +54,7 @@ RockTranslate is a desktop application designed for translating scientific, tech
 
 Built with a local-first architecture, RockTranslate prioritizes performance, reliability, and user control. The application combines advanced document analysis, intelligent translation workflows, and high-fidelity PDF reconstruction to deliver professional-quality results.
 
+*   **A PDF reader that understands the paper (new in 2.0.6):** select 4 lines and read their translation or a plain explanation in a bubble within ~2 s; hover a citation, figure or equation to preview it; ask the paper a question and land on the exact passage; summaries per section, paper glossary, notes, night reading, tabs, command palette. [See it →](#e-read-with-rocktranslate-new-in-206)
 *   **Layout-Preserved PDF Translation:** Retains the exact geometry, columns, margins, and alignment of the original document [2].
 *   **Paragraph-Level Translation with Justified Reflow (new in 2.0.5):** Lines are regrouped into real paragraphs, translated as whole sentences, then reflowed into the original line boxes with one uniform scale per paragraph — justified when the source was justified, like professional document translators.
 *   **Protected PDFs:** Copy-restricted publisher PDFs open normally; password-protected PDFs prompt for their password (kept in memory only).
@@ -165,6 +166,7 @@ A responsive desktop application featuring:
 *   Synchronized dual-pane viewports (Original PDF vs. Live Translated HTML) [2].
 *   Real-time zoom sliders and page navigation.
 *   Visual shimmer skeleton loaders and real-time status bars [1, 2].
+*   A full reading assistant (selection bubble, link previews, contents, questions, notes, glossary): see §5.E.
 
 ### 📥 [Click here to download the standalone Windows Desktop GUI Installer v2.0.6 (.exe)](https://github.com/PerfectWin7777/RockTranslate/releases/download/v2.0.6/RockTranslate_Setup_v2.0.6.exe)
 
@@ -197,7 +199,18 @@ A lightweight execution engine that can be run globally from the terminal once i
     ```bash
     rocktranslate locked.pdf --password "secret"
     ```
-7.  **Check the environment (pdf2htmlEX, PDF engine, API keys):**
+7.  **Bilingual study copy (original page | translated page) and a paper glossary:**
+    ```bash
+    rocktranslate glossary paper.pdf -l French -o terms.txt     # key terms, one translation each
+    rocktranslate paper.pdf -l French --glossary terms.txt --side-by-side paper_bilingual.pdf
+    ```
+8.  **Read faster: ask, summarize, explain (answers in your language):**
+    ```bash
+    rocktranslate ask paper.pdf "Which dataset is used, and how big is it?" -l French
+    rocktranslate summarize paper.pdf --section 3.2 -l French
+    rocktranslate explain "softmax(QK^T / sqrt(d_k)) V" -l French
+    ```
+9.  **Check the environment (pdf2htmlEX, PDF engine, API keys):**
     ```bash
     rocktranslate doctor
     ```
@@ -448,13 +461,59 @@ Same PDFs, Unstructured 0.18 with `strategy="fast"` (its pdfminer-based mode tha
 **Honest limits:** displayed equations are only partly reassembled; table header rows spanning several levels can be split; tables whose rows are drawn as one text run (e.g. some LaTeX tables) are not split into cells yet; scanned PDFs (no text layer) would need OCR; PDF input only. Unstructured's heavier `hi_res` mode (ML layout models) was not part of this comparison.
 
 
+### E. Read with RockTranslate (new in 2.0.6)
+
+RockTranslate is now a PDF reader built for papers: you read the original, and the help comes to the passage you are reading.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/assets/web/reader_bubble.webp" alt="Selection translated in a bubble"><br><b>Select, translate.</b> 4 lines selected → their translation streams into a bubble (first words in ~1 s, the whole paragraph in ~2 s with DeepSeek Flash or Gemini Flash-Lite). One click switches to <i>Explain</i>: the passage in plain words, or what every symbol of a formula means.</td>
+<td width="50%"><img src="docs/assets/web/reader_preview.webp" alt="Citation preview"><br><b>Hover a citation.</b> [7], "Figure 3", "Table 2" or "Eq. (5)": the target appears where you are, with <i>Go there</i>, a DOI link, and <i>Open &amp; translate</i> for arXiv references.</td>
+</tr>
+<tr>
+<td><img src="docs/assets/web/reader_ask.webp" alt="Question answered with the exact passage"><br><b>Ask the paper.</b> "What is the test error of U-FNO for gas saturation?" → the answer, with verbatim quotes and their page; a click highlights the exact cells or sentence in the PDF. Quotes are checked against the text: no invented citation.</td>
+<td><img src="docs/assets/web/reader_toc.webp" alt="Contents and section summary"><br><b>Contents and summaries.</b> The PDF's bookmarks, or headings detected on the pages when it has none (numbered, lettered, unnumbered); ∑ summarizes a section in your language.</td>
+</tr>
+</table>
+
+| | What you get |
+|---|---|
+| **Selection** | Floating toolbar and right-click menu: *Translate*, *Explain*, *Copy* (clean: no line breaks nor end-of-line hyphens), *Copy + citation* ("…" (Wen et al., 2022, p. 3) + DOI), *Highlight* |
+| **Snapshot** | Drag over an area (original or translation) or copy a whole page as an image to the clipboard |
+| **Panel** (Ctrl+B) | Contents · bilingual Search (original *and* translation, accents ignored) · Ask · Notes (highlights + your notes, exported as Markdown) · Glossary |
+| **Paper glossary** | Key terms with ONE translation each, editable, applied to every translation of the document |
+| **Continuous translation** | The pages you read are translated as you go (Tools menu) |
+| **Comfort** | Resume at the last page read, night reading (figures are not inverted), hold Alt to see the original in the translation-only view, document tabs, command palette (Ctrl+K) |
+| **Exports** | Translated PDF, bilingual side-by-side PDF (original page \| translated page), notes in Markdown |
+| **Default reader** | "Open with RockTranslate" on PDFs, optional default-app setting in the installer; a second double-click opens the file in the running window |
+
+**Shortcuts:** `Ctrl+K` command palette · `Ctrl+T` translate selection · `Ctrl+E` explain · `Ctrl+H` highlight · `Ctrl+B` panel · `Ctrl+F` search · `Ctrl+J` ask · `Ctrl+Shift+S` snapshot · `Ctrl+Shift+N` night · hold `Alt` original.
+
+**The same assistant in Python:**
+
+```python
+import rocktranslate
+
+rocktranslate.translate_text("The encoder is com-\nposed of a stack of N = 6 layers.", "French")
+rocktranslate.explain("softmax(QK^T / sqrt(d_k)) V", "French")
+rocktranslate.ask("https://arxiv.org/abs/2109.03697", "What is the test MPE of U-FNO?", lang="French")
+# -> {"answer": "...0.0161...", "quotes": [{"page": 32, "quote": "test µ 0.0299 0.0276 0.0224 0.0161"}]}
+rocktranslate.summarize("paper.pdf", "French", section="3.2")
+terms = rocktranslate.glossary("paper.pdf", "French")            # [{"term", "translation", "note"}]
+doc = rocktranslate.translate("paper.pdf", "French", glossary=terms, side_by_side="paper_bilingual.pdf")
+rocktranslate.extract("paper.pdf").toc()                          # contents, even without bookmarks
+```
+
+Measured on *U-FNO* (37 pages): a question over the whole paper costs ≈ $0.006, a glossary ≈ $0.006, a 4-line translation ≈ $0.0002.
+
 ---
 
 ## 6. Known Limitations & Roadmap (TODO)
 
 ### Current Limitations:
 *   **Fonts embedded as subsets:** publisher PDFs only embed the glyphs they use. Translated text needing other glyphs (accents, CJK) falls back to a system font for those characters, which can look slightly different.
-*   **Run-in headings and complex inline math:** a line starting with a bold run-in heading ("**Residual Dropout** We apply…") or packed with inline formulas is translated line by line instead of as part of its paragraph.
+*   **Run-in headings:** a line starting with a bold run-in heading ("**Residual Dropout** We apply…") is translated on its own. Lines with inline math (subscripts, "CO₂", formulas at the start of a line) and list items stay in their paragraph since 2.0.6.
+*   **Night reading of the translation:** the translated page is dimmed rather than inverted (pdf2htmlEX draws the paper and the figures in one image); the original pane is fully dark with intact figures.
 *   **Longer target languages** shrink the text of a paragraph uniformly to keep it inside its original box (as other layout-preserving translators do).
 *   **Scanned PDFs** (images only) are not supported yet (no OCR).
 *   **pdf2htmlEX on Windows** is our own native x64 build of pdf2htmlEX 0.18.8 (recipe in `tools/pdf2htmlex-windows/`), bundled by the installer and downloaded on first use otherwise (~16 MB). If a conversion stops making progress, RockTranslate stops the process and reports the reason.
@@ -462,6 +521,9 @@ Same PDFs, Unstructured 0.18 with `strategy="fast"` (its pdfminer-based mode tha
 ### Roadmap:
 *   [x] **Structured extraction** (`rocktranslate.extract`, `to_json`, `to_markdown`, `chunks`, `search`, `highlight`) — see §5.D.
 *   [x] **Bilingual export** of every translated element (JSON, bilingual Markdown).
+*   [x] **Reading assistant and PDF reader features** (2.0.6) — see §5.E and [ROADMAP_v2.0.6.md](ROADMAP_v2.0.6.md) for the 19 items and where each one lives in the code.
+*   [ ] **Ask across several papers** (a local library of the PDFs you read).
+*   [ ] **Highlights in the translated pane** and highlight export back into the PDF.
 *   [ ] **TMX export** (translation-memory format for CAT tools).
 *   [ ] **Tables drawn as single text runs** split into cells; multi-level table headers.
 *   [ ] **Scanned PDF support** through a local OCR fallback.

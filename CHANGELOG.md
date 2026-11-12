@@ -2,6 +2,21 @@
 
 ## 2.0.6 — in progress
 
+### A PDF reader that understands the paper (new)
+- **Selection bubble**: select a passage, read its translation or a plain explanation streamed in a bubble (~1 s to the first
+  words); clean copy, copy with citation, highlight; the same actions in a right-click menu.
+- **Link previews**: hover a citation, figure, table or equation link to see its target; "go there", DOI, "open & translate"
+  for arXiv references.
+- **Side panel**: contents (bookmarks, or detected headings) with per-section summaries, bilingual search, questions answered
+  with verbatim quotes that open the exact passage, notes exported as Markdown, paper glossary applied to the translations.
+- **Comfort**: continuous translation of the pages being read, resume at the last page, night reading (figures intact),
+  hold Alt for the original, document tabs, command palette (Ctrl+K), snapshot of an area or a page to the clipboard.
+- **Exports**: bilingual side-by-side PDF.
+- **Default reader**: open a PDF passed on the command line, single instance, "Open with RockTranslate" and an optional
+  default-app task in the installer.
+- **Python API / CLI**: `translate_text`, `explain`, `summarize`, `glossary`, `ask`, `side_by_side`, `Document.toc()`;
+  `rocktranslate ask | summarize | glossary | explain`, `--side-by-side`, `--glossary`, `--auto-glossary`.
+
 ### Fixes and improvements
 - **Open a PDF from a link** (GUI field on the home screen, CLI, Python API); arXiv `/abs/` pages are resolved to their PDF.
 - **Option to leave the references untranslated** (Preferences > Translation, CLI `--skip-references`, API `translate_references=False`).
