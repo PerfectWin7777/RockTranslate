@@ -1,15 +1,8 @@
 # Changelog
 
-## 2.0.5 — 2026-11
+## 2.0.6 — in progress
 
-### Structured extraction (new)
-- `rocktranslate.extract(pdf)`: typed, positioned elements (titles, sections with depth, paragraphs, lists,
-  tables with cells, captions, formulas, footnotes, references, headers/footers), JSON (Unstructured-compatible),
-  Markdown, RAG chunks, search and highlight in the original PDF. Local, free, no API key.
-- `rocktranslate.translate(pdf, lang)`: the same Document with every element's aligned translation;
-  bilingual Markdown. CLI: `rocktranslate extract`, `--format pdf,json,md,chunks`, `--bilingual`.
-
-### Since the first 2.0.5 build
+### Fixes and improvements
 - **Open a PDF from a link** (GUI field on the home screen, CLI, Python API); arXiv `/abs/` pages are resolved to their PDF.
 - **Option to leave the references untranslated** (Preferences > Translation, CLI `--skip-references`, API `translate_references=False`).
 - **Default model: Gemini 3.5 Flash-Lite** (`gemini/gemini-3.5-flash-lite`).
@@ -19,6 +12,15 @@
 - **Progress**: the page counter now reaches the total (it followed the last batch received), and the PDF export shows the
   pages being prepared, then the printing step.
 - Startup no longer opens, at times, without the saved API keys and recent files (UI read the settings before the bridge was ready).
+
+## 2.0.5 — 2026-11
+
+### Structured extraction (new)
+- `rocktranslate.extract(pdf)`: typed, positioned elements (titles, sections with depth, paragraphs, lists,
+  tables with cells, captions, formulas, footnotes, references, headers/footers), JSON (Unstructured-compatible),
+  Markdown, RAG chunks, search and highlight in the original PDF. Local, free, no API key.
+- `rocktranslate.translate(pdf, lang)`: the same Document with every element's aligned translation;
+  bilingual Markdown. CLI: `rocktranslate extract`, `--format pdf,json,md,chunks`, `--bilingual`.
 
 ### Translation quality & layout
 - **Paragraph-level translation with justified reflow**: lines are regrouped into paragraphs from the page geometry, translated as whole sentences, then redistributed over the original lines with one uniform scale per paragraph, justified when the original was. Footnote markers, sub/superscripts and inline fragments are kept inside their paragraph.

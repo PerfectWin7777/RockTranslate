@@ -212,7 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
         { type: 'input', text: 'pip install rocktranslate' },
         { type: 'output', text: 'Collecting rocktranslate...' },
         { type: 'output', text: 'Installing pdf2htmlEX-windows, beautifulsoup4, litellm...' },
-        { type: 'success', text: 'Successfully installed rocktranslate-2.0.5' },
+        { type: 'success', text: 'Successfully installed rocktranslate-2.0.6' },
         { type: 'input', text: 'rocktranslate article_geology.pdf --target-lang French --model gemini/gemini-3.8-flash' },
         { type: 'output', text: '[INFO] Initializing lazy geometric parser...' },
         { type: 'output', text: '[INFO] DOM extracted (42 pages, 18 tables, 62 equations)' },

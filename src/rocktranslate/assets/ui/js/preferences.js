@@ -44,7 +44,7 @@ window.rtFormat = {
 function preferencesController() {
     return {
         section: 'general',
-        version: '2.0.5',
+        version: '2.0.6',
         savedFlash: false,
         _flashTimer: null,
         p: {},
