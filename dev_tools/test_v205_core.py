@@ -649,3 +649,19 @@ def test_line_end_hyphen_keeps_real_compounds():
     from rocktranslate.core.html_transformer import join_paragraph_lines
     assert join_paragraph_lines(["trans-", "lation works"]) == "translation works"
     assert join_paragraph_lines(["the English-", "to-German task"]) == "the English-to-German task"
+
+
+def test_reset_pages_really_translates_again(tmp_path, monkeypatch):
+    """'Reset and translate again' must not restore the old translation from disk."""
+    api = _prepared_api(tmp_path)
+    monkeypatch.setattr(api, "_resolve_llm_client", lambda: SlowClient(0.0, "OLD"))
+    monkeypatch.setattr(api, "_current_model_and_language", lambda: ("stub/model", "French"))
+    api.start_range_translation("2")
+    api._trans_thread.join(10)
+
+    api.reset_translation_range("2")
+    monkeypatch.setattr(api, "_resolve_llm_client", lambda: SlowClient(0.0, "NEW"))
+    api.start_range_translation("2")
+    api._trans_thread.join(10)
+    flat = {k: v for page in api._translated_pages.values() for k, v in page.items()}
+    assert flat and all(v.startswith("NEW:") for v in flat.values()), flat

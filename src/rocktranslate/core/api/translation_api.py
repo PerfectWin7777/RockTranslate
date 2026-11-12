@@ -907,6 +907,39 @@ class TranslationApiMixin:
             logger.warning(f"Could not load persisted translations: {e}")
             return 0
 
+    def _current_model_and_language(self) -> Tuple[str, str]:
+        """(model, target language) a run would use now: names the persisted translations file."""
+        provider = config_db.get("APIConfig", "provider", "Google Gemini")
+        config = DEFAULT_PROVIDERS.get(provider) or next(iter(DEFAULT_PROVIDERS.values()))
+        model = config_db.get("APIConfig", f"last_model_{provider}", config["models"][0])
+        prefix = config.get("prefix", "")
+        if prefix and isinstance(prefix, str) and not model.startswith(prefix):
+            model = f"{prefix}{model}"
+        return model, config_db.get("SystemConfig", "target_lang", "French")
+
+    def _forget_persisted_pages(self, pages: Set[int]) -> None:
+        """Removes the given pages from the persisted translations of the current language + model."""
+        if not pages or not getattr(self, "_document_hash", None):
+            return
+        try:
+            path = self._translations_file(*self._current_model_and_language())
+            if not os.path.exists(path):
+                return
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            items = data.get("translations", {})
+            kept = {k: v for k, v in items.items() if self._tid_to_page.get(k, -1) not in pages}
+            if len(kept) == len(items):
+                return
+            data["translations"] = kept
+            tmp = path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False)
+            os.replace(tmp, path)
+            logger.info(f"Forgot {len(items) - len(kept)} persisted translations (pages reset).")
+        except (OSError, ValueError) as e:
+            logger.warning(f"Could not update persisted translations: {e}")
+
     def get_session_translations(self) -> Dict[str, Any]:
         """
         Exposed to the UI: all translations known for the active document, so a
@@ -952,6 +985,10 @@ class TranslationApiMixin:
         for p_idx in target_pages:
             if p_idx in self._translated_pages:
                 del self._translated_pages[p_idx]
+
+        # The on-disk copy must forget these pages too, otherwise the next run
+        # restores them from the file and "translate again" changes nothing.
+        self._forget_persisted_pages(set(target_pages))
 
         # Trigger DOM restoration on the frontend specifically for these pages
         self._send_js(
