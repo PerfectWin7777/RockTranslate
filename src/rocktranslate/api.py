@@ -19,6 +19,7 @@ from loguru import logger
 from .core.constants import DEFAULT_MODEL, DEFAULT_PARALLEL_REQUESTS, DEFAULT_TEMPERATURE
 from .core.llm_client import LLMClient
 from .core.pipeline import ProgressCallback, TranslationReport, extract_document, translate_pdf
+from .core.sources import default_output_dir, is_url, resolve_pdf_source
 from .document import Document
 
 
@@ -36,6 +37,7 @@ class RockTranslator:
         parallel: int = DEFAULT_PARALLEL_REQUESTS,
         glossary: Optional[str] = None,
         max_retries: int = 4,
+        translate_references: bool = True,
     ) -> None:
         """
         Args:
@@ -49,6 +51,7 @@ class RockTranslator:
             parallel: Number of concurrent LLM requests.
             glossary: Optional mandatory terminology rules for the prompt.
             max_retries: Attempts per batch before giving up.
+            translate_references: False keeps the bibliography in its original language.
         """
         self.model = model
         self.target_lang = target_lang
@@ -58,6 +61,7 @@ class RockTranslator:
         self.parallel = parallel
         self.glossary = glossary
         self.max_retries = max_retries
+        self.translate_references = translate_references
         self.api_key = api_key or LLMClient._get_api_key_from_env(model)
 
         logger.info(
@@ -94,20 +98,30 @@ class RockTranslator:
         their aligned translation; render_pdf=False skips the PDF rendering.
 
         Args:
-            input_pdf_path: Source PDF.
-            output_pdf_path: Destination (default '<input>_translated.pdf').
+            input_pdf_path: Source PDF, or an http(s) link to one (arXiv /abs/ links work).
+            output_pdf_path: Destination (default '<input>_translated.pdf'; for a link,
+                in the current directory).
             pages: Optional page range, e.g. '1-3, 5'. Only those pages are converted.
             progress: Optional callback(batches_done, batches_total).
             keep_html: Optional path to also save the translated HTML.
             password: Password for PDFs that require one to open.
         """
-        if not input_pdf_path.lower().endswith(".pdf"):
+        source = input_pdf_path
+        try:
+            input_pdf_path = resolve_pdf_source(source)
+        except (OSError, ValueError) as e:
+            return TranslationReport(success=False, error=f"Could not download {source}: {e}")
+        if not is_url(source) and not input_pdf_path.lower().endswith(".pdf"):
             return TranslationReport(success=False, error=f"Not a PDF file: {input_pdf_path}")
+        if not output_pdf_path and is_url(source):
+            stem = os.path.splitext(os.path.basename(input_pdf_path))[0]
+            output_pdf_path = os.path.join(default_output_dir(source, input_pdf_path), f"{stem}_translated.pdf")
         return translate_pdf(
             input_pdf_path, output_pdf_path, self._client(),
             pages=pages, parallel=self.parallel, progress=progress,
             keep_html=keep_html, user_password=password,
             structured=structured, render_pdf=render_pdf,
+            translate_references=self.translate_references,
         )
 
     def translate(self, input_pdf_path: str, output_pdf_path: Optional[str] = None,
@@ -129,8 +143,9 @@ def extract(pdf_path: str, pages: Optional[str] = None, password: Optional[str] 
         >>> doc = rocktranslate.extract("paper.pdf")
         >>> doc.to_markdown("paper.md"); doc.to_json("paper.json")
         >>> chunks = doc.chunks(max_characters=1500)        # RAG-ready
+        >>> doc = rocktranslate.extract("https://arxiv.org/abs/1706.03762")   # links work too
     """
-    return extract_document(pdf_path, pages=pages, user_password=password, measure=measure)
+    return extract_document(resolve_pdf_source(pdf_path), pages=pages, user_password=password, measure=measure)
 
 
 def translate(pdf_path: str, lang: str = "French", model: str = DEFAULT_MODEL, api_key: Optional[str] = None,

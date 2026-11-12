@@ -37,6 +37,7 @@
     <script src="js/alpine.min.js" defer></script>
 
     <!-- Central Translation State Store -->
+    <script src="js/bridge.js"></script>
     <script src="js/i18n.js"></script>
     <script src="js/theme.js"></script>
 
@@ -250,7 +251,7 @@
                 showProgressPanel: true,
 
                 init() {
-                    window.addEventListener('pywebviewready', async () => {
+                    rtBridge.whenReady(async () => {
                         try {
                             const configLocale = await window.pywebview.api.get_system_locale();
                             if (configLocale) {

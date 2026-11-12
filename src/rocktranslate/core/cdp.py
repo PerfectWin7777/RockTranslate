@@ -21,7 +21,7 @@ import subprocess
 import tempfile
 import time
 import urllib.request
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 
 class _WebSocket:
@@ -205,8 +205,55 @@ _READY_FOR_PRINT = r"""
 """
 
 
-def print_to_pdf(browser: str, html_path: str, output_pdf: str, timeout: float) -> bool:
-    """Vector PDF of an HTML file through Page.printToPDF (CSS @page sizes)."""
+# Export page published by renderer.apply_translations_offline: its progress
+# while the translations are applied page by page, then whether it is ready.
+_EXPORT_STATE = r"""
+(() => {
+  if (!location.href.startsWith('file:')) return null;
+  const p = window.__rtExportProgress;
+  if (!p) return document.readyState === 'complete' ? 'plain' : null;
+  return JSON.stringify({ stage: p.stage, done: p.done, total: p.total, ready: window.__rtExportReady === true });
+})()
+"""
+
+ExportProgress = Callable[[str, int, int], None]
+
+
+def _wait_until_printable(session: "_Session", progress: Optional[ExportProgress]) -> bool:
+    """
+    Waits for an export page to be ready, reporting its progress
+    (stage, done, total): 'pages' while translations are applied page by page,
+    'fonts' while fonts load. Pages without the export hook use the plain
+    readiness check.
+    """
+    last = None
+    while session.remaining() > 0:
+        state = session.evaluate(_EXPORT_STATE)
+        if state is None:
+            return False
+        if state == "plain":
+            return session.evaluate(_READY_FOR_PRINT) is True
+        info = json.loads(state)
+        current = (info.get("stage"), info.get("done", 0), info.get("total", 0))
+        if progress and current != last:
+            try:
+                progress(*current)
+            except Exception:
+                pass
+            last = current
+        if info.get("ready"):
+            return True
+        time.sleep(0.25)
+    return False
+
+
+def print_to_pdf(browser: str, html_path: str, output_pdf: str, timeout: float,
+                 progress: Optional[ExportProgress] = None) -> bool:
+    """
+    Vector PDF of an HTML file through Page.printToPDF (CSS @page sizes).
+    progress(stage, done, total) is called with stage 'pages' (translations
+    applied page by page), 'fonts', then 'print' while Chrome writes the PDF.
+    """
     import base64 as b64
     url = "file:///" + os.path.abspath(html_path).replace(os.sep, "/").lstrip("/")
     session = None
@@ -214,12 +261,17 @@ def print_to_pdf(browser: str, html_path: str, output_pdf: str, timeout: float) 
         t0 = time.monotonic()
         session = _Session(browser, url, timeout)
         t1 = time.monotonic()
-        ready = session.evaluate(_READY_FOR_PRINT)
+        ready = _wait_until_printable(session, progress)
         t2 = time.monotonic()
         if ready is not True:
             from loguru import logger
             logger.warning(f"DevTools: the page never became ready to print ({os.path.basename(browser)}).")
             return False
+        if progress:
+            try:
+                progress("print", 0, 0)
+            except Exception:
+                pass
         result = session.call("Page.printToPDF", {"printBackground": True, "preferCSSPageSize": True,
                                                   "displayHeaderFooter": False, "marginTop": 0,
                                                   "marginBottom": 0, "marginLeft": 0, "marginRight": 0})

@@ -28,7 +28,8 @@ import webview
 from ..html_transformer import convert_pdf_to_html, instrument_html, PIPELINE_VERSION, LAST_CONVERSION_ERROR
 from ..config_manager import config_db
 from ..constants import DEFAULT_ASSETS_DIR, DEFAULT_PROVIDERS, DEFAULT_PARALLEL_REQUESTS
-from ..chunker import build_batches, should_translate
+from ..chunker import build_batches, reference_segment_ids, should_translate
+from ..sources import download_pdf, is_url
 from ..llm_client import LLMClient
 from ..renderer import apply_translations_offline, print_html_with_fallback
 from ..pdf_metadata import get_pdf_metadata
@@ -102,6 +103,30 @@ class TranslationApiMixin:
         )
         thread.start()
 
+
+    def open_pdf_url(self, url: str) -> Dict[str, str]:
+        """
+        Exposed to the UI: opens a PDF from a web link (arXiv /abs/ pages are
+        turned into their PDF link). The file is downloaded once into the
+        cache, then opened exactly like a local file.
+        """
+        url = (url or "").strip()
+        if not is_url(url):
+            return {"status": "error", "message": "invalid_url"}
+
+        def worker() -> None:
+            self._send_status_i18n("status_downloading_pdf")
+            try:
+                local_path = download_pdf(url)
+            except (OSError, ValueError) as e:
+                logger.warning(f"Download failed for {url}: {e}")
+                self._send_status_i18n("status_ready")
+                self._send_toast_i18n("toast_download_failed", "error", duration=10000, variables={"error": str(e)})
+                return
+            self.extract_pdf(local_path)
+
+        threading.Thread(target=worker, name="rocktranslate-download", daemon=True).start()
+        return {"status": "started"}
 
     def open_protected_pdf(self, file_path: str, password: str) -> None:
         """Exposed to the UI: retries opening a password-protected PDF."""
@@ -593,6 +618,11 @@ class TranslationApiMixin:
                 if k not in already_translated_ids
                 and (target_pages is None or self._tid_to_page.get(k, 0) in target_pages)
             }
+            if not config_db.get("TranslationConfig", "translate_references", True):
+                refs = set(reference_segment_ids(self._original_texts, self._tid_to_page))
+                if refs:
+                    logger.info(f"References left untranslated (setting): {len(refs)} segments.")
+                    untranslated_texts = {k: v for k, v in untranslated_texts.items() if k not in refs}
             total_pages = self.get_total_pages()
 
             if not untranslated_texts:
@@ -610,6 +640,29 @@ class TranslationApiMixin:
 
             self._send_js(f"window.dispatchEvent(new CustomEvent('trigger-translation-start', {{ detail: {{ totalSegments: {len(untranslated_texts)}, totalPages: {total_pages}, targetPages: {json.dumps(target_pages)} }} }}))")
             self._send_js(f"window.dispatchEvent(new CustomEvent('update-progress-batches', {{ detail: {{ done: 0, total: {total_batches} }} }}))")
+            # ── PAGE PROGRESS: a page counts as done once ALL its segments are in ──
+            # (batches run in parallel and pages without text never get a batch,
+            # so "page of the last batch received" could stall below the total).
+            run_pages = list(target_pages) if target_pages is not None else list(range(total_pages))
+            remaining_per_page: Dict[int, int] = {}
+            for seg_id in untranslated_texts:
+                page = self._tid_to_page.get(seg_id, 0)
+                remaining_per_page[page] = remaining_per_page.get(page, 0) + 1
+            pages_done: Set[int] = {p for p in run_pages if remaining_per_page.get(p, 0) == 0}
+
+            def mark_segments_done(seg_ids: Any) -> None:
+                for seg_id in seg_ids:
+                    page = self._tid_to_page.get(seg_id, 0)
+                    left = remaining_per_page.get(page, 0) - 1
+                    remaining_per_page[page] = left
+                    if left <= 0 and page in run_pages:
+                        pages_done.add(page)
+                self._send_js(
+                    "window.dispatchEvent(new CustomEvent('update-progress-pages', "
+                    f"{{ detail: {{ done: {len(pages_done)}, total: {len(run_pages)} }} }}))"
+                )
+
+            mark_segments_done([])  # pages with nothing to translate are complete right away
             already_count = sum(len(p) for p in self._translated_pages.values())
             if already_count > 0:
                 self._send_js(f"window.dispatchEvent(new CustomEvent('set-progress-segments', {{ detail: {{ done: {already_count} }} }}))")
@@ -627,6 +680,7 @@ class TranslationApiMixin:
             immediate = {k: v for k, v in bypassed.items() if self._tid_to_page.get(k, 0) not in pages_with_work}
             if immediate:
                 self._commit_translations(immediate)
+                mark_segments_done(immediate.keys())
             pending_bypass = {k: v for k, v in bypassed.items() if k not in immediate}
 
             if not batches:
@@ -695,12 +749,12 @@ class TranslationApiMixin:
                                     items[skip_id] = skip_text
                                     del pending_bypass[skip_id]
                             self._commit_translations(items)
+                            mark_segments_done(items.keys())
                             self._persist_translations(client.model, client.target_lang)
                         else:
                             failed_batches += 1
                         first_page = self._tid_to_page.get(batches[idx].ids[0], 0)
                         self._current_translating_page = first_page
-                        self._send_js(f"window.dispatchEvent(new CustomEvent('update-progress-page', {{ detail: {{ page: {first_page + 1} }} }}))")
                         self._send_js(f"window.dispatchEvent(new CustomEvent('update-progress-batches', {{ detail: {{ done: {done_batches}, total: {total_batches} }} }}))")
                         self._send_status_i18n("status_trans_batch_progress", {"current": done_batches, "total": total_batches})
                         self._send_usage_update(client, run_started, done_batches, total_batches, run_segments)
@@ -1074,7 +1128,12 @@ class TranslationApiMixin:
             os.close(fd)
             apply_translations_offline(self._active_html_path, temp_html_path, translations)
 
-            if print_html_with_fallback(temp_html_path, destination_path):
+            def on_progress(stage: str, done: int, total: int) -> None:
+                self._send_js("window.dispatchEvent(new CustomEvent('export-progress', "
+                              f"{{ detail: {json.dumps({'stage': stage, 'done': done, 'total': total})} }}))")
+
+            on_progress("building", 0, 0)
+            if print_html_with_fallback(temp_html_path, destination_path, progress=on_progress):
                 self._send_status_i18n("status_export_success", {"filename": os.path.basename(destination_path)})
                 self._send_toast_i18n("toast_export_success", "success", duration=6000)
             else:
@@ -1084,6 +1143,7 @@ class TranslationApiMixin:
             logger.error(f"Error during PDF export pipeline: {e}")
             self._send_toast_i18n("toast_export_error", "error", variables={"error": str(e)})
         finally:
+            self._send_js("window.dispatchEvent(new CustomEvent('export-progress', { detail: { stage: 'end' } }))")
             self._send_js("window.dispatchEvent(new CustomEvent('app-busy', { detail: { on: false } }))")
             if temp_html_path:
                 try:

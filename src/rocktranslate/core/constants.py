@@ -59,7 +59,7 @@ PDF2HTMLEX_DOWNLOAD_URL: Final[str] = (
 # ==============================================================================
 
 # Default model routing used when initiating clients without custom user preferences
-DEFAULT_MODEL: Final[str] = "gemini/gemini-3.8-flash"
+DEFAULT_MODEL: Final[str] = "gemini/gemini-3.5-flash-lite"
 DEFAULT_TOKEN_LIMIT: Final[int] = 1000
 
 # Limits on usable context tokens for input segments, preventing prompt truncation
@@ -68,6 +68,7 @@ MODEL_TOKEN_LIMITS: Final[Dict[str, int]] = {
     "gemini/gemini-3.8-flash": 2500,
     "gemini/gemini-3.7-flash": 2500,
     "gemini/gemini-3.5-flash": 2500,
+    "gemini/gemini-3.5-flash-lite": 2000,
     "gemini/gemini-3.1-flash-lite": 1000,
     "gemini/gemini-3-flash-preview": 1000,
     "gpt-5-mini": 1500,
@@ -96,11 +97,11 @@ DEFAULT_PROVIDERS: Final[Dict[str, Dict[str, object]]] = {
         "key_env": "GEMINI_API_KEY",
         "key_url": "https://aistudio.google.com/",
         "models": [
+            "gemini-3.5-flash-lite",   # default: fast, cheap, good enough for translation
             "gemini-3.8-flash",
             "gemini-3.7-flash",
             "gemini-3.6-flash",
             "gemini-3.5-flash",
-            "gemini-3.5-flash-lite",
             "gemini-3.1-pro",
             "gemini-3.1-flash-lite",
             "gemini-3-flash-preview"

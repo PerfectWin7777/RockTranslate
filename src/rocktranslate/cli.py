@@ -19,6 +19,7 @@ from loguru import logger
 from . import __version__
 from .core.config_manager import config_db
 from .core.constants import DEFAULT_PARALLEL_REQUESTS, DEFAULT_PROVIDERS, DEFAULT_TEMPERATURE
+from .core.sources import default_output_dir, is_url, resolve_pdf_source
 
 
 def _default_model() -> str:
@@ -111,19 +112,26 @@ def run_extract(argv: List[str]) -> int:
         prog="rocktranslate extract",
         description="Extracts the structure of a PDF (titles, sections, paragraphs, tables, captions, "
                     "formulas...) as JSON / Markdown / RAG chunks. Local, free, no API key.")
-    parser.add_argument("input", help="Source PDF file.")
+    parser.add_argument("input", help="Source PDF file, or an http(s) link to one.")
     parser.add_argument("-f", "--format", default="json,md",
                         help="Comma-separated: json, md, chunks (default: json,md).")
     parser.add_argument("-o", "--output", help="Output base path without extension (default: next to the PDF).")
     parser.add_argument("-p", "--pages", help="Page range, e.g. '1-3, 5'.")
     parser.add_argument("--password", help="Password of a protected PDF.")
     args = parser.parse_args(argv)
-    if not os.path.isfile(args.input):
-        logger.error(f"File not found: {args.input}")
+    source = args.input
+    try:
+        local_pdf = resolve_pdf_source(source)
+    except (OSError, ValueError) as e:
+        logger.error(f"Could not download {source}: {e}")
+        return 1
+    if not os.path.isfile(local_pdf):
+        logger.error(f"File not found: {source}")
         return 1
     from .api import extract
-    doc = extract(args.input, pages=args.pages, password=args.password)
-    base = args.output or os.path.splitext(args.input)[0]
+    doc = extract(local_pdf, pages=args.pages, password=args.password)
+    stem = os.path.splitext(os.path.basename(local_pdf))[0]
+    base = args.output or os.path.join(default_output_dir(source, local_pdf), stem)
     formats = [f.strip().lower() for f in args.format.split(",") if f.strip()]
     for path in _write_structured(doc, base, formats, bilingual=False, translated=False):
         logger.info(f"Written: {path}")
@@ -152,7 +160,7 @@ def main() -> None:
             "  rocktranslate doctor          # check pdf2htmlEX, browser, keys\n"
         ),
     )
-    parser.add_argument("input", help="Source PDF file.")
+    parser.add_argument("input", help="Source PDF file, or an http(s) link to one (arXiv /abs/ links work).")
     parser.add_argument("-l", "--lang", default="French", help="Target language (default: French).")
     parser.add_argument("-o", "--output", help="Output PDF (default: <input>_translated.pdf).")
     parser.add_argument("-m", "--model", help="LiteLLM model route, e.g. deepseek/deepseek-flash.")
@@ -168,11 +176,20 @@ def main() -> None:
     parser.add_argument("-f", "--format", default="pdf",
                         help="Comma-separated outputs: pdf, json, md, chunks (default: pdf).\n"
                              "json/md/chunks hold every element with its aligned translation.")
+    parser.add_argument("--skip-references", action="store_true",
+                        help="Keep the bibliography in its original language (fewer tokens).")
     parser.add_argument("--bilingual", action="store_true",
                         help="Markdown output: original paragraph followed by its translation.")
     parser.add_argument("--version", action="version", version=f"rocktranslate {__version__}")
     args = parser.parse_args()
 
+    source = args.input
+    if is_url(source):
+        try:
+            args.input = resolve_pdf_source(source)
+        except (OSError, ValueError) as e:
+            logger.error(f"Could not download {source}: {e}")
+            sys.exit(1)
     if not os.path.isfile(args.input) and os.path.isfile(args.input + ".pdf"):
         args.input += ".pdf"          # "paper" -> "paper.pdf"
     if not os.path.isfile(args.input) or not args.input.lower().endswith(".pdf"):
@@ -195,6 +212,8 @@ def main() -> None:
         model=model, api_key=api_key, target_lang=args.lang, temperature=temperature,
         custom_base_url=args.base_url, all_keys=keys, parallel=args.parallel,
         glossary=config_db.get("TranslationConfig", "custom_glossary", "") or None,
+        translate_references=not args.skip_references
+        and bool(config_db.get("TranslationConfig", "translate_references", True)),
     )
 
     def progress(done: int, total: int) -> None:
@@ -204,10 +223,15 @@ def main() -> None:
             sys.stderr.write("\n")
 
     formats = [f.strip().lower() for f in args.format.split(",") if f.strip()]
+    # Default outputs sit next to a local PDF; for a link, in the current
+    # directory (never inside the hidden download cache).
+    out_stem = os.path.join(default_output_dir(source, args.input),
+                            os.path.splitext(os.path.basename(args.input))[0])
+    pdf_output = args.output or (f"{out_stem}_translated.pdf" if is_url(source) else None)
     structured = any(f in formats for f in ("json", "md", "markdown", "chunks"))
     try:
         report = translator.translate_document(
-            args.input, args.output, pages=args.pages, progress=progress,
+            args.input, pdf_output, pages=args.pages, progress=progress,
             keep_html=args.keep_html, password=args.password,
             structured=structured, render_pdf="pdf" in formats,
         )
@@ -220,7 +244,7 @@ def main() -> None:
         sys.exit(1)
 
     if report.document is not None:
-        base = os.path.splitext(args.output or args.input)[0]
+        base = os.path.splitext(args.output)[0] if args.output else out_stem
         if not args.output:
             base += f"_{args.lang.lower()}"
         for path in _write_structured(report.document, base, formats, args.bilingual, translated=True):

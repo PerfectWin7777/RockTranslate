@@ -141,7 +141,7 @@
     }
 
     // Backend is the source of truth across reinstalls: adopt its saved theme once.
-    window.addEventListener('pywebviewready', () => {
+    const adoptSavedTheme = () => {
         try {
             if (!window.pywebview.api.get_ui_theme) return;
             window.pywebview.api.get_ui_theme().then((mode) => {
@@ -151,5 +151,7 @@
                 }
             }).catch(() => { });
         } catch (e) { }
-    });
+    };
+    if (window.rtBridge) rtBridge.whenReady(adoptSavedTheme);
+    else window.addEventListener('pywebviewready', adoptSavedTheme);
 })();

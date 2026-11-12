@@ -29,6 +29,15 @@
                 x-text="$store.i18n.translate('open_file_btn')">
         </button>
 
+        <!-- Or open a PDF from a web link (arXiv, journal, repository...) -->
+        <form class="url-open-form" @submit.prevent="openUrl()">
+            <input type="url" class="url-open-input" x-model="pdfUrl"
+                   :placeholder="$store.i18n.translate('url_open_placeholder')"
+                   @dragover.stop @drop.stop>
+            <button type="submit" class="url-open-btn" :disabled="!pdfUrl.trim()"
+                    x-text="$store.i18n.translate('url_open_btn')"></button>
+        </form>
+
         <!-- Reactive connection status indicators -->
         <div class="connection-status">
             <span :class="apiState.active ? 'status-active' : 'status-inactive'" 

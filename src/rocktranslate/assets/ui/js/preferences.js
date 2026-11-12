@@ -84,8 +84,7 @@ function preferencesController() {
             // Menu toggle and settings switch stay in sync
             window.addEventListener('hover-original-changed', (e) => { if (this.p) this.p.hover_original = !!(e.detail && e.detail.on); });
             const load = () => this.loadAll();
-            if (window.pywebview && window.pywebview.api) load();
-            else window.addEventListener('pywebviewready', load);
+            rtBridge.whenReady(load);  // waits until every Python method is attached
             window.addEventListener('translation-summary', () => this.loadUsage());
             this.$watch('$store.modals.active', (v) => { if (v === 'preferences') this.loadAll(); });
         },

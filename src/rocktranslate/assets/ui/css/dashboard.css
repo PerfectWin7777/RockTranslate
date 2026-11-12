@@ -171,3 +171,42 @@
     overflow: hidden;
     text-overflow: ellipsis;
 }
+/* ── Open from a web link ── */
+.url-open-form {
+    display: flex;
+    gap: 6px;
+    margin-top: 14px;
+    width: min(420px, 90%);
+}
+
+.url-open-input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    font-size: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--rt-radius-sm);
+    background: var(--bg-secondary);
+    color: inherit;
+    outline: none;
+}
+
+.url-open-input:focus {
+    border-color: var(--accent-blue);
+}
+
+.url-open-btn {
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid var(--accent-blue);
+    border-radius: var(--rt-radius-sm);
+    background: transparent;
+    color: var(--accent-blue);
+    cursor: pointer;
+}
+
+.url-open-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+}

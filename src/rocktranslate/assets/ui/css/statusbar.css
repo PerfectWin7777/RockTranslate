@@ -112,3 +112,34 @@
     text-align: right;
     font-variant-numeric: tabular-nums;
 }
+
+/* ── PDF export progress (slow, headless export) ── */
+.export-progress {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 12px;
+}
+
+.export-progress-track {
+    position: relative;
+    width: 140px;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--border-color);
+    overflow: hidden;
+}
+
+.export-progress-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 3px;
+    background: var(--accent-blue);
+    transition: width 0.25s ease-out;
+}
+
+.export-progress-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}

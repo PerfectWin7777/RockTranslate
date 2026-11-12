@@ -14,7 +14,7 @@ import json
 import re
 import subprocess
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any, Callable, Dict, Optional
 
 if sys.platform == "win32":
     import winreg
@@ -195,36 +195,72 @@ def apply_translations_offline(
     else:
         page_size_style = build_page_size_css(html_content)
 
-    automated_hook_script = f"""
+    # Translations are applied page by page, yielding to the browser between
+    # pages, and the progress is published in window.__rtExportProgress so the
+    # DevTools client (cdp.print_to_pdf) can report "pages prepared: 12/37".
+    # window.__rtExportReady turns true once fonts are loaded and paragraphs
+    # laid out again with their real metrics: the page is then printable.
+    automated_hook_script = """
     <script>
-    var cliTranslations = {translations_json};
-    window.addEventListener('load', function() {{
-        document.querySelectorAll('[id^="glass-overlay-t-"]').forEach(function(glass) {{
+    var cliTranslations = __RT_TRANSLATIONS__;
+    window.__rtExportProgress = { stage: 'loading', done: 0, total: 0 };
+    window.__rtExportReady = false;
+    window.addEventListener('load', function () {
+        document.querySelectorAll('[id^="glass-overlay-t-"]').forEach(function (glass) {
             glass.style.display = 'none';
-        }});
-        for (var transId in cliTranslations) {{
-            if (window.applyTranslation) {{
-                window.applyTranslation(transId, cliTranslations[transId]);
-            }}
-        }}
-        document.querySelectorAll('.shimmer-line').forEach(function(el) {{
-            el.classList.remove('shimmer-line');
-        }});
-        if (window.harmonizeAllPages) window.harmonizeAllPages();
-        // Load every embedded face, then lay paragraphs out again with real metrics
-        if (document.fonts) {{
-            document.fonts.forEach(function (f) {{ try {{ f.load(); }} catch (e) {{}} }});
-            document.fonts.ready.then(function () {{
-                var paras = window.__rtParas || {{}};
-                Object.keys(paras).forEach(function (pid) {{ window.reflowParagraph(pid, paras[pid]); }});
+        });
+        // Segment ids of each page, in page order (paragraph ids once each)
+        var pages = Array.prototype.slice.call(document.querySelectorAll('.pf'));
+        var perPage = pages.map(function (page) {
+            var ids = [], seen = {};
+            page.querySelectorAll('[data-trans-id]').forEach(function (span) {
+                var id = span.getAttribute('data-para') || span.getAttribute('data-trans-id');
+                if (!seen[id] && Object.prototype.hasOwnProperty.call(cliTranslations, id)) {
+                    seen[id] = true;
+                    ids.push(id);
+                }
+            });
+            return ids;
+        });
+        var progress = window.__rtExportProgress;
+        progress.stage = 'pages';
+        progress.total = pages.length;
+
+        function finish() {
+            document.querySelectorAll('.shimmer-line').forEach(function (el) {
+                el.classList.remove('shimmer-line');
+            });
+            if (window.harmonizeAllPages) window.harmonizeAllPages();
+            var tip = document.getElementById('rt-bilingual-tooltip');
+            if (tip) tip.remove();
+            progress.stage = 'fonts';
+            // Load every embedded face, then lay paragraphs out again with real metrics
+            var fontsReady = document.fonts ? (function () {
+                document.fonts.forEach(function (f) { try { f.load(); } catch (e) {} });
+                return document.fonts.ready;
+            })() : Promise.resolve();
+            fontsReady.then(function () {
+                var paras = window.__rtParas || {};
+                Object.keys(paras).forEach(function (pid) { window.reflowParagraph(pid, paras[pid]); });
                 if (window.harmonizeAllPages) window.harmonizeAllPages();
-            }});
-        }}
-        var tip = document.getElementById('rt-bilingual-tooltip');
-        if (tip) tip.remove();
-    }});
+                progress.stage = 'ready';
+                window.__rtExportReady = true;
+            });
+        }
+
+        var k = 0;
+        (function nextPage() {
+            if (k >= perPage.length) { finish(); return; }
+            perPage[k].forEach(function (id) {
+                if (window.applyTranslation) window.applyTranslation(id, cliTranslations[id]);
+            });
+            k += 1;
+            progress.done = k;
+            setTimeout(nextPage, 0);   // let the browser breathe (and the client poll)
+        })();
+    });
     </script>
-    """
+    """.replace("__RT_TRANSLATIONS__", translations_json)
 
     optimized_html = html_content.replace("</head>", f"{page_size_style}\n</head>", 1)
     idx = optimized_html.rfind("</body>")
@@ -353,7 +389,8 @@ def _devtools_browsers() -> list:
 
 def print_html_with_fallback(input_html_path: str, output_pdf_path: str,
                              browser_path: Optional[str] = None,
-                             timeout: Optional[float] = None) -> bool:
+                             timeout: Optional[float] = None,
+                             progress: Optional[Callable[[str, int, int], None]] = None) -> bool:
     """
     Prints to a vector PDF, most reliable route first:
 
@@ -361,6 +398,9 @@ def print_html_with_fallback(input_html_path: str, output_pdf_path: str,
        (Page.printToPDF). Desktop browsers stall in the --print-to-pdf
        command-line mode, never through DevTools.
     2. chrome-headless-shell in command-line mode (downloaded if needed).
+
+    progress(stage, done, total), when given, follows route 1: 'pages' while
+    the translations are applied page by page, 'fonts', then 'print'.
     """
     from loguru import logger
     from .cdp import print_to_pdf
@@ -385,7 +425,7 @@ def print_html_with_fallback(input_html_path: str, output_pdf_path: str,
     import time as _time
     for browser in dict.fromkeys(candidates):
         started = _time.monotonic()
-        if print_to_pdf(browser, input_html_path, output_abs, timeout):
+        if print_to_pdf(browser, input_html_path, output_abs, timeout, progress=progress):
             logger.info(f"PDF printed with {os.path.basename(browser)} (DevTools) in "
                         f"{_time.monotonic() - started:.0f}s.")
             return True

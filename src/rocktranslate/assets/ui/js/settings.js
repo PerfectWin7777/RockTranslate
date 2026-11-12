@@ -20,12 +20,8 @@ function systemSettingsController() {
 
         init() {
             const load = () => this.loadSettings();
-            if (window.pywebview && window.pywebview.api) {
-                load();
-            } else {
-                window.addEventListener('pywebviewready', load);
-                window.addEventListener('python-api-ready', load);
-            }
+            rtBridge.whenReady(load);  // waits until every Python method is attached
+            window.addEventListener('python-api-ready', load);  // explicit refresh requests
         },
 
         async loadSettings() {
@@ -94,12 +90,8 @@ function translationSettingsController() {
 
         init() {
             const load = () => this.loadSettings();
-            if (window.pywebview && window.pywebview.api) {
-                load();
-            } else {
-                window.addEventListener('pywebviewready', load);
-                window.addEventListener('python-api-ready', load);
-            }
+            rtBridge.whenReady(load);  // waits until every Python method is attached
+            window.addEventListener('python-api-ready', load);  // explicit refresh requests
         },
 
         async loadSettings() {
@@ -158,12 +150,8 @@ function apiConfigController() {
 
         init() {
             const load = () => this.loadConfig();
-            if (window.pywebview && window.pywebview.api) {
-                load();
-            } else {
-                window.addEventListener('pywebviewready', load);
-                window.addEventListener('python-api-ready', load);
-            }
+            rtBridge.whenReady(load);  // waits until every Python method is attached
+            window.addEventListener('python-api-ready', load);  // explicit refresh requests
             // Always show fresh values when the dialog opens
             this.$watch('$store.modals.active', (v) => { if (v === 'api_config') this.loadConfig(); });
 
@@ -314,7 +302,7 @@ function apiConfigController() {
 
                     // Fire refresh to update main dashboard and menubar statuses immediately
                     window.dispatchEvent(new CustomEvent('refresh-menu-data'));
-                    window.dispatchEvent(new CustomEvent('pywebviewready')); // Force dashboard status refresh
+                    window.dispatchEvent(new CustomEvent('python-api-ready')); // Force dashboard status refresh
 
                     Alpine.store('modals').close();
                 } else {
@@ -343,12 +331,8 @@ function rangeSettingsController() {
 
         init() {
             const load = () => this.loadTotalPages();
-            if (window.pywebview && window.pywebview.api) {
-                load();
-            } else {
-                window.addEventListener('pywebviewready', load);
-                window.addEventListener('python-api-ready', load);
-            }
+            rtBridge.whenReady(load);  // waits until every Python method is attached
+            window.addEventListener('python-api-ready', load);  // explicit refresh requests
             window.addEventListener('refresh-menu-data', load);
         },
 

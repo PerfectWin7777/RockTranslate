@@ -22,7 +22,7 @@ function dashboardController() {
         apiState: {
             active: false,
             provider: 'Google Gemini',
-            model: 'gemini-3.1-flash-lite'
+            model: 'gemini-3.5-flash-lite'
         },
 
         /**
@@ -33,12 +33,8 @@ function dashboardController() {
             const load = () => this.loadDashboardData();
 
             // Bypass initialization delays if pywebview is already fully injected
-            if (window.pywebview && window.pywebview.api) {
-                load();
-            } else {
-                window.addEventListener('pywebviewready', load);
-                window.addEventListener('python-api-ready', load);
-            }
+            rtBridge.whenReady(load);  // waits until every Python method is attached
+            window.addEventListener('python-api-ready', load);  // explicit refresh requests
 
             // Real-time synchronization of recent documents list and API credential status
             window.addEventListener('refresh-menu-data', load);
@@ -80,6 +76,27 @@ function dashboardController() {
         /**
          * Triggers the native platform file selection dialog window.
          */
+        // Web link typed or pasted in the dashboard field
+        pdfUrl: '',
+
+        /** Downloads the PDF behind a link (in Python), then opens it like a local file. */
+        async openUrl() {
+            const url = (this.pdfUrl || '').trim();
+            if (!url) return;
+            const i18n = Alpine.store('i18n');
+            if (!/^https?:\/\//i.test(url)) {
+                window.showToast(i18n.translate('toast_invalid_url'), 'error', 5000);
+                return;
+            }
+            try {
+                const res = await window.pywebview.api.open_pdf_url(url);
+                if (res && res.status === 'started') this.pdfUrl = '';
+                else window.showToast(i18n.translate('toast_invalid_url'), 'error', 5000);
+            } catch (error) {
+                console.error("[Dashboard] Could not open the link:", error);
+            }
+        },
+
         async openFilePicker() {
             try {
                 const result = await window.pywebview.api.open_file_dialog();

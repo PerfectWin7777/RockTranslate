@@ -65,6 +65,13 @@ function progressController() {
                 }
             });
 
+            // Pages whose segments are ALL translated (sent by the backend)
+            window.addEventListener('update-progress-pages', (e) => {
+                if (!e.detail) return;
+                this.totalPages = e.detail.total;
+                this.donePages = Math.min(e.detail.done, e.detail.total);
+            });
+
             window.addEventListener('update-progress-segment', () => {
                 this.incrementSegment();
             });

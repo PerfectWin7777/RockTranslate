@@ -160,7 +160,7 @@ class ConfigApiMixin:
                 keys_dict = {}
                 
             active_key = keys_dict.get(provider, "")
-            fallback_model = DEFAULT_PROVIDERS.get(provider, {}).get("models", ["gemini-3.8-flash"])[0]
+            fallback_model = DEFAULT_PROVIDERS.get(provider, {}).get("models", ["gemini-3.5-flash-lite"])[0]
             model = config_db.get("APIConfig", f"last_model_{provider}", fallback_model)
             if _is_obsolete_model(model):
                 model = fallback_model
@@ -179,7 +179,7 @@ class ConfigApiMixin:
         return {
             "active": False,
             "provider": "Google Gemini",
-            "model": "gemini-3.8-flash"
+            "model": "gemini-3.5-flash-lite"
         }
 
     # ── SYSTEM & CACHE CONFIGURATIONS ──

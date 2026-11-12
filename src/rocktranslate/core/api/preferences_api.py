@@ -33,6 +33,8 @@ PREFERENCE_SCHEMA: Dict[str, Tuple[str, Any, str, Optional[float], Optional[floa
     "request_timeout": ("TranslationConfig", REQUEST_TIMEOUT_SECONDS, "float", 20, 900),
     "disable_reasoning": ("TranslationConfig", True, "bool", None, None),
     "custom_glossary": ("TranslationConfig", "", "str", None, None),
+    # False: the bibliography keeps its original text (cheaper, references rarely need translating)
+    "translate_references": ("TranslationConfig", True, "bool", None, None),
     # Layout
     "threshold_px": ("TranslationConfig", THRESHOLD_PX, "float", 2, 80),
     # General / system

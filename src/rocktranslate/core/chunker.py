@@ -43,6 +43,10 @@ class Batch:
         return [s["id"] for s in self.segments]
 
 
+_MATH_OPERATOR_WORDS = frozenset(
+    "max min sup inf lim log ln exp sin cos tan sinh cosh tanh arg argmax argmin det tr dim ker mod deg gcd var cov".split())
+
+
 def should_translate(text: str) -> bool:
     """
     Evaluates if a text node should be skipped to avoid wasting API budgets.
@@ -66,6 +70,11 @@ def should_translate(text: str) -> bool:
     if re.match(r'^\[\d+\]$', text) or re.match(r'^\(\d+\)$', text):
         return False
 
+    # Math operator names cut out of an equation ("max" of k_max, "log", "exp"):
+    # translated alone they became "maximum" squeezed into a subscript box.
+    if text.lower() in _MATH_OPERATOR_WORDS:
+        return False
+
     # Bypass noisy non-alphabetic single characters, preserving meaningful letters (like 'a' or 'I')
     if len(text) == 1 and not text.isalpha():
         return False
@@ -82,6 +91,76 @@ def should_translate(text: str) -> bool:
             return False
 
     return True
+
+
+
+# ── BIBLIOGRAPHY DETECTION (optional "do not translate the references") ──
+# Headings are matched with spaces removed: pdf2htmlEX often splits words of
+# letter-spaced fonts ("Ref erences", "App endix").
+_REF_WORDS = (r"(?:references?|bibliography|literaturecited|workscited|referencelist|références|bibliographie|"
+              r"literatur(?:verzeichnis)?|referencias|bibliografía|riferimenti|bibliografia)")
+_REFERENCES_HEADING_RE = re.compile(r"^(?:\d+|[ivx]+)?\.?" + _REF_WORDS + r":?$", re.I)
+# Heading glued to the first entry: "References [1] J. Bear, ..."
+_REFERENCES_GLUED_RE = re.compile(r"^(?:\d+\.?\s*)?(?:References?|Bibliography|Références|Bibliographie|Literatur)"
+                                  r"\s*:?\s*\[1\]")
+_AFTER_REFERENCES_RE = re.compile(r"^(?:[a-z]|\d+)?\.?(?:appendix|appendices|supplementary|annexes?|anhang|apéndice)",
+                                  re.I)
+_ENTRY_RE = re.compile(r"^\s*\[\d+\]")
+
+
+def _plain(text: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"</?[a-z_0-9]+[^>]*>", "", text or "")).strip()
+
+
+def reference_segment_ids(ordered_texts: Dict[str, str],
+                          tid_to_page: Optional[Dict[str, int]] = None) -> List[str]:
+    """
+    Ids of the segments that belong to the bibliography.
+
+    The list starts at a "References"/"Bibliography" heading (alone, or glued
+    to its first entry) and runs to an appendix heading or the end of the
+    document. A standalone heading stays translated; a glued one goes with
+    its entry.
+
+    pdf2htmlEX does not always emit a page in reading order: the first entries
+    of the start page can come BEFORE the heading. With tid_to_page, entries
+    ("[n] ...") of that page that precede the heading are included too.
+
+    Args:
+        ordered_texts: segment id -> source text, in document (DOM) order.
+        tid_to_page: segment id -> page index (optional, improves the start page).
+    """
+    ids = list(ordered_texts)
+    page_of = (lambda i: tid_to_page.get(i, 0)) if tid_to_page else (lambda i: 0)
+    start = None
+    heading_alone = False
+    for k, seg_id in enumerate(ids):
+        plain = _plain(ordered_texts[seg_id])
+        compact = re.sub(r"\s+", "", plain)
+        if len(compact) <= 40 and _REFERENCES_HEADING_RE.match(compact):
+            start, heading_alone = k, True
+        elif _REFERENCES_GLUED_RE.match(plain):
+            start, heading_alone = k, False
+        if start is not None:
+            break
+    if start is None:
+        return []
+
+    refs: List[str] = []
+    if tid_to_page:
+        # Same page, before the heading in DOM order: from the first "[n]" entry on
+        start_page = page_of(ids[start])
+        same_page = [k for k in range(start) if page_of(ids[k]) == start_page]
+        first_entry = next((k for k in same_page if _ENTRY_RE.match(_plain(ordered_texts[ids[k]]))), None)
+        if first_entry is not None:
+            refs.extend(ids[k] for k in same_page if k >= first_entry)
+
+    for k in range(start + (1 if heading_alone else 0), len(ids)):
+        compact = re.sub(r"\s+", "", _plain(ordered_texts[ids[k]]))
+        if k > start and len(compact) <= 60 and _AFTER_REFERENCES_RE.match(compact):
+            break
+        refs.append(ids[k])
+    return refs
 
 
 def _estimate_tokens(text: str) -> int:

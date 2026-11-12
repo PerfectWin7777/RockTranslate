@@ -20,7 +20,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from loguru import logger
 
-from .chunker import Batch, build_batches, should_translate
+from .chunker import Batch, build_batches, reference_segment_ids, should_translate
 from .constants import DEFAULT_ASSETS_DIR, DEFAULT_PARALLEL_REQUESTS
 from .html_transformer import LAST_CONVERSION_ERROR, convert_pdf_to_html, instrument_html
 from .llm_client import LLMClient
@@ -336,6 +336,7 @@ def translate_pdf(
     assets_dir: str = DEFAULT_ASSETS_DIR,
     structured: bool = False,
     render_pdf: bool = True,
+    translate_references: bool = True,
 ) -> TranslationReport:
     """
     Full headless pipeline. Untranslated pages are left in the original language.
@@ -350,6 +351,7 @@ def translate_pdf(
         progress: Callback (batches_done, batches_total).
         keep_html: Optional path where the translated HTML is also written.
         user_password: Password for PDFs that require one to open.
+        translate_references: False keeps the bibliography in its original language.
     """
     started = time.monotonic()
     report = TranslationReport(success=False)
@@ -402,6 +404,12 @@ def translate_pdf(
             report.pages = page_list
         else:
             report.pages = sorted(set(tid_to_page.values()))
+
+        if not translate_references:
+            refs = set(reference_segment_ids(original_texts_all, tid_to_page))
+            if refs:
+                logger.info(f"References left untranslated: {len(refs)} segments.")
+                original_texts = {k: v for k, v in original_texts.items() if k not in refs}
 
         report.segments_total = len(original_texts)
 

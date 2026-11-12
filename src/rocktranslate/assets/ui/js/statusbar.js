@@ -19,6 +19,27 @@ function statusbarController() {
         // Long background work (PDF export...): animated dots after the message
         busy: false,
 
+        // PDF export in progress: { stage, done, total } (null when idle)
+        exportState: null,
+
+        get exportPercent() {
+            const st = this.exportState;
+            if (!st) return 0;
+            // Pages = 0-80 %, fonts = 85 %, printing = 92 % (Chrome gives no finer signal)
+            if (st.stage === 'pages' && st.total > 0) return Math.round(80 * st.done / st.total);
+            return { building: 3, loading: 5, fonts: 85, ready: 88, print: 92 }[st.stage] || 0;
+        },
+
+        get exportLabel() {
+            const st = this.exportState;
+            if (!st) return '';
+            const i18n = Alpine.store('i18n');
+            if (st.stage === 'pages') return i18n.translate('export_stage_pages', { done: st.done, total: st.total });
+            if (st.stage === 'fonts' || st.stage === 'ready') return i18n.translate('export_stage_fonts');
+            if (st.stage === 'print') return i18n.translate('export_stage_print');
+            return i18n.translate('export_stage_building');
+        },
+
         // Either an i18n key (re-translated live) or a literal text
         statusKey: 'status_ready',
         statusVars: {},
@@ -31,6 +52,10 @@ function statusbarController() {
 
         init() {
             window.addEventListener('app-busy', (e) => { this.busy = !!(e.detail && e.detail.on); });
+            window.addEventListener('export-progress', (e) => {
+                const d = e.detail || {};
+                this.exportState = d.stage === 'end' ? null : d;
+            });
             window.addEventListener('update-status-text', (event) => {
                 const d = event.detail || {};
                 if (d.key) {

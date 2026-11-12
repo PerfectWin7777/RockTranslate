@@ -23,7 +23,7 @@ function menubarController() {
         apiState: {
             active: false,
             provider: 'Google Gemini',
-            model: 'gemini-3.1-flash-lite'
+            model: 'gemini-3.5-flash-lite'
         },
 
         // --- CHECKABLE STATES  ---
@@ -44,12 +44,8 @@ function menubarController() {
            const load = () => this.loadMenuData();
 
             // Bypass initialization delays if pywebview is already fully injected
-            if (window.pywebview && window.pywebview.api) {
-                load();
-            } else {
-                window.addEventListener('pywebviewready', load);
-                window.addEventListener('python-api-ready', load);
-            }
+            rtBridge.whenReady(load);  // waits until every Python method is attached
+            window.addEventListener('python-api-ready', load);  // explicit refresh requests
 
             // Clean list when history gets updated
             window.addEventListener('refresh-menu-data', load);

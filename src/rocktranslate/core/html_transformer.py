@@ -452,9 +452,12 @@ def parse_position_classes(soup: BeautifulSoup) -> Tuple[Dict[str, float], Dict[
 # Glyphs that broken symbol fonts (no ToUnicode map) expose instead of math signs.
 SYMBOL_GLYPH_FIXES = str.maketrans({"ð": "(", "Þ": ")", "¼": "=", "þ": "+"})
 
+# "7→" not preceded by a digit ("17→18" stays): the \\mapsto arrow of LaTeX math fonts
+_MAPSTO_RE = re.compile(r"(?<![0-9])7\s?→")
+
 # Bump whenever instrument_html output changes: cached workspaces built by an
 # older pipeline are then re-instrumented from the cached raw HTML.
-PIPELINE_VERSION = 20
+PIPELINE_VERSION = 25
 
 
 def parse_font_sizes(soup: BeautifulSoup) -> Dict[str, float]:
@@ -537,7 +540,6 @@ def _group_measured(lines: List[Dict[str, Any]], texts: Dict[str, str]) -> List[
 
     closed: List[Dict[str, Any]] = []
     active: List[Dict[str, Any]] = []
-    recent: List[Dict[str, Any]] = []      # recent slot lines (absorption hosts)
 
     def same_column(block: Dict[str, Any], line: Dict[str, Any]) -> bool:
         ref = block["lines"][-1]
@@ -556,39 +558,63 @@ def _group_measured(lines: List[Dict[str, Any]], texts: Dict[str, str]) -> List[
             return False
         if not (0.9 * em <= dy <= 1.9 * em and (block["step"] is None or abs(dy - block["step"]) <= 0.2 * em)):
             return False
+        # Whole visual rows (host + pieces), tags removed: a colored bullet "•"
+        # is often its own fragment, followed by the item text as a piece.
+        first_text = re.sub(r"</?[a-z_0-9]+>", "", row_text(block["lines"][0])).strip()
+        # List item ("1. Lift ...", "• ...") wrapped with a hanging indent: its
+        # next lines start to the RIGHT of the marker, up to ~3 em.
+        hanging = (len(block["lines"]) == 1 and _LIST_START_RE.match(first_text) is not None
+                   and 0.3 * em <= line["x"] - prev["x"] <= 3.0 * em)
         if block["left"] is None:
-            if not (-0.6 * em <= prev["x"] - line["x"] <= 4.0 * em):
+            if not (-0.6 * em <= prev["x"] - line["x"] <= 4.0 * em) and not hanging:
                 return False
         elif abs(line["x"] - block["left"]) > 0.6 * em:
             return False
-        text = texts.get(line["spans"][0][0], "")
-        first_text = texts.get(block["lines"][0]["spans"][0][0], "")
+        text = re.sub(r"</?[a-z_0-9]+>", "", row_text(line)).strip()
         if _LIST_START_RE.match(text) or (_REF_START_RE.match(text) and _REF_START_RE.match(first_text)):
             return False
-        if len(block["lines"]) == 1:
+        if len(block["lines"]) == 1 and not hanging:
             prev_text = texts.get(prev["spans"][0][0], "").strip()
             if re.fullmatch(r"<color_[0-9a-fA-F]{6}>.*</color_[0-9a-fA-F]{6}>", prev_text) and not re.match(r"<color_", text.strip()):
                 return False
             # A first line ending clearly before the next one is a heading
-            if abs(prev["x"] - line["x"]) <= 0.3 * em and prev["end"] < line["end"] - 3.0 * em:
+            # (the next line's OWN fragment end, as before rows existed: its
+            # pieces would make a wrapped title look like a heading + text)
+            if abs(prev["x"] - line["x"]) <= 0.3 * em and prev["end"] < line["right"] - 3.0 * em:
                 return False
-        else:
+        elif len(block["lines"]) > 1:
             # The previous line stopped before the block's right edge: paragraph end
             block_right = max(l["end"] for l in block["lines"][:-1])
             if prev["end"] < block_right - 2.0 * em:
                 return False
         return True
 
+    # ── Pass 1: visual rows ──
+    # pdf2htmlEX cuts a line at every change of baseline or font: "of CO" + "2"
+    # + "geological storage ...", or "1. Lift ... space v" + "l" + "0" + "(x) =".
+    # Each fragment on the same baseline right after a row start (gap <= 1 em)
+    # becomes a piece of that row, whatever its content. A formula fragment can
+    # therefore start a row: its text pieces are no longer orphaned segments.
+    rows: List[Dict[str, Any]] = []
     for line in lines:
         if not has_text(line):
             continue
         host = None
-        for cand in reversed(recent[-6:]):
+        for cand in reversed(rows[-6:]):
             overlap = min(cand["bottom"], line["bottom"]) - max(cand["top"], line["top"])
             gap = line["x"] - cand["end"]
             if (overlap >= 0.4 * min(cand["bottom"] - cand["top"], line["bottom"] - line["top"])
                     and -1.0 * cand["em"] <= gap <= 1.0 * cand["em"]
                     and line["em"] <= cand["em"] * 1.05):
+                host = cand
+                break
+            # Small index/exponent emitted out of order (the "0" of v_l0 comes
+            # after "(x) ="): inside the row's horizontal extent and within its
+            # sub/superscript band, it belongs to the row too.
+            if (line["em"] < 0.85 * cand["em"]
+                    and cand["x"] <= line["x"] <= cand["end"] + 1.0 * cand["em"]
+                    and cand["top"] - 0.6 * cand["em"] <= line["top"]
+                    and line["bottom"] <= cand["bottom"] + 0.6 * cand["em"]):
                 host = cand
                 break
         if host is not None:
@@ -598,10 +624,39 @@ def _group_measured(lines: List[Dict[str, Any]], texts: Dict[str, str]) -> List[
             host.setdefault("pieces", []).append(line)
             host["end"] = max(host["end"], line["right"])
             continue
+        rows.append(line)
 
-        # Formula fragments (fractions, symbol runs) that are not inline pieces
-        # keep their original rendering: never a paragraph line.
-        if not should_translate("".join(texts.get(g, "") for g, _ in line["spans"])):
+    def row_text(row: Dict[str, Any]) -> str:
+        parts = ["".join(texts.get(g, "") for g, _ in row["spans"])]
+        for piece in row.get("pieces", []):
+            parts.append("".join(texts.get(g, "") for g, _ in piece["spans"]))
+        return " ".join(parts)
+
+    # A row opened by a lone symbol (a bullet "•", often in its own font, size
+    # and color): the symbol keeps its original rendering and the text after it
+    # carries the row. Used as the row's slot, the bullet's line would lend its
+    # font, size and color to the whole translated first line.
+    for k, row in enumerate(rows):
+        host_text = re.sub(r"</?[a-z_0-9]+>", "", "".join(texts.get(g, "") for g, _ in row["spans"])).strip()
+        pieces = sorted(row.get("pieces") or [], key=lambda pc: pc.get("x") or 0.0)
+        if not pieces or len(host_text) > 2 or re.search(r"[^\W\d_]", host_text):
+            continue
+        body = next((pc for pc in pieces if re.search(r"[^\W\d_]{2,}", "".join(texts.get(g, "") for g, _ in pc["spans"]))), None)
+        if body is None:
+            continue
+        others = [pc for pc in pieces if pc is not body]
+        body["pieces"] = others
+        body["end"] = max([body["right"]] + [pc["right"] for pc in others])
+        body.pop("sup", None)
+        body.pop("sub", None)
+        row["pieces"] = []
+        rows[k] = body
+
+    # ── Pass 2: paragraphs ──
+    for line in rows:
+        # Formula rows (display equations, fraction parts, symbol runs) keep
+        # their original rendering: never a paragraph line.
+        if not should_translate(row_text(line)):
             continue
 
         if not eligible(line):
@@ -621,10 +676,12 @@ def _group_measured(lines: List[Dict[str, Any]], texts: Dict[str, str]) -> List[
             for block in [b for b in active if same_column(b, line)]:
                 close(block)
             active.append({"lines": [line], "step": None, "left": None})
-        recent.append(line)
 
     closed.extend(active)
-    paragraphs = [b["lines"] for b in closed if len(b["lines"]) >= 2]
+    # A single line made of several fragments (inline math, subscripts) is
+    # kept too: its pieces then form ONE segment instead of several tiny ones.
+    paragraphs = [b["lines"] for b in closed
+                  if len(b["lines"]) >= 2 or b["lines"][0].get("pieces")]
     paragraphs.sort(key=lambda para: lines.index(para[0]))
     prose = []
     for para in paragraphs:
@@ -836,6 +893,24 @@ def compose_stacked_accents(text: str) -> str:
     return _ACCENT_LETTER_RE.sub(repl, text)
 
 
+# A line-end hyphen is usually typesetting ("trans-" + "lation" -> "translation"),
+# but it can also be the hyphen of a real compound that happened to fall at the
+# end of the line ("position-" + "wise", "self-" + "attention"). Dropping it there
+# produced words such as "positionwise" or "selfattention". These lists cover the
+# compound parts that are frequent in scientific English.
+_COMPOUND_SECOND_PARTS = frozenset("""
+    wise based like free aware specific dependent independent driven related dimensional
+    scale level order term time valued oriented making trained supervised attention art
+    domain grained layer head step stage shot fold class world rank sized size dense
+    sparse wide end point type defined invariant consistent efficient intensive bound
+    """.split())
+_COMPOUND_FIRST_PARTS = frozenset("""
+    self non multi cross well semi quasi fully state end real large small long short high
+    low two three four one first second third zero sub pseudo anti inter intra post pre
+    data deep ground closed open fine coarse time space spatio state
+    """.split())
+
+
 def join_paragraph_lines(lines: List[str]) -> str:
     """Joins line texts, repairing end-of-line hyphenation ("trans-" + "lation")."""
     out = ""
@@ -850,7 +925,9 @@ def join_paragraph_lines(lines: List[str]) -> str:
             # the first part is a capitalized word.
             last_word = re.search(r"([A-Za-zÀ-ÿ]+)-$", out).group(1)
             next_word = re.match(r"[^\s]*", text).group(0)
-            if "-" in next_word or last_word[:1].isupper():
+            next_core = re.sub(r"[^A-Za-zÀ-ÿ]+$", "", next_word).lower()
+            if ("-" in next_word or last_word[:1].isupper()
+                    or next_core in _COMPOUND_SECOND_PARTS or last_word.lower() in _COMPOUND_FIRST_PARTS):
                 out = out + text
             else:
                 out = out[:-1] + text
@@ -1021,6 +1098,9 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     # --- UNIVERSAL ACCENT NORMALIZATION (NFC) ---
                     # Merges split floating accents (like e + ´) into standard unicode characters (like é)
                     normalized_text = unicodedata.normalize('NFC', merged_text)
+                    # LaTeX draws \\mapsto as a bar glyph that the text layer exposes as
+                    # "7" + "→": re-rendered in another font it read "v 7→ w".
+                    normalized_text = _MAPSTO_RE.sub("↦", normalized_text)
                     
                     gid = f"g-{idx[0]}"
                     original_texts_map[gid] = normalized_text
@@ -1128,22 +1208,32 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     # Double space after a sentence end inside PROSE: the text before
                     # ends with . ? ! (not ")" "]" "," — table cells like "(dev)" or
                     # "top-1 err.") and the next word starts a sentence (capital).
+                    # Next WORD, read across kerning spacers: "F<kern>urthermore"
+                    # must give "Furthermore", not "F" (which failed the capital +
+                    # lowercase test and split the line in two segments).
                     next_text = ""
                     for nxt in children[child_pos + 1:]:
                         n_cls = nxt.get("class") if hasattr(nxt, "get") else None
                         if isinstance(n_cls, str):
                             n_cls = n_cls.split()
+                        piece = nxt.get_text() if hasattr(nxt, "get_text") else str(nxt)
                         if getattr(nxt, "name", None) == "span" and n_cls and any(c.startswith("_") for c in n_cls):
-                            continue
-                        next_text = (nxt.get_text() if hasattr(nxt, "get_text") else str(nxt)).strip()
-                        if next_text:
+                            if piece.strip() == "" and piece and next_text:
+                                break          # a real word space: the next word is complete
+                            continue           # kerning adjustment inside the word
+                        next_text += piece.strip()
+                        if len(next_text) >= 2:
                             break
                     before = "".join(current_group_text)
                     sentence_gap = (
                         em_px > 0 and 0 < scaled_width < 2.0 * em_px
                         and re.search(r"[a-zà-ÿ]{2,}[.?!]\s*$", before) is not None
-                        and re.match(r"[A-ZÀ-Þ][a-zà-ÿ]", next_text) is not None
-                        and len(re.findall(r"[A-Za-zÀ-ÿ]{2,}", before)) >= 3
+                        # A capital word, or a Greek/math symbol opening the sentence ("σ is ...")
+                        and re.match(r"(?:[A-ZÀ-Þ][a-zà-ÿ]|[\u0370-\u03ff\U0001d400-\U0001d7ff])", next_text) is not None
+                        # Prose around the gap (3+ words before it, or 4+ on the line:
+                        # "uration.  The trained U-FNO models ..." starts with one word)
+                        and (len(re.findall(r"[A-Za-zÀ-ÿ]{2,}", before)) >= 3
+                             or len(re.findall(r"[A-Za-zÀ-ÿ]{2,}", div_t_text_preview)) >= 6)
                     )
                     # Gaps narrower than 1 em, or regular gaps of a justified line,
                     # are word spaces whatever the column threshold.
@@ -1221,7 +1311,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 tid_to_page.pop(gid, None)
                 span["data-para"] = pid
                 span["data-para-line"] = str(line_no)
-                for piece in line.get("pieces", []):
+                for piece in sorted(line.get("pieces", []), key=lambda pc: pc.get("x") or 0.0):
                     piece_texts = []
                     for p_gid, p_span in piece["spans"]:
                         piece_texts.append(original_texts_map.pop(p_gid, "").strip())
@@ -1403,6 +1493,68 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
             var pleft = parseFloat(divT.getAttribute('data-orig-pleft'));
             return { left: pleft, right: pleft + sw * sxo, sw: sw, offsetLeft: parseFloat(divT.getAttribute('data-orig-left')),
                      sx: sxo, sy: parseFloat(divT.getAttribute('data-sy-orig')) };
+        }
+
+        // Text column of a page (single-column layouts only): the extent of its
+        // wide lines (>= 45% of the page). Two-column pages have no such line,
+        // so lone lines there keep their original width. Cached per page.
+        function rtColumnBounds(page) {
+            if (page.hasAttribute('data-col-left')) {
+                var l = parseFloat(page.getAttribute('data-col-left'));
+                return isNaN(l) ? null : { left: l, right: parseFloat(page.getAttribute('data-col-right')) };
+            }
+            var pageW = page.offsetWidth, left = Infinity, right = -Infinity;
+            page.querySelectorAll('div.t').forEach(function (d) {
+                if (!d.querySelector('span[data-trans-id]')) return;
+                var g = rtCacheGeometry(d);
+                if (g.right - g.left >= 0.45 * pageW) {
+                    left = Math.min(left, g.left);
+                    right = Math.max(right, g.right);
+                }
+            });
+            var ok = left < Infinity;
+            page.setAttribute('data-col-left', ok ? left : 'none');
+            page.setAttribute('data-col-right', ok ? right : 'none');
+            return ok ? { left: left, right: right } : null;
+        }
+
+        // Centered = clearly indented on BOTH sides by the same amount. A first
+        // line with a paragraph indent that happens to end a little before the
+        // margin is not centered.
+        function rtCenteredInColumn(g, col, pageW) {
+            var gapL = g.left - col.left, gapR = col.right - g.right;
+            return gapL > 0.04 * pageW && gapR > 0.04 * pageW && Math.abs(gapL - gapR) < 0.015 * pageW;
+        }
+
+        // Vertical extent of a line in page coordinates (unzoomed px)
+        function rtVerticalSpan(divT, page) {
+            var pr = page.getBoundingClientRect();
+            var k = (page.offsetHeight && pr.height) ? pr.height / page.offsetHeight : 1;
+            var r = divT.getBoundingClientRect();
+            return { top: (r.top - pr.top) / k, bottom: (r.bottom - pr.top) / k };
+        }
+
+        // Extra width (px) a lone line may take on its right: up to the column
+        // edge, never over another line of the same row (table cell, equation
+        // number...). 0 for centered lines and two-column pages.
+        function rtFreeRoomRight(divT) {
+            var page = divT.closest('.pf');
+            if (!page) return 0;
+            var col = rtColumnBounds(page);
+            if (!col) return 0;
+            var g = rtCacheGeometry(divT);
+            if (g.left < col.left - 4 || g.right > col.right + 4) return 0;
+            var em = 0.03 * page.offsetWidth;
+            if (rtCenteredInColumn(g, col, page.offsetWidth)) return 0;
+            var v = rtVerticalSpan(divT, page), limit = col.right;
+            page.querySelectorAll('div.t').forEach(function (d) {
+                if (d === divT) return;
+                var dv = rtVerticalSpan(d, page);
+                if (Math.min(dv.bottom, v.bottom) - Math.max(dv.top, v.top) <= 0.3 * (v.bottom - v.top)) return;
+                var dg = rtCacheGeometry(d);
+                if (dg.left >= g.right - 1) limit = Math.min(limit, dg.left - 0.5 * em);
+            });
+            return Math.max(0, limit - g.right);
         }
 
         // Splits translated text into styled words: [{parts:[{t, st}], space}]
@@ -1684,6 +1836,10 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
             var origW = g.sw * g.sx;
             var center = g.left + origW / 2;
             if (origW > 0.85 * pageW || Math.abs(center - pageW / 2) > 0.02 * pageW) return;
+            // An indented line ending before the right margin is not centered:
+            // its two margins inside the text column must be similar too.
+            var col = rtColumnBounds(page);
+            if (col && !rtCenteredInColumn(g, col, pageW)) return;
             var m = /matrix\(([-\d.e]+)/.exec(divT.style.transform || '');
             var curSx = m ? parseFloat(m[1]) : g.sx;
             var newW = divT.scrollWidth * curSx;
@@ -1759,6 +1915,15 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     divT.setAttribute('data-sx-orig', sxOrig);
                     divT.setAttribute('data-sy-orig', syOrig);
                 }
+                // A lone line ("Within each layer ..., we have" before an equation)
+                // may grow into the free room on its right instead of shrinking
+                // a longer translation into its original width. Measured once,
+                // on the original layout. Lines holding several segments
+                // (table rows) keep their width.
+                if (!divT.hasAttribute('data-room')) {
+                    var lone = divT.querySelectorAll('span[data-trans-id]').length === 1;
+                    divT.setAttribute('data-room', lone ? rtFreeRoomRight(divT) : 0);
+                }
 
                 // Retrieve cached metric baselines
                 var origSW = parseFloat(divT.getAttribute('data-orig-sw'));
@@ -1796,7 +1961,8 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 var newSW = divT.scrollWidth;
 
                 if (newSW > 0 && origSW > 0) {
-                    var newSx = sx * (origSW / newSW);
+                    var roomSW = (parseFloat(divT.getAttribute('data-room')) || 0) / sx;
+                    var newSx = sx * ((origSW + roomSW) / newSW);
                     // Cap horizontal scaling to prevent unnecessary stretching of short text
                     newSx = Math.min(newSx, sx);
                     var ratio = newSx / sx;

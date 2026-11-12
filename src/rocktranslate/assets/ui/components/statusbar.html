@@ -8,7 +8,13 @@
     <!-- LEFT PANEL: Status message text -->
     <div class="status-text-left">
         <span x-text="currentStatus"></span>
-        <span class="status-busy" x-show="busy" x-cloak><i></i><i></i><i></i></span>
+        <span class="status-busy" x-show="busy && !exportState" x-cloak><i></i><i></i><i></i></span>
+
+        <!-- PDF export: pages being prepared, then fonts, then printing -->
+        <span class="export-progress" x-show="exportState" x-cloak :title="exportLabel">
+            <span class="export-progress-track"><span class="export-progress-fill" :style="'width:' + exportPercent + '%'"></span></span>
+            <span class="export-progress-label" x-text="exportLabel"></span>
+        </span>
     </div>
 
     <!-- RIGHT PANEL: Zoom percentage increments widget -->
