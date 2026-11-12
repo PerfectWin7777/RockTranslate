@@ -70,7 +70,8 @@ document.addEventListener('DOMContentLoaded', () => {
         fr: {
             title: "English to French — Elsevier Earth-Sciences Multi-Column",
             desc: "Full stratigraphic diagram retention, precise geological nomenclature, and auto-scaled double columns without paragraph overlapping.",
-            img: "assets/readme_comparison_en_to_fr.png",
+            img: "assets/web/comparison_fr.webp",
+            full: "assets/readme_comparison_en_to_fr.png",
             lang: "English → French",
             format: "Elsevier Double-Column",
             expansion: "+22% Word Expansion Managed"
@@ -78,7 +79,8 @@ document.addEventListener('DOMContentLoaded', () => {
         spa: {
             title: "English to Spanish — Elsevier Complex Layout & Headers",
             desc: "Zero-drift reconstruction of publisher mastheads, author affiliations, and nested subheadings under high character count variance.",
-            img: "assets/readme_comparison_en_to_spa.png",
+            img: "assets/web/comparison_spa.webp",
+            full: "assets/readme_comparison_en_to_spa.png",
             lang: "English → Spanish",
             format: "Elsevier Standard",
             expansion: "+18% Word Expansion Managed"
@@ -86,7 +88,8 @@ document.addEventListener('DOMContentLoaded', () => {
         jn: {
             title: "English to Japanese — Attention Is All You Need (arXiv)",
             desc: "Flawless rendering of multi-head attention equations, CJK typography proportions, and vertical/horizontal glyph alignment.",
-            img: "assets/readme_comparison_en_to_jn.png",
+            img: "assets/web/comparison_jn.webp",
+            full: "assets/readme_comparison_en_to_jn.png",
             lang: "English → Japanese (CJK)",
             format: "arXiv Two-Column AI Paper",
             expansion: "Double-Byte Glyphs Scaled"
@@ -94,7 +97,8 @@ document.addEventListener('DOMContentLoaded', () => {
         ge: {
             title: "English to German — Elsevier Mechanics Tables & Vectors",
             desc: "Handling high-density German compound nouns (+30% expansion) while keeping mathematical equations and tabular borders completely intact.",
-            img: "assets/readme_comparison_en_to_ge.png",
+            img: "assets/web/comparison_ge.webp",
+            full: "assets/readme_comparison_en_to_ge.png",
             lang: "English → German",
             format: "Elsevier Tabular Layout",
             expansion: "+29% Word Expansion Managed"
@@ -119,6 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     setTimeout(() => {
                         showcaseImg.src = data.img;
+                        showcaseImg.dataset.full = data.full;  // zoom uses the full-resolution PNG
                         showcaseImg.alt = data.title;
                         showcaseTitle.textContent = data.title;
                         showcaseDesc.textContent = data.desc;
@@ -144,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showcaseViewer.addEventListener('click', () => {
             const currentImg = document.getElementById('showcase-main-img');
             if (currentImg) {
-                lightboxImg.src = currentImg.src;
+                lightboxImg.src = currentImg.dataset.full || currentImg.src;
                 lightbox.classList.add('active');
                 document.body.style.overflow = 'hidden';
             }
@@ -408,3 +413,14 @@ document.querySelectorAll('.cmd-copy').forEach((btn) => {
         }
     });
 });
+
+// ── HERO DEMO VIDEO: replaces the 7.9 MB GIF ──
+// Muted autoplay is allowed almost everywhere; this nudges browsers that
+// skipped it (power saving, some headless/embedded views). Errors are ignored:
+// the poster image stays visible in that case.
+(function () {
+    const demo = document.querySelector('.window-body video');
+    if (!demo) return;
+    const start = () => { if (demo.paused) demo.play().catch(() => {}); };
+    if (demo.readyState >= 2) start(); else demo.addEventListener('canplay', start, { once: true });
+})();

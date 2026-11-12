@@ -560,7 +560,8 @@ body {
     overflow: hidden;
 }
 
-.window-body img {
+.window-body img,
+.window-body video {
     display: block;
     width: 100%;
     height: auto;

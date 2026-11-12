@@ -40,7 +40,9 @@ gui = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/PerfectWin7777/RockTranslate"
+Homepage = "https://perfectwin7777.github.io/RockTranslate/"
+Documentation = "https://perfectwin7777.github.io/RockTranslate/documentation.html"
+Source = "https://github.com/PerfectWin7777/RockTranslate"
 Issues = "https://github.com/PerfectWin7777/RockTranslate/issues"
 
 # Registers the global system commands

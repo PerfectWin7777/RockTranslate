@@ -10,6 +10,10 @@
 </p>
 
 <p align="center">
+  🌐 <a href="https://perfectwin7777.github.io/RockTranslate/"><strong>Website</strong></a> · 📖 <a href="https://perfectwin7777.github.io/RockTranslate/documentation.html"><strong>Documentation</strong></a> · 🐍 <a href="https://pypi.org/project/rocktranslate/"><strong>PyPI</strong></a>
+</p>
+
+<p align="center">
   <!-- High-visibility dynamic download badge -->
   <a href="https://github.com/PerfectWin7777/RockTranslate/releases/download/v2.0.5/RockTranslate_Setup_v2.0.5.exe">
     <img src="https://img.shields.io/badge/Download-Windows%20GUI%20Installer%20v2.0.5-blue?style=for-the-badge&logo=windows&logoColor=white" alt="Download Windows GUI Installer" />
