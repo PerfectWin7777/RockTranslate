@@ -247,6 +247,31 @@ def _wait_until_printable(session: "_Session", progress: Optional[ExportProgress
     return False
 
 
+def _print_pages(session: "_Session", progress: Optional[ExportProgress]) -> Optional[bytes]:
+    """
+    PDF bytes of the loaded page, in ONE Page.printToPDF call. Chrome gives no
+    progress inside the call; printing in batches was measured ~1.3 s slower
+    PER batch (each call lays the whole document out again), so the UI shows
+    an estimate instead (status bar: duration per page of previous exports).
+    """
+    import base64 as b64
+    options = {"printBackground": True, "preferCSSPageSize": True, "displayHeaderFooter": False,
+               "marginTop": 0, "marginBottom": 0, "marginLeft": 0, "marginRight": 0}
+    total = session.evaluate("document.querySelectorAll('.pf').length") or 0
+
+    def report(done: int) -> None:
+        if progress:
+            try:
+                progress("print", done, total)
+            except Exception:
+                pass
+
+    report(0)
+    data = session.call("Page.printToPDF", options).get("data")
+    report(total)
+    return b64.b64decode(data) if data else None
+
+
 def print_to_pdf(browser: str, html_path: str, output_pdf: str, timeout: float,
                  progress: Optional[ExportProgress] = None) -> bool:
     """
@@ -267,25 +292,17 @@ def print_to_pdf(browser: str, html_path: str, output_pdf: str, timeout: float,
             from loguru import logger
             logger.warning(f"DevTools: the page never became ready to print ({os.path.basename(browser)}).")
             return False
-        if progress:
-            try:
-                progress("print", 0, 0)
-            except Exception:
-                pass
-        result = session.call("Page.printToPDF", {"printBackground": True, "preferCSSPageSize": True,
-                                                  "displayHeaderFooter": False, "marginTop": 0,
-                                                  "marginBottom": 0, "marginLeft": 0, "marginRight": 0})
-        data = result.get("data")
+        data = _print_pages(session, progress)
         if not data:
             return False
         t3 = time.monotonic()
         tmp = output_pdf + ".part"
         with open(tmp, "wb") as f:
-            f.write(b64.b64decode(data))
+            f.write(data)
         os.replace(tmp, output_pdf)
         from loguru import logger
         logger.info(f"Export timing: browser start {t1 - t0:.1f}s | page load + fonts {t2 - t1:.1f}s | "
-                    f"print {t3 - t2:.1f}s | PDF {len(data) * 3 / 4 / 1e6:.1f} MB")
+                    f"print {t3 - t2:.1f}s | PDF {len(data) / 1e6:.1f} MB")
         return os.path.getsize(output_pdf) > 0
     except Exception as e:
         from loguru import logger

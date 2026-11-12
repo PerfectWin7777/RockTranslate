@@ -29,7 +29,8 @@ function statusbarController() {
             // Pages = 0-80 %, fonts = 85 %, printing = 92 % (Chrome gives no finer signal)
             if (st.stage === 'pages' && st.total > 0) return Math.round(80 * st.done / st.total);
             if (st.stage === 'download') return st.total > 0 ? Math.round(100 * st.done / st.total) : 50;
-            return { building: 3, loading: 5, fonts: 85, ready: 88, print: 92 }[st.stage] || 0;
+            if (st.stage === 'print') return Math.round(88 + 11 * this.printFraction());
+            return { building: 3, loading: 5, fonts: 85, ready: 88 }[st.stage] || 0;
         },
 
         get exportLabel() {
@@ -39,15 +40,27 @@ function statusbarController() {
             if (st.stage === 'pages') return i18n.translate('export_stage_pages', { done: st.done, total: st.total });
             if (st.stage === 'fonts' || st.stage === 'ready') return i18n.translate('export_stage_fonts');
             if (st.stage === 'print') {
-                // Chrome gives no progress while it writes the PDF: show the time spent
-                const secs = this.printStarted ? Math.round((Date.now() - this.printStarted) / 1000) : 0;
-                return i18n.translate('export_stage_print') + (secs >= 3 ? ` (${secs} s)` : '');
+                // Chrome gives no progress while it writes the PDF: estimated time left
+                const left = Math.max(0, Math.round(this.printExpected() - (Date.now() - this.printStarted) / 1000));
+                return i18n.translate('export_stage_print') + (left >= 2 ? ` ≈ ${left} s` : '');
             }
             if (st.stage === 'download') {
                 const mb = (n) => (n / 1048576).toFixed(1);
                 return i18n.translate('export_stage_download', { done: mb(st.done), total: st.total ? mb(st.total) : '?' });
             }
             return i18n.translate('export_stage_building');
+        },
+
+        // Seconds per page measured on the previous exports of this computer
+        secsPerPage() {
+            try { const v = parseFloat(localStorage.getItem('rt-print-spp')); if (v > 0) return v; } catch (e) { }
+            return 0.25;
+        },
+        printExpected() { return Math.max(2, this.secsPerPage() * ((this.exportState && this.exportState.total) || 10)); },
+        printFraction() {
+            if (!this.printStarted) return 0;
+            const ratio = ((Date.now() - this.printStarted) / 1000) / this.printExpected();
+            return Math.min(0.97, 1 - Math.exp(-2.2 * ratio));   // slows down, never claims 100 % early
         },
 
         // Either an i18n key (re-translated live) or a literal text
@@ -65,6 +78,11 @@ function statusbarController() {
             window.addEventListener('export-progress', (e) => {
                 const d = e.detail || {};
                 if (d.stage === 'print' && (!this.exportState || this.exportState.stage !== 'print')) this.printStarted = Date.now();
+                // The print finished: remember this computer's speed for the next estimate
+                if (d.stage === 'print' && d.total && d.done >= d.total && this.printStarted) {
+                    const spp = ((Date.now() - this.printStarted) / 1000) / d.total;
+                    try { localStorage.setItem('rt-print-spp', String(Math.max(0.02, Math.min(spp, 10)))); } catch (err) { }
+                }
                 this.exportState = d.stage === 'end' ? null : d;
             });
             // Re-render the elapsed seconds of the printing step

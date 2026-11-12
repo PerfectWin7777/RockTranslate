@@ -12,6 +12,10 @@
 - **Comfort**: continuous translation of the pages being read, resume at the last page, night reading (figures intact),
   hold Alt for the original, document tabs, command palette (Ctrl+K), snapshot of an area or a page to the clipboard.
 - **Exports**: bilingual side-by-side PDF.
+- **Reading comfort**: answers rendered as Markdown (bubble, summaries, questions) and always in the reading language;
+  collapsible contents and summaries; document tabs shown from the first PDF, a PDF dropped on a pane opens in a new tab;
+  the copied snapshot appears as a thumbnail; download progress when opening a link; estimated time left while the PDF
+  export is written (learned from the previous exports).
 - **Default reader**: open a PDF passed on the command line, single instance, "Open with RockTranslate" and an optional
   default-app task in the installer.
 - **Figures as images in extraction**: every captioned figure (pictures and vector plots) is rendered as PNG, written
