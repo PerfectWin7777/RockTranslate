@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- **Sideways tables and rotated text are kept intact.** A table printed sideways (rotated 90°) lost its rows, and its
+  headers came out horizontal and three times too large. Two causes: the rotation matrix of these lines was read as a
+  zero scale, and laying out a translated neighbour line reset the transform of every line of the page. Rotated lines
+  (sideways tables, vertical arXiv stamps, rotated figure labels) are now left exactly as in the original; untranslated
+  lines are only measured, never transformed.
+- **"Reset and translate again" really translates again**: the pages were restored from the saved translations of the
+  previous run. Switching the target language still keeps the saved translations.
+
 ## 2.0.6 — 2026-11
 
 ### A PDF reader that understands the paper (new)

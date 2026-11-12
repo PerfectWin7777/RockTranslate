@@ -198,3 +198,27 @@ def test_images_saved_next_to_markdown_and_json(tmp_path):
     doc.elements[0].image_path = None
     assert "image_base64" in json.loads(doc.to_json())[0]["metadata"]
     assert doc.chunks() and all("Figure 1](" not in c.text for c in doc.chunks())
+
+
+def test_sideways_text_is_left_untouched(tmp_path):
+    """Rotated lines (sideways tables) must keep their pdf2htmlEX transform and never be segmented."""
+    from rocktranslate.core.html_transformer import instrument_html, parse_rotated_matrix_classes
+    from bs4 import BeautifulSoup
+    raw = """<html><head><style>
+    .m0{transform:matrix(0.325000,0.000000,0.000000,0.325000,0,0);}
+    .m1{transform:matrix(0.000000,-0.325000,0.325000,0.000000,0,0);}
+    </style></head><body><div id="page-container"><div class="pf" id="pf1"><div class="pc">
+    <div class="t m0 x1 h1 y1 ff1 fs1 fc0 sc0 ls0 ws0">The diversity of water accumulation matches the classes.</div>
+    <div class="t m1 x2 h1 y2 ff1 fs1 fc0 sc0 ls0 ws0">Table 3 Values and classes of CTA</div>
+    <div class="t m1 x3 h1 y3 ff1 fs1 fc0 sc0 ls0 ws0">Ntem 3 1 1</div>
+    </div></div></div></body></html>"""
+    assert parse_rotated_matrix_classes(BeautifulSoup(raw, "html.parser")) == {"m1"}
+    src, out = tmp_path / "raw.html", tmp_path / "inst.html"
+    src.write_text(raw, encoding="utf-8")
+    texts, _ = instrument_html(str(src), str(out))
+    assert not any("Table 3" in t or "Ntem" in t for t in texts.values())
+    html = out.read_text(encoding="utf-8")
+    soup = BeautifulSoup(html, "html.parser")
+    rotated = [d for d in soup.select("div.t") if "m1" in d.get("class", [])]
+    assert len(rotated) == 2 and not any(d.select("span[data-trans-id]") for d in rotated)
+    assert "Table 3 Values" in rotated[0].get_text()

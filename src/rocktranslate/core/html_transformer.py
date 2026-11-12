@@ -344,6 +344,25 @@ def parse_matrix_classes(soup: BeautifulSoup) -> Dict[str, Tuple[float, float]]:
     return matrix_map
 
 
+def parse_rotated_matrix_classes(soup: BeautifulSoup) -> Set[str]:
+    """
+    Matrix classes that rotate or skew the text (b or c not zero), e.g. the
+    columns of a table printed sideways: .m1{transform:matrix(0,-0.325,0.325,0,0,0)}.
+    Their scale cannot be read as (a, d) (it would be 0), and the translation
+    layer only rebuilds horizontal lines, so these lines are left untouched.
+    """
+    rotated: Set[str] = set()
+    num = r"(-?[\d.]+(?:e-?\d+)?)"
+    pattern = (r"\.(m\w+)\s*\{[^}]*transform\s*:\s*matrix\s*\(\s*" + num + r"\s*,\s*" + num
+               + r"\s*,\s*" + num + r"\s*,\s*" + num + r"\s*,")
+    for style_tag in soup.find_all("style"):
+        for m in re.finditer(pattern, style_tag.string or ""):
+            b, c = float(m.group(3)), float(m.group(4))
+            if abs(b) > 1e-6 or abs(c) > 1e-6:
+                rotated.add(m.group(1))
+    return rotated
+
+
 def parse_spacer_widths(soup: BeautifulSoup) -> Dict[str, float]:
     """
     Parse horizontal spacer widths from CSS style tags inside the HTML document.
@@ -457,7 +476,7 @@ _MAPSTO_RE = re.compile(r"(?<![0-9])7\s?→")
 
 # Bump whenever instrument_html output changes: cached workspaces built by an
 # older pipeline are then re-instrumented from the cached raw HTML.
-PIPELINE_VERSION = 25
+PIPELINE_VERSION = 26
 
 
 def parse_font_sizes(soup: BeautifulSoup) -> Dict[str, float]:
@@ -954,6 +973,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
         soup = BeautifulSoup(f.read(), "lxml")
 
     matrix_map: Dict[str, Tuple[float, float]] = parse_matrix_classes(soup)
+    rotated_classes: Set[str] = parse_rotated_matrix_classes(soup)
     spacer_map: Dict[str, float] = parse_spacer_widths(soup)
     color_map:  Dict[str, str] = parse_color_classes(soup)
     x_map, y_map = parse_position_classes(soup)
@@ -1004,6 +1024,10 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
         for line_idx, div_t in enumerate(sorted_div_t):
             # Determine line scaling factors (scaleX, scaleY)
             classes = div_t.get("class", [])
+            # Sideways text (rotated table, vertical margin label): kept exactly
+            # as pdf2htmlEX drew it. Rebuilding it as a horizontal line erased it.
+            if rotated_classes.intersection(classes):
+                continue
             line_spans: List[Tuple[str, Any]] = []
             sx_orig, sy_orig = 1.0, 1.0
             for cls in classes:
@@ -1471,6 +1495,18 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
         // pdf2htmlEX nests lines in clip boxes (div.c) for many publisher PDFs,
         // so offsetLeft is relative to the clip box: page rects are used instead.
         function rtCacheGeometry(divT) {
+            if (!divT.hasAttribute('data-orig-sw') && !divT.querySelector('span[data-trans-id]')) {
+                // Line that is never translated (numbers, sideways table text...):
+                // geometry is READ from its box, its own transform (scale,
+                // rotation) must stay untouched.
+                var pg = divT.closest('.pf') || document.body;
+                var pgr = pg.getBoundingClientRect();
+                var kk = (pg.offsetWidth && pgr.width) ? pgr.width / pg.offsetWidth : 1;
+                var rr = divT.getBoundingClientRect();
+                divT.setAttribute('data-orig-sw', rr.width / kk);
+                divT.setAttribute('data-sx-orig', 1);
+                divT.setAttribute('data-sy-orig', 1);
+            }
             if (!divT.hasAttribute('data-orig-sw')) {
                 var span = divT.querySelector('span[data-trans-id]');
                 var sx0 = parseFloat((span && span.getAttribute('data-sx')) || '1');
