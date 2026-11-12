@@ -243,6 +243,10 @@
     }
     function closeBubble() { if (bubble) bubble.style.display = 'none'; bubbleReq = null; }
 
+    // Answers already received in this session, per (mode, selected text):
+    // switching Translate <-> Explain shows them again without a new request.
+    const bubbleCache = new Map();
+
     function openBubble(mode, sel, keepPosition) {
         if (!bubble) buildBubble();
         bubble._sel = sel;
@@ -268,6 +272,14 @@
             bubble.style.left = Math.min(Math.max(10, rect.left), window.innerWidth - w - 10) + 'px';
             bubble.style.top = top + 'px';
         }
+        const cacheKey = mode + '\u0000' + sel.text;
+        if (bubbleCache.has(cacheKey)) {
+            const hit = bubbleCache.get(cacheKey);
+            body.classList.remove('rt-typing');
+            body.textContent = hit.text; foot.textContent = hit.foot;
+            bubbleReq = null;
+            return;
+        }
         const started = performance.now();
         let first = 0;
         const reqId = RT.assist(mode, sel.text, (piece) => {
@@ -283,6 +295,8 @@
             const firstMs = first ? Math.round(first - started) : null;
             const cost = window.rtShowCost !== false && res.cost ? ` · ~$${Number(res.cost).toFixed(4)}` : '';
             foot.textContent = `${(res.model || '').split('/').pop()} · ${secs} s${firstMs ? ` (${RT.t('rd_first_word', { ms: firstMs })})` : ''}${cost}`;
+            if (bubbleCache.size > 200) bubbleCache.delete(bubbleCache.keys().next().value);
+            bubbleCache.set(cacheKey, { text: body.textContent, foot: foot.textContent });
         });
         bubbleReq = reqId;
     }

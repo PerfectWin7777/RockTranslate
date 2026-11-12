@@ -28,16 +28,23 @@
 
 /* ── Side panel ── */
 #rt-sidepanel {
-    width: 330px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;
+    width: 364px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;
     background: var(--rt-surface); border-right: 1px solid var(--rt-border); font-size: 13px; color: var(--rt-text);
 }
-.rt-sp-tabs { display: flex; align-items: center; gap: 2px; padding: 6px 6px 0; border-bottom: 1px solid var(--rt-border); flex-shrink: 0; }
-.rt-sp-tabs button {
-    border: none; background: transparent; padding: 7px 8px; font-size: 12px; font-weight: 600; color: var(--rt-text-3);
-    border-bottom: 2px solid transparent; cursor: pointer;
+.rt-sp-tabs { display: flex; align-items: center; gap: 2px; padding: 6px 4px 0 6px; border-bottom: 1px solid var(--rt-border); flex-shrink: 0; }
+/* Long labels (French, German) scroll inside the tab strip: the close button never leaves the panel */
+.rt-sp-tabs-scroll { flex: 1; min-width: 0; display: flex; gap: 1px; overflow-x: auto; scrollbar-width: none; }
+.rt-sp-tabs-scroll::-webkit-scrollbar { display: none; }
+.rt-sp-tabs-scroll button {
+    flex-shrink: 0; border: none; background: transparent; padding: 7px 5px; font-size: 11.5px; font-weight: 600; color: var(--rt-text-3);
+    border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap;
 }
-.rt-sp-tabs button.active { color: var(--rt-accent); border-bottom-color: var(--rt-accent); }
-.rt-sp-tabs .rt-sp-close { margin-left: auto; font-weight: 400; }
+.rt-sp-tabs-scroll button.active { color: var(--rt-accent); border-bottom-color: var(--rt-accent); }
+.rt-sp-close {
+    flex-shrink: 0; width: 26px; height: 26px; margin-bottom: 3px; border: none; border-radius: 6px;
+    background: transparent; color: var(--rt-text-3); cursor: pointer; font-size: 13px;
+}
+.rt-sp-close:hover { background: var(--rt-border); color: var(--rt-text); }
 .rt-sp-body { flex: 1; overflow-y: auto; padding: 10px 12px 16px; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
 .rt-sp-hint { margin: 0 0 4px; font-size: 11.5px; color: var(--rt-text-3); line-height: 1.45; }
 .rt-sp-input {

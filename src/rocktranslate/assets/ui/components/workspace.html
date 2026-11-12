@@ -24,12 +24,14 @@
     <!-- Reader side panel: contents, search, ask, notes, glossary -->
     <aside id="rt-sidepanel" x-data="sidePanel()" x-show="$store.reader.panelOpen" x-cloak>
         <nav class="rt-sp-tabs unselectable">
-            <template x-for="tb in ['toc', 'search', 'ask', 'notes', 'glossary']" :key="tb">
-                <button type="button" :class="{ active: $store.reader.panelTab === tb }"
-                    @click="$store.reader.panelTab = tb; localStorage.setItem('rt-reader-panelTab', JSON.stringify(tb))"
-                    x-text="t('rd_tab_' + tb)"></button>
-            </template>
-            <button type="button" class="rt-sp-close" @click="$store.reader.togglePanel()" :title="t('rd_close')">✕</button>
+            <div class="rt-sp-tabs-scroll">
+                <template x-for="tb in ['toc', 'search', 'ask', 'notes', 'glossary']" :key="tb">
+                    <button type="button" :class="{ active: $store.reader.panelTab === tb }" :title="t('rd_tab_' + tb)"
+                        @click="$store.reader.panelTab = tb; localStorage.setItem('rt-reader-panelTab', JSON.stringify(tb))"
+                        x-text="t('rd_tab_' + tb)"></button>
+                </template>
+            </div>
+            <button type="button" class="rt-sp-close" @click="$store.reader.togglePanel()" :title="t('rd_close') + ' (Ctrl+B)'">✕</button>
         </nav>
 
         <!-- Contents -->
