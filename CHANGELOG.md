@@ -3,11 +3,12 @@
 ## Unreleased
 
 ### Fixes
-- **Sideways tables and rotated text are kept intact.** A table printed sideways (rotated 90°) lost its rows, and its
-  headers came out horizontal and three times too large. Two causes: the rotation matrix of these lines was read as a
-  zero scale, and laying out a translated neighbour line reset the transform of every line of the page. Rotated lines
-  (sideways tables, vertical arXiv stamps, rotated figure labels) are now left exactly as in the original; untranslated
-  lines are only measured, never transformed.
+- **Sideways tables are translated.** A table printed sideways (rotated 90°) lost its rows, and its headers came out
+  horizontal and three times too large: the rotation matrix of these lines was read as a zero scale, and laying out a
+  translated neighbour line reset the transform of every line of the page. Rotated lines are now segmented and
+  regrouped into paragraphs in their own frame, translated, and keep their rotation; each cell of a sideways row keeps
+  its own column. Untranslated lines are only measured, never transformed. Rows of sideways single words (figure axis
+  labels, e.g. attention maps) are left as drawn.
 - **"Reset and translate again" really translates again**: the pages were restored from the saved translations of the
   previous run. Switching the target language still keeps the saved translations.
 

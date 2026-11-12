@@ -608,13 +608,15 @@ function workspaceController() {
                         span.classList.remove('shimmer-line', 'translated');
                         span.style.removeProperty('word-spacing');
                         span.style.removeProperty('letter-spacing');
+                        // Table-row cells were fitted on their own (inline-block, width, scale)
+                        ['width', 'transform', 'transform-origin', 'white-space'].forEach((p) => span.style.removeProperty(p));
+                        span.style.display = 'inline';
 
                         // 2. Reset the scale matrices of the parent container div.t
                         const divT = span.closest('div.t');
                         if (divT) {
-                            const sxOrig = parseFloat(span.getAttribute('data-sx') || '1');
-                            const syOrig = parseFloat(span.getAttribute('data-sy') || '1');
-                            divT.style.transform = `matrix(${sxOrig},0,0,${syOrig},0,0)`;
+                            // Back to the pdf2htmlEX class matrix (keeps the rotation of sideways lines)
+                            divT.style.removeProperty('transform');
 
                             // Remove temporary width metrics to force clean recalculations for the next language
                             divT.style.removeProperty('left');

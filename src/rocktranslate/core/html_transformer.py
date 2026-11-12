@@ -18,6 +18,7 @@ Version: 1.0.0
 
 import os, sys
 import queue
+import math
 import re
 import subprocess
 import threading
@@ -344,23 +345,42 @@ def parse_matrix_classes(soup: BeautifulSoup) -> Dict[str, Tuple[float, float]]:
     return matrix_map
 
 
-def parse_rotated_matrix_classes(soup: BeautifulSoup) -> Set[str]:
+def parse_rotated_matrix_classes(soup: BeautifulSoup) -> Dict[str, Tuple[float, float, float, float, float, float]]:
     """
-    Matrix classes that rotate or skew the text (b or c not zero), e.g. the
-    columns of a table printed sideways: .m1{transform:matrix(0,-0.325,0.325,0,0,0)}.
-    Their scale cannot be read as (a, d) (it would be 0), and the translation
-    layer only rebuilds horizontal lines, so these lines are left untouched.
+    Matrix classes that rotate the text (b or c not zero), e.g. the columns of
+    a table printed sideways: .m1{transform:matrix(0,-0.325,0.325,0,0,0)}.
+    Returns cls -> (sx, sy, ux, uy, vx, vy): the scale along the text direction
+    and along the line-advance direction, and these two unit vectors (screen
+    coordinates, y down). Lines of such classes are translated in their own
+    frame and their transform keeps its rotation.
     """
-    rotated: Set[str] = set()
+    rotated: Dict[str, Tuple[float, float, float, float, float, float]] = {}
     num = r"(-?[\d.]+(?:e-?\d+)?)"
     pattern = (r"\.(m\w+)\s*\{[^}]*transform\s*:\s*matrix\s*\(\s*" + num + r"\s*,\s*" + num
                + r"\s*,\s*" + num + r"\s*,\s*" + num + r"\s*,")
     for style_tag in soup.find_all("style"):
         for m in re.finditer(pattern, style_tag.string or ""):
-            b, c = float(m.group(3)), float(m.group(4))
-            if abs(b) > 1e-6 or abs(c) > 1e-6:
-                rotated.add(m.group(1))
+            ma, mb, mc, md = (float(m.group(i)) for i in range(2, 6))
+            if abs(mb) <= 1e-6 and abs(mc) <= 1e-6:
+                continue
+            sx, sy = math.hypot(ma, mb), math.hypot(mc, md)
+            if sx > 0 and sy > 0:
+                rotated[m.group(1)] = (sx, sy, ma / sx, mb / sx, mc / sy, md / sy)
     return rotated
+
+
+def to_line_frame(box: Tuple[float, float, float, float], rot: Tuple[float, float, float, float]) -> Tuple[float, float, float, float]:
+    """
+    Page box (left, right, top, bottom) of a rotated line expressed in the
+    line's own frame (x along the text, y along the line advance), so the
+    paragraph grouping reads sideways text like horizontal text.
+    """
+    left, right, top, bottom = box
+    ux, uy, vx, vy = rot
+    corners = [(left, top), (right, top), (left, bottom), (right, bottom)]
+    xs = [cx * ux + cy * uy for cx, cy in corners]
+    ys = [cx * vx + cy * vy for cx, cy in corners]
+    return (min(xs), max(xs), min(ys), max(ys))
 
 
 def parse_spacer_widths(soup: BeautifulSoup) -> Dict[str, float]:
@@ -476,7 +496,7 @@ _MAPSTO_RE = re.compile(r"(?<![0-9])7\s?→")
 
 # Bump whenever instrument_html output changes: cached workspaces built by an
 # older pipeline are then re-instrumented from the cached raw HTML.
-PIPELINE_VERSION = 26
+PIPELINE_VERSION = 30
 
 
 def parse_font_sizes(soup: BeautifulSoup) -> Dict[str, float]:
@@ -973,7 +993,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
         soup = BeautifulSoup(f.read(), "lxml")
 
     matrix_map: Dict[str, Tuple[float, float]] = parse_matrix_classes(soup)
-    rotated_classes: Set[str] = parse_rotated_matrix_classes(soup)
+    rotated_classes = parse_rotated_matrix_classes(soup)
     spacer_map: Dict[str, float] = parse_spacer_widths(soup)
     color_map:  Dict[str, str] = parse_color_classes(soup)
     x_map, y_map = parse_position_classes(soup)
@@ -1015,6 +1035,14 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
 
         # 3. Preserve the native DOM reading order from pdf2htmlEX to support multi-column layouts
         sorted_div_t = div_t_elements
+
+        # Sideways single words by the dozen are figure axis labels (e.g. the
+        # word-by-word attention maps of a transformer paper), not a table:
+        # they are left exactly as drawn instead of becoming one segment each.
+        def _sideways_word(d: Any) -> bool:
+            return (bool(rotated_classes.keys() & set(d.get("class", [])))
+                    and re.fullmatch(r"\S{1,30}", d.get_text().strip()) is not None)
+        figure_words = sum(1 for d in sorted_div_t if _sideways_word(d)) >= 15
         page_lines: List[Dict[str, Any]] = []
         page_boxes = None
         if measured_boxes is not None and page_idx < len(measured_boxes) \
@@ -1024,9 +1052,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
         for line_idx, div_t in enumerate(sorted_div_t):
             # Determine line scaling factors (scaleX, scaleY)
             classes = div_t.get("class", [])
-            # Sideways text (rotated table, vertical margin label): kept exactly
-            # as pdf2htmlEX drew it. Rebuilding it as a horizontal line erased it.
-            if rotated_classes.intersection(classes):
+            if figure_words and _sideways_word(div_t):
                 continue
             line_spans: List[Tuple[str, Any]] = []
             sx_orig, sy_orig = 1.0, 1.0
@@ -1034,6 +1060,14 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 if cls in matrix_map:
                     sx_orig, sy_orig = matrix_map[cls]
                     break
+            # Sideways text (rotated table, vertical label): pdf2htmlEX draws it as
+            # a normal line turned by its matrix. Its scales are the lengths of the
+            # matrix columns (a, d alone read 0), and the line keeps its rotation
+            # through data-rot (unit vectors used by the page script).
+            line_rot = next((rotated_classes[c] for c in classes if c in rotated_classes), None)
+            if line_rot:
+                sx_orig, sy_orig = line_rot[0], line_rot[1]
+                div_t["data-rot"] = ",".join(f"{v:.6f}" for v in line_rot[2:])
 
             children = list(div_t.contents)
 
@@ -1322,10 +1356,25 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 "sy": abs(sy_orig or 1.0),
                 "em": em_px,
                 "box": page_boxes[line_idx] if page_boxes else None,
+                "rot": tuple(line_rot[2:]) if line_rot else None,
             })
 
         # ── PARAGRAPH RECONSTRUCTION (DeepL-style reflow) ──
-        for para in group_lines_into_paragraphs(page_lines, original_texts_map):
+        # Lines are grouped per orientation: sideways lines in their own frame,
+        # never mixed with the horizontal text around them. Without measured
+        # boxes, sideways lines stay single lines.
+        orientations: Dict[Any, List[Dict[str, Any]]] = {}
+        for line in page_lines:
+            orientations.setdefault(line.get("rot"), []).append(line)
+        page_paragraphs: List[List[Dict[str, Any]]] = []
+        for rot, rot_lines in orientations.items():
+            if rot is None:
+                page_paragraphs.extend(group_lines_into_paragraphs(rot_lines, original_texts_map))
+            elif all(l.get("box") for l in rot_lines):
+                for l in rot_lines:
+                    l["box"] = to_line_frame(l["box"], rot)
+                page_paragraphs.extend(group_lines_into_paragraphs(rot_lines, original_texts_map))
+        for para in page_paragraphs:
             pid = f"p-{para_idx[0]}"
             para_idx[0] += 1
             texts = []
@@ -1494,6 +1543,16 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
         // Original geometry of a line, in PAGE coordinates (unzoomed CSS px).
         // pdf2htmlEX nests lines in clip boxes (div.c) for many publisher PDFs,
         // so offsetLeft is relative to the clip box: page rects are used instead.
+        // Transform of a line scaled by (sx along its text, sy across it). A
+        // sideways line (data-rot = text and line-advance unit vectors) keeps
+        // its rotation; a horizontal line gets matrix(sx,0,0,sy).
+        function rtMatrix(divT, sx, sy) {
+            var r = divT.getAttribute('data-rot');
+            if (!r) return 'matrix(' + sx + ',0,0,' + sy + ',0,0)';
+            var u = r.split(',').map(parseFloat);
+            return 'matrix(' + (u[0] * sx) + ',' + (u[1] * sx) + ',' + (u[2] * sy) + ',' + (u[3] * sy) + ',0,0)';
+        }
+
         function rtCacheGeometry(divT) {
             if (!divT.hasAttribute('data-orig-sw') && !divT.querySelector('span[data-trans-id]')) {
                 // Line that is never translated (numbers, sideways table text...):
@@ -1511,7 +1570,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 var span = divT.querySelector('span[data-trans-id]');
                 var sx0 = parseFloat((span && span.getAttribute('data-sx')) || '1');
                 var sy0 = parseFloat((span && span.getAttribute('data-sy')) || '1');
-                divT.style.transform = 'matrix(' + sx0 + ',0,0,' + sy0 + ',0,0)';
+                divT.style.transform = rtMatrix(divT, sx0, sy0);
                 divT.setAttribute('data-orig-sw', divT.scrollWidth);
                 divT.setAttribute('data-sx-orig', sx0);
                 divT.setAttribute('data-sy-orig', sy0);
@@ -1521,7 +1580,16 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 var pr = page.getBoundingClientRect();
                 var k = (page.offsetWidth && pr.width) ? pr.width / page.offsetWidth : 1;
                 var r = divT.getBoundingClientRect();
-                divT.setAttribute('data-orig-pleft', (r.left - pr.left) / k);
+                var rot = divT.getAttribute('data-rot');
+                if (rot) {
+                    // Start of a sideways line, measured along its own text direction
+                    var u = rot.split(',').map(parseFloat);
+                    var dots = [[r.left, r.top], [r.right, r.top], [r.left, r.bottom], [r.right, r.bottom]]
+                        .map(function (c) { return ((c[0] - pr.left) * u[0] + (c[1] - pr.top) * u[1]) / k; });
+                    divT.setAttribute('data-orig-pleft', Math.min.apply(null, dots));
+                } else {
+                    divT.setAttribute('data-orig-pleft', (r.left - pr.left) / k);
+                }
                 divT.setAttribute('data-orig-left', divT.offsetLeft);
             }
             var sw = parseFloat(divT.getAttribute('data-orig-sw'));
@@ -1541,7 +1609,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
             }
             var pageW = page.offsetWidth, left = Infinity, right = -Infinity;
             page.querySelectorAll('div.t').forEach(function (d) {
-                if (!d.querySelector('span[data-trans-id]')) return;
+                if (!d.querySelector('span[data-trans-id]') || d.hasAttribute('data-rot')) return;
                 var g = rtCacheGeometry(d);
                 if (g.right - g.left >= 0.45 * pageW) {
                     left = Math.min(left, g.left);
@@ -1575,7 +1643,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
         // number...). 0 for centered lines and two-column pages.
         function rtFreeRoomRight(divT) {
             var page = divT.closest('.pf');
-            if (!page) return 0;
+            if (!page || divT.hasAttribute('data-rot')) return 0;
             var col = rtColumnBounds(page);
             if (!col) return 0;
             var g = rtCacheGeometry(divT);
@@ -1584,7 +1652,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
             if (rtCenteredInColumn(g, col, page.offsetWidth)) return 0;
             var v = rtVerticalSpan(divT, page), limit = col.right;
             page.querySelectorAll('div.t').forEach(function (d) {
-                if (d === divT) return;
+                if (d === divT || d.hasAttribute('data-rot')) return;
                 var dv = rtVerticalSpan(d, page);
                 if (Math.min(dv.bottom, v.bottom) - Math.max(dv.top, v.top) <= 0.3 * (v.bottom - v.top)) return;
                 var dg = rtCacheGeometry(d);
@@ -1709,14 +1777,14 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
             // side-by-side columns): clamp the block's right edge before it.
             (function () {
                 var page = slots[0].closest('.pf');
-                if (!page) return;
+                if (!page || slots[0].closest('div.t').hasAttribute('data-rot')) return;
                 var own = new Set(all.map(function (s) { return s.closest('div.t'); }));
                 var pr = page.getBoundingClientRect();
                 var k = (page.offsetWidth && pr.width) ? pr.width / page.offsetWidth : 1;
                 var limit = Infinity;
                 var rects = slots.map(function (s) { return s.closest('div.t').getBoundingClientRect(); });
                 page.querySelectorAll('div.t').forEach(function (d) {
-                    if (own.has(d) || !d.textContent.trim()) return;
+                    if (own.has(d) || !d.textContent.trim() || d.hasAttribute('data-rot')) return;
                     var r = d.getBoundingClientRect();
                     var left = (r.left - pr.left) / k;
                     for (var i = 0; i < rects.length; i++) {
@@ -1842,13 +1910,13 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 }
                 span.style.setProperty('word-spacing', ws + 'px', 'important');
                 span.style.setProperty('letter-spacing', 'normal', 'important');
-                divT.style.transform = 'matrix(' + (sxBase * c) + ',0,0,' + (geo[s].sy * cy) + ',0,0)';
+                divT.style.transform = rtMatrix(divT, (sxBase * c), (geo[s].sy * cy));
                 divT.removeAttribute('data-fit');
                 // Safety: never spill past the paragraph's right edge
                 var shown = divT.scrollWidth * sxBase * c;
                 var allowed = paraRight - geo[s].left;
                 if (shown > allowed * 1.01 && shown > 0) {
-                    divT.style.transform = 'matrix(' + (sxBase * c * allowed / shown) + ',0,0,' + (geo[s].sy * cy) + ',0,0)';
+                    divT.style.transform = rtMatrix(divT, (sxBase * c * allowed / shown), (geo[s].sy * cy));
                 }
             });
             all.forEach(function (span) {
@@ -1864,7 +1932,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
         // (titles, headings, captions), instead of leaving it flush left.
         function rtRecenterIfCentered(divT, span) {
             var page = divT.closest('.pf');
-            if (!page) return;
+            if (!page || divT.hasAttribute('data-rot')) return;
             // Only lone lines (titles, headings): never a table row or a line with several cells
             if (divT.querySelectorAll('span[data-trans-id]').length !== 1) return;
             var g = rtCacheGeometry(divT);
@@ -1946,7 +2014,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 // Initialize metrics backup on the first translation pass to prevent multi-pass calculation drift
                 if (!divT.hasAttribute('data-orig-sw')) {
                     // Temporarily restore the original scale matrix to measure the true native scrollWidth
-                    divT.style.transform = 'matrix(' + sxOrig + ',0,0,' + syOrig + ',0,0)';
+                    divT.style.transform = rtMatrix(divT, sxOrig, syOrig);
                     divT.setAttribute('data-orig-sw', divT.scrollWidth);
                     divT.setAttribute('data-sx-orig', sxOrig);
                     divT.setAttribute('data-sy-orig', syOrig);
@@ -1971,6 +2039,17 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 // SECURITY: the translation is untrusted (LLM output fed by PDF text).
                 // It is NEVER parsed as HTML: only <color_HEX> tags are rebuilt via DOM nodes,
                 // every other character is inserted as plain text.
+                // Sideways table row written as ONE line (cells separated by
+                // spacers): each cell keeps its own original width, so the columns
+                // stay aligned and only an overflowing cell is compressed (the
+                // whole row used to shrink together, making every cell tiny).
+                // Horizontal rows keep the whole-line fit (their columns may be
+                // separate lines drawn over the spacers).
+                var rowCells = divT.hasAttribute('data-rot') && !divT.querySelector('[data-para]')
+                    && divT.querySelectorAll('span[data-trans-id]').length > 1;
+                if (rowCells && !span.hasAttribute('data-cell-w')) {
+                    span.setAttribute('data-cell-w', span.offsetWidth);
+                }
                 while (span.firstChild) span.removeChild(span.firstChild);
                 var colorRe = /<color_([0-9a-fA-F]{6})>([\s\S]*?)<\/color(?:_\w+)?>/g;
                 var lastIdx = 0, m;
@@ -1993,6 +2072,26 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                 // Clear skeletal loading animations once real DOM content is injected [1.2.6]
                 span.classList.remove('shimmer-line');
 
+                if (rowCells) {
+                    var cellW = parseFloat(span.getAttribute('data-cell-w')) || 0;
+                    span.style.display = 'inline-block';
+                    span.style.whiteSpace = 'nowrap';
+                    span.style.width = 'auto';
+                    span.style.transform = '';
+                    var natural = span.offsetWidth;
+                    if (cellW > 0) {
+                        span.style.width = cellW + 'px';
+                        if (natural > cellW) {
+                            var r = cellW / natural;
+                            span.style.transformOrigin = '0 80%';
+                            span.style.transform = 'scale(' + r + ',' + Math.max(r, 0.82) + ')';
+                        }
+                    }
+                    var rowPage = divT.closest('.pf');
+                    if (rowPage) window.scheduleHarmonize(rowPage);
+                    return;
+                }
+
                 // Compute adaptive horizontal scaling to fit the translated text within physical boundaries
                 var newSW = divT.scrollWidth;
 
@@ -2002,7 +2101,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                     // Cap horizontal scaling to prevent unnecessary stretching of short text
                     newSx = Math.min(newSx, sx);
                     var ratio = newSx / sx;
-                    divT.style.transform = 'matrix(' + newSx + ',0,0,' + (sy * Math.max(ratio, 0.82)) + ',0,0)';
+                    divT.style.transform = rtMatrix(divT, newSx, (sy * Math.max(ratio, 0.82)));
                     divT.setAttribute('data-fit', String(newSx / sx));
                 }
                 rtRecenterIfCentered(divT, span);
@@ -2040,7 +2139,7 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
                         var ratio = Math.min(own, target);
                         var sx = parseFloat(d.getAttribute('data-sx-orig'));
                         var sy = parseFloat(d.getAttribute('data-sy-orig'));
-                        d.style.transform = 'matrix(' + (sx * ratio) + ',0,0,' + (sy * Math.max(ratio, 0.82)) + ',0,0)';
+                        d.style.transform = rtMatrix(d, (sx * ratio), (sy * Math.max(ratio, 0.82)));
                     });
                 });
             } catch (e) { console.error('harmonizePage', e); }

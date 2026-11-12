@@ -200,9 +200,9 @@ def test_images_saved_next_to_markdown_and_json(tmp_path):
     assert doc.chunks() and all("Figure 1](" not in c.text for c in doc.chunks())
 
 
-def test_sideways_text_is_left_untouched(tmp_path):
-    """Rotated lines (sideways tables) must keep their pdf2htmlEX transform and never be segmented."""
-    from rocktranslate.core.html_transformer import instrument_html, parse_rotated_matrix_classes
+def test_sideways_text_is_translated_in_its_own_frame(tmp_path):
+    """Rotated lines (sideways tables) are segmented with their rotation kept (data-rot), never mixed with horizontal text."""
+    from rocktranslate.core.html_transformer import instrument_html, parse_rotated_matrix_classes, to_line_frame
     from bs4 import BeautifulSoup
     raw = """<html><head><style>
     .m0{transform:matrix(0.325000,0.000000,0.000000,0.325000,0,0);}
@@ -210,15 +210,20 @@ def test_sideways_text_is_left_untouched(tmp_path):
     </style></head><body><div id="page-container"><div class="pf" id="pf1"><div class="pc">
     <div class="t m0 x1 h1 y1 ff1 fs1 fc0 sc0 ls0 ws0">The diversity of water accumulation matches the classes.</div>
     <div class="t m1 x2 h1 y2 ff1 fs1 fc0 sc0 ls0 ws0">Table 3 Values and classes of CTA</div>
-    <div class="t m1 x3 h1 y3 ff1 fs1 fc0 sc0 ls0 ws0">Ntem 3 1 1</div>
     </div></div></div></body></html>"""
-    assert parse_rotated_matrix_classes(BeautifulSoup(raw, "html.parser")) == {"m1"}
+    rot = parse_rotated_matrix_classes(BeautifulSoup(raw, "html.parser"))
+    assert set(rot) == {"m1"}
+    sx, sy, ux, uy, vx, vy = rot["m1"]
+    assert abs(sx - 0.325) < 1e-6 and abs(sy - 0.325) < 1e-6 and (ux, uy, vx, vy) == (0.0, -1.0, 1.0, 0.0)
+    # Text going up: along-text extent comes from the vertical extent of the page box
+    assert to_line_frame((10, 20, 100, 300), (0.0, -1.0, 1.0, 0.0)) == (-300, -100, 10, 20)
     src, out = tmp_path / "raw.html", tmp_path / "inst.html"
     src.write_text(raw, encoding="utf-8")
     texts, _ = instrument_html(str(src), str(out))
-    assert not any("Table 3" in t or "Ntem" in t for t in texts.values())
-    html = out.read_text(encoding="utf-8")
-    soup = BeautifulSoup(html, "html.parser")
+    assert any("Table 3 Values" in t for t in texts.values())
+    assert any("water accumulation" in t and "Table 3" not in t for t in texts.values())
+    soup = BeautifulSoup(out.read_text(encoding="utf-8"), "html.parser")
     rotated = [d for d in soup.select("div.t") if "m1" in d.get("class", [])]
-    assert len(rotated) == 2 and not any(d.select("span[data-trans-id]") for d in rotated)
-    assert "Table 3 Values" in rotated[0].get_text()
+    assert rotated[0].get("data-rot") == "0.000000,-1.000000,1.000000,0.000000"
+    span = rotated[0].select_one("span[data-trans-id]")
+    assert span is not None and abs(float(span["data-sx"]) - 0.325) < 1e-6
