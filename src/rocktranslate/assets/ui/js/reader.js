@@ -283,6 +283,7 @@
                 <button type="button" data-mode="translate"></button>
                 <button type="button" data-mode="explain"></button>
                 <span class="rt-grow"></span>
+                <button type="button" class="rt-icon-btn" data-act="regen" title="">↻</button>
                 <button type="button" class="rt-icon-btn" data-act="copy" title="">⧉</button>
                 <button type="button" class="rt-icon-btn" data-act="close" title="">✕</button>
             </div>
@@ -293,6 +294,7 @@
         bubble.addEventListener('click', (e) => {
             const b = e.target.closest('button'); if (!b) return;
             if (b.dataset.mode && bubble._sel) openBubble(b.dataset.mode, bubble._sel, true);
+            else if (b.dataset.act === 'regen' && bubble._sel) openBubble(bubble._mode || 'translate', bubble._sel, true, true);
             else if (b.dataset.act === 'close') closeBubble();
             else if (b.dataset.act === 'copy') RT.copyText(bubble.querySelector('.rt-bubble-body').innerText);
         });
@@ -311,12 +313,17 @@
     // switching Translate <-> Explain shows them again without a new request.
     const bubbleCache = new Map();
 
-    function openBubble(mode, sel, keepPosition) {
+    async function openBubble(mode, sel, keepPosition, force) {
         if (!bubble) buildBubble();
-        bubble._sel = sel;
+        bubble._sel = sel; bubble._mode = mode;
+        // The answer language is part of the cache key: after switching the
+        // target language, the same selection is asked again
+        let lang = '';
+        try { lang = (await RT.api().get_target_language()) || ''; } catch (e) { }
         bubble.querySelector('[data-mode="translate"]').textContent = RT.t('rd_translate');
         bubble.querySelector('[data-mode="explain"]').textContent = RT.t('rd_explain');
         bubble.querySelector('[data-act="copy"]').title = RT.t('rd_copy_answer');
+        bubble.querySelector('[data-act="regen"]').title = RT.t('rd_regenerate');
         bubble.querySelector('[data-act="close"]').title = RT.t('rd_close');
         bubble.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
         const src = sel.text.replace(/\s+/g, ' ').trim();
@@ -336,7 +343,8 @@
             bubble.style.left = Math.min(Math.max(10, rect.left), window.innerWidth - w - 10) + 'px';
             bubble.style.top = top + 'px';
         }
-        const cacheKey = mode + '\u0000' + sel.text;
+        const cacheKey = mode + '\u0000' + lang + '\u0000' + sel.text;
+        if (force) bubbleCache.delete(cacheKey);
         if (bubbleCache.has(cacheKey)) {
             const hit = bubbleCache.get(cacheKey);
             body.classList.remove('rt-typing');

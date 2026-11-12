@@ -210,3 +210,11 @@
     background: var(--rt-surface); box-shadow: var(--rt-shadow-lg); color: var(--rt-text); font-weight: 600; pointer-events: none;
 }
 .rt-drop-icon { font-size: 28px; color: var(--rt-accent); }
+
+/* The app disables text selection globally: answers, summaries, notes and
+   results can be selected and copied */
+.rt-md, .rt-q, .rt-note-text, .rt-result-text, .rt-bubble-body, .rt-bubble-src, .rt-toc-summary .rt-md {
+    user-select: text; -webkit-user-select: text; cursor: text;
+}
+.rt-qa-actions { display: flex; gap: 6px; margin-top: 4px; }
+.rt-qa-actions .rt-mini-btn { font-size: 11px; }

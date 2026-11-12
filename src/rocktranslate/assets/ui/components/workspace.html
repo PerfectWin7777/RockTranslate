@@ -9,7 +9,7 @@
     <div id="rt-tabs" class="unselectable" x-show="$store.reader.tabs.length > 0" x-cloak>
         <template x-for="tab in $store.reader.tabs" :key="tab.path">
             <div class="rt-tab" :class="{ active: tab.path === $store.reader.activePath }" :title="tab.path"
-                @click="RT.switchTab(tab.path)" @mousedown.middle.prevent="RT.closeTab(tab.path)">
+                @click="RT.switchTab(tab.path)" @auxclick.prevent="if ($event.button === 1) RT.closeTab(tab.path)">
                 <span class="rt-tab-name" x-text="tab.name"></span>
                 <button type="button" class="rt-tab-close" :title="$store.i18n.translate('rd_tab_close')"
                     @click.stop="RT.closeTab(tab.path)">✕</button>
@@ -60,6 +60,10 @@
                             <button type="button" class="rt-chevron" :class="{ open: summaries[i] && summaries[i].open }" @click="toggleSummary(i)">▸</button>
                             <span x-text="t('rd_summary')" @click="toggleSummary(i)"></span>
                             <span class="rt-grow"></span>
+                            <button type="button" class="rt-mini-btn" x-show="summaries[i] && !summaries[i].loading"
+                                @click="RT.copyText(summaries[i].text)" :title="t('rd_copy_answer')">⧉</button>
+                            <button type="button" class="rt-mini-btn" x-show="summaries[i] && !summaries[i].loading"
+                                @click="summarize(i, true)" :title="t('rd_regenerate')">↻</button>
                             <button type="button" class="rt-mini-btn" @click="closeSummary(i)" :title="t('rd_close')">✕</button>
                         </div>
                         <div class="rt-md" x-show="summaries[i] && summaries[i].open" :class="{ 'rt-typing': summaries[i] && summaries[i].loading }"
@@ -94,6 +98,10 @@
                     <div class="rt-qa">
                         <div class="rt-q" x-text="e.q"></div>
                         <div class="rt-a rt-md" :class="{ 'rt-typing': e.loading }" x-html="e.loading ? RT.esc(t('rd_working')) : RT.md(e.a)"></div>
+                        <div class="rt-qa-actions" x-show="!e.loading">
+                            <button type="button" class="rt-mini-btn" @click="RT.copyText(e.a)" :title="t('rd_copy_answer')">⧉ <span x-text="t('rd_copy')"></span></button>
+                            <button type="button" class="rt-mini-btn" @click="question = e.q; ask()" :title="t('rd_regenerate')">↻ <span x-text="t('rd_regenerate')"></span></button>
+                        </div>
                         <template x-for="(qt, k) in e.quotes" :key="k">
                             <button type="button" class="rt-quote" @click="openQuote(qt)">
                                 <span class="rt-quote-page" x-text="'p. ' + qt.page"></span>

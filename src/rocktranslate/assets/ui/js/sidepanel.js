@@ -193,10 +193,10 @@ function sidePanel() {
             return parts.join('\n');
         },
 
-        async summarize(i) {
+        async summarize(i, force) {
             const item = this.toc[i];
             if (!item.page) return;
-            if (this.summaries[i] && !this.summaries[i].loading) { this.toggleSummary(i); return; }
+            if (!force && this.summaries[i] && !this.summaries[i].loading) { this.toggleSummary(i); return; }
             this.summaries = { ...this.summaries, [i]: { text: '', loading: true, open: true } };
             const text = await this.sectionText(i);
             RT.assist('summarize', text, (piece) => {
