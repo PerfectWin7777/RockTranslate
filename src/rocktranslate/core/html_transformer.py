@@ -496,7 +496,7 @@ _MAPSTO_RE = re.compile(r"(?<![0-9])7\s?→")
 
 # Bump whenever instrument_html output changes: cached workspaces built by an
 # older pipeline are then re-instrumented from the cached raw HTML.
-PIPELINE_VERSION = 30
+PIPELINE_VERSION = 33
 
 
 def parse_font_sizes(soup: BeautifulSoup) -> Dict[str, float]:
@@ -540,6 +540,8 @@ def detect_symbol_font_classes(soup: BeautifulSoup) -> Set[str]:
     }
 
 
+_HYPHEN_SPLIT_END = re.compile(r"[^\W\d_]{2}-$")
+_LOWER_START = re.compile(r"[a-zà-ÿ]")
 _LIST_START_RE = re.compile(r"^\s*(?:[•●▪◦·∙‣\-–—]|\(?\d{1,2}[.)]|\(?[a-zA-Z][.)])\s")
 # "[12] ..." starts a new entry only inside a reference list (a citation at
 # the start of a prose line, e.g. "[36] to show ...", must not break the paragraph)
@@ -612,6 +614,13 @@ def _group_measured(lines: List[Dict[str, Any]], texts: Dict[str, str]) -> List[
         text = re.sub(r"</?[a-z_0-9]+>", "", row_text(line)).strip()
         if _LIST_START_RE.match(text) or (_REF_START_RE.match(text) and _REF_START_RE.match(first_text)):
             return False
+        # A word split by a hyphen at the end of the previous line ("geomorpho-"
+        # + "logical") always continues the paragraph: narrow ragged-right blocks
+        # such as side captions have no other reliable sign of flowing text.
+        prev_text = re.sub(r"</?[a-z_0-9]+>", "", row_text(prev)).strip()
+        if _HYPHEN_SPLIT_END.search(prev_text) and _LOWER_START.match(text):
+            block["flow"] = True
+            return True
         if len(block["lines"]) == 1 and not hanging:
             prev_text = texts.get(prev["spans"][0][0], "").strip()
             if re.fullmatch(r"<color_[0-9a-fA-F]{6}>.*</color_[0-9a-fA-F]{6}>", prev_text) and not re.match(r"<color_", text.strip()):
@@ -624,7 +633,10 @@ def _group_measured(lines: List[Dict[str, Any]], texts: Dict[str, str]) -> List[
         elif len(block["lines"]) > 1:
             # The previous line stopped before the block's right edge: paragraph end
             block_right = max(l["end"] for l in block["lines"][:-1])
-            if prev["end"] < block_right - 2.0 * em:
+            # Ragged-right flowing text (a block with hyphen splits): only a
+            # sentence end closes the paragraph, line lengths do not.
+            ragged_flow = block.get("flow") and not re.search(r"[.!?][\"'”’)\]]*$", prev_text)
+            if prev["end"] < block_right - 2.0 * em and not ragged_flow:
                 return False
         return True
 
@@ -719,13 +731,15 @@ def _group_measured(lines: List[Dict[str, Any]], texts: Dict[str, str]) -> List[
     closed.extend(active)
     # A single line made of several fragments (inline math, subscripts) is
     # kept too: its pieces then form ONE segment instead of several tiny ones.
-    paragraphs = [b["lines"] for b in closed
-                  if len(b["lines"]) >= 2 or b["lines"][0].get("pieces")]
-    paragraphs.sort(key=lambda para: lines.index(para[0]))
+    blocks = [b for b in closed if len(b["lines"]) >= 2 or b["lines"][0].get("pieces")]
+    blocks.sort(key=lambda b: lines.index(b["lines"][0]))
     prose = []
-    for para in paragraphs:
+    for b in blocks:
+        para = b["lines"]
         lens = sorted(_visual_len(l, texts) for l in para)
-        if lens[len(lens) // 2] >= 30:
+        # Short lines are kept for flowing text proven by hyphen splits (narrow
+        # captions); table columns of short cells have none and stay lines.
+        if lens[len(lens) // 2] >= 30 or (b.get("flow") and len(para) >= 3):
             prose.append(para)
     return prose
 
@@ -957,19 +971,22 @@ def join_paragraph_lines(lines: List[str]) -> str:
         text = raw.strip()
         if not out:
             out = text
-        elif re.search(r"[A-Za-zÀ-ÿ]-$", out) and text[:1].islower():
+        elif (end := re.search(r"([A-Za-zÀ-ÿ]+)-((?:</[a-z_0-9]+>)*)$", out)) \
+                and re.sub(r"^(?:<[a-z_0-9]+>)+", "", text)[:1].islower():
             # Line-end hyphen: a split word ("trans-" + "lation") is joined, but a
             # real compound keeps its hyphen ("English-" + "to-German",
             # "state-" + "of-the-art"): the next part goes on with a hyphen, or
-            # the first part is a capitalized word.
-            last_word = re.search(r"([A-Za-zÀ-ÿ]+)-$", out).group(1)
-            next_word = re.match(r"[^\s]*", text).group(0)
+            # the first part is a capitalized word. Color tags around the split
+            # ("behav-</color_x>" + "<color_x>ioral") do not hide it.
+            last_word = end.group(1)
+            core = re.sub(r"^(?:<[a-z_0-9]+>)+", "", text)
+            next_word = re.match(r"[^\s<]*", core).group(0)
             next_core = re.sub(r"[^A-Za-zÀ-ÿ]+$", "", next_word).lower()
             if ("-" in next_word or last_word[:1].isupper()
                     or next_core in _COMPOUND_SECOND_PARTS or last_word.lower() in _COMPOUND_FIRST_PARTS):
                 out = out + text
             else:
-                out = out[:-1] + text
+                out = out[:end.start(2) - 1] + end.group(2) + text
         else:
             out = out + " " + text
     return out
@@ -1737,7 +1754,13 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
             clearTimeout(rtRelayoutTimer);
             rtRelayoutTimer = setTimeout(function () {
                 var paras = window.__rtParas || {};
-                Object.keys(paras).forEach(function (pid) { window.reflowParagraph(pid, paras[pid]); });
+                Object.keys(paras).forEach(function (pid) {
+                    // Only paragraphs still shown translated: a paragraph reset to
+                    // the original (language switch) must not get its old text back.
+                    var slot = document.querySelector('[data-para="' + pid + '"]:not([data-para-absorbed])');
+                    if (slot && slot.classList.contains('translated')) window.reflowParagraph(pid, paras[pid]);
+                    else delete paras[pid];
+                });
                 if (window.harmonizeAllPages) window.harmonizeAllPages();
             }, 30);
         }
@@ -2329,6 +2352,23 @@ def instrument_html(raw_html_path: str, output_html_path: str) -> Tuple[Dict[str
             tooltip.style.display = 'none';
             hoveredSpan = null;
         }
+
+        // ── ROTATED VIEW (toolbar ↺ ↻) ──
+        // The reader may turn the pages with a style #rt-rotate. Every layout
+        // computation (page-relative boxes, widths) is made on the unrotated
+        // page: the style is switched off for the duration of the call, within
+        // the same task, so nothing is painted in between.
+        function rtWithoutRotation(fn, self, args) {
+            var st = document.getElementById('rt-rotate');
+            if (!st || st.disabled || !st.textContent) return fn.apply(self, args);
+            st.disabled = true;
+            try { return fn.apply(self, args); } finally { st.disabled = false; }
+        }
+        ['applyTranslation', 'reflowParagraph', 'harmonizePage'].forEach(function (name) {
+            var inner = window[name];
+            if (typeof inner !== 'function') return;
+            window[name] = function () { return rtWithoutRotation(inner, this, arguments); };
+        });
     """
     soup.body.append(script_tag)
 

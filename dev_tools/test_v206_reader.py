@@ -227,3 +227,13 @@ def test_sideways_text_is_translated_in_its_own_frame(tmp_path):
     assert rotated[0].get("data-rot") == "0.000000,-1.000000,1.000000,0.000000"
     span = rotated[0].select_one("span[data-trans-id]")
     assert span is not None and abs(float(span["data-sx"]) - 0.325) < 1e-6
+
+
+def test_hyphen_split_is_joined_through_color_tags():
+    """A word split at a line end inside a colored run ("behav-</color>" + "<color>ioral") is joined."""
+    from rocktranslate.core.html_transformer import join_paragraph_lines, merge_color_runs
+    joined = merge_color_runs(join_paragraph_lines(["<color_0296d3>combined behav-</color_0296d3>",
+                                                    "<color_0296d3>ioral approaches</color_0296d3>"]))
+    assert joined == "<color_0296d3>combined behavioral approaches</color_0296d3>"
+    # Real compounds keep their hyphen
+    assert join_paragraph_lines(["a state-", "of-the-art model"]) == "a state-of-the-art model"

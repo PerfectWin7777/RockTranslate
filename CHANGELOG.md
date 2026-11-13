@@ -2,7 +2,21 @@
 
 ## Unreleased
 
+### New
+- **Quick actions toolbar** in the free right side of the menu bar: open, export, side-by-side export · translate /
+  stop, translate the current page, specific pages, continuous translation · original / both / translation views ·
+  **rotate ↺ ↻ by 90°** (both panes; for papers with sideways pages) and zoom · night reading, side panel, search,
+  questions, snapshot, all commands. Toggles show their state; on narrow windows the least used groups hide.
+
 ### Fixes
+- **Switching the target language restores the original text exactly.** The translation of each paragraph was kept
+  for font-load relayouts and never forgotten on a reset: a font loading later (e.g. for the accents of the new
+  language) wrote the previous translation back, on a geometry measured mid-way (scattered, glued or over-spaced
+  blocks). A reset now forgets it, and relayouts only touch paragraphs still shown translated.
+- **Narrow side captions are translated as one paragraph.** A ragged-right caption beside a figure was split into one
+  segment per line ("caractéris-" / "tiques"), then squeezed to 63 %. A word split by a hyphen at a line end now always
+  continues the paragraph; in such flowing text only a sentence end closes it. Hyphen splits inside colored text
+  ("behav-" + "ioral") are joined too.
 - **Sideways tables are translated.** A table printed sideways (rotated 90°) lost its rows, and its headers came out
   horizontal and three times too large: the rotation matrix of these lines was read as a zero scale, and laying out a
   translated neighbour line reset the transform of every line of the page. Rotated lines are now segmented and

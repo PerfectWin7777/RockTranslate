@@ -579,6 +579,8 @@ function workspaceController() {
             const htmlFrame = document.getElementById('html-iframe');
             if (htmlFrame && htmlFrame.contentWindow) {
                 const doc = htmlFrame.contentWindow.document;
+                // Translations remembered for font-load relayouts (window.__rtParas)
+                const paraMemory = htmlFrame.contentWindow.__rtParas || {};
 
                 doc.querySelectorAll('span[data-trans-id]').forEach(span => {
                     const pageEl = span.closest('.pf');
@@ -597,6 +599,11 @@ function workspaceController() {
                     }
 
                     const originalHtml = span.getAttribute('data-orig-html');
+
+                    // A reset paragraph forgets its translation: a later font load
+                    // must not write the previous language back into it.
+                    const pid = span.getAttribute('data-para');
+                    if (pid) delete paraMemory[pid];
 
                     if (originalHtml !== null && originalHtml !== undefined) {
                         // 1. Restore the original styled HTML with correct font families

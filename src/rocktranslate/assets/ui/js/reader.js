@@ -101,6 +101,7 @@
             night: pref('night', false),
             continuous: pref('continuous', false),
             layout: 'both',
+            rotation: 0,         // degrees, both panes (toolbar)
             tabs: [],            // [{path, name}]
             activePath: null,
             currentPage: 1,
@@ -890,6 +891,72 @@
         });
     }
     RT.applySideRoom = applySideRoom;
+
+    // ── Rotation (toolbar ↺ ↻): both panes turn by steps of 90° ──────────────
+    // The original turns natively in PDF.js. The translation turns page by page
+    // in CSS: each .pf swaps its width and height and its content (.pc) is
+    // rotated inside it, so pages keep their place in the flow (scroll sync by
+    // page still works). The page script measures layouts with this style
+    // switched off, so a translation applied while rotated stays exact.
+    // Visual only: exports keep the PDF's own orientation.
+    const ROTATE_CSS = {
+        0: '',
+        90: '.pf{width:var(--rt-h)!important;height:var(--rt-w)!important}' +
+            '.pf>.pc{width:var(--rt-w)!important;height:var(--rt-h)!important;transform-origin:0 0!important;transform:translateX(var(--rt-h)) rotate(90deg)!important}',
+        180: '.pf>.pc{width:var(--rt-w)!important;height:var(--rt-h)!important;transform-origin:0 0!important;transform:translate(var(--rt-w),var(--rt-h)) rotate(180deg)!important}',
+        270: '.pf{width:var(--rt-h)!important;height:var(--rt-w)!important}' +
+             '.pf>.pc{width:var(--rt-w)!important;height:var(--rt-h)!important;transform-origin:0 0!important;transform:translateY(var(--rt-w)) rotate(270deg)!important}',
+    };
+    function applyHtmlRotation(deg) {
+        try {
+            const doc = RT.htmlFrame() && RT.htmlFrame().contentDocument;
+            if (!doc || !doc.head) return;
+            let st = doc.getElementById('rt-rotate');
+            if (!st) { st = doc.createElement('style'); st.id = 'rt-rotate'; doc.head.appendChild(st); }
+            st.disabled = false;
+            st.textContent = '';
+            if (deg) {
+                // Unrotated page sizes (the style is off while they are read)
+                doc.querySelectorAll('.pf').forEach((pf) => {
+                    if (pf.style.getPropertyValue('--rt-w')) return;
+                    const cs = doc.defaultView.getComputedStyle(pf);
+                    pf.style.setProperty('--rt-w', cs.width);
+                    pf.style.setProperty('--rt-h', cs.height);
+                });
+            }
+            st.textContent = ROTATE_CSS[deg] || '';
+        } catch (e) { console.warn('[RT] rotation', e); }
+    }
+    RT.rotation = () => { const app = RT.app(); return app && app.pdfViewer ? (app.pdfViewer.pagesRotation || 0) : 0; };
+    RT.rotate = function (delta) {
+        const app = RT.app();
+        if (!app || !app.pdfViewer || !app.pdfDocument) return;
+        const page = app.page || RT.store().currentPage;
+        const deg = ((RT.rotation() + delta) % 360 + 360) % 360;
+        app.pdfViewer.pagesRotation = deg;           // PDF.js re-renders the original
+        applyHtmlRotation(deg);
+        RT.store().rotation = deg;
+        // Stay on the page being read, in both panes (page heights changed)
+        setTimeout(() => {
+            try { RT.goTo({ pageIndex: page - 1 }); } catch (e) { }
+            try {
+                const doc = RT.htmlFrame().contentDocument;
+                const pf = doc.querySelectorAll('.pf')[page - 1];
+                const box = doc.getElementById('page-container');
+                if (pf && box) box.scrollTop += pf.getBoundingClientRect().top - box.getBoundingClientRect().top;
+            } catch (e) { }
+        }, 150);
+    };
+    // A reloaded translation pane (preparation done, tab switch) follows the original
+    (function watchHtmlReload() {
+        const fr = RT.htmlFrame();
+        if (!fr) { setTimeout(watchHtmlReload, 500); return; }
+        fr.addEventListener('load', () => setTimeout(() => {
+            const deg = RT.rotation();
+            RT.store().rotation = deg;
+            if (deg) applyHtmlRotation(deg);
+        }, 300));
+    })();
     function altDown() {
         if (altHeld || RT.store().layout !== 'trans_only') return;
         altHeld = true; altUsed = false;
@@ -990,6 +1057,8 @@
             { id: 'layout-both', label: t('item_layout_both'), run: () => window.dispatchEvent(new CustomEvent('trigger-layout-change', { detail: { mode: 'both' } })) },
             { id: 'layout-trans', label: t('item_layout_trans'), run: () => window.dispatchEvent(new CustomEvent('trigger-layout-change', { detail: { mode: 'trans_only' } })) },
             { id: 'layout-pdf', label: t('item_layout_pdf'), run: () => window.dispatchEvent(new CustomEvent('trigger-layout-change', { detail: { mode: 'pdf_only' } })) },
+            { id: 'rotate-right', label: t('tb_rotate_right'), run: () => RT.rotate(90) },
+            { id: 'rotate-left', label: t('tb_rotate_left'), run: () => RT.rotate(-90) },
         );
         list.push(
             { id: 'prefs', label: t('prefs_menu_item'), run: () => window.dispatchEvent(new CustomEvent('open-preferences', { detail: {} })) },
