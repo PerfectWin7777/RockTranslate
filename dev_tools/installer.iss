@@ -8,7 +8,7 @@
 #define MyAppName "RockTranslate"
 ; The CI passes /DMyAppVersion=<version from __init__.py>; local builds use this default
 #ifndef MyAppVersion
-  #define MyAppVersion "2.0.6"
+  #define MyAppVersion "2.0.7"
 #endif
 #define MyAppPublisher "RockTranslate Contributors"
 #define MyAppURL "https://github.com/PerfectWin7777/RockTranslate"

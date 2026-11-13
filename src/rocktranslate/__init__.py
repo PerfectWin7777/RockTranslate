@@ -13,7 +13,7 @@ from .api import (RockTranslator, ask, explain, extract, glossary, side_by_side,
                   translate_text)
 from .document import Chunk, Document, Element
 
-__version__ = "2.0.6"
+__version__ = "2.0.7"
 __all__ = ["extract", "translate", "translate_text", "explain", "summarize", "glossary", "ask", "side_by_side",
            "Document", "Element", "Chunk", "RockTranslator",
            "convert_pdf_to_html", "instrument_html"]

@@ -15,8 +15,8 @@
 
 <p align="center">
   <!-- High-visibility dynamic download badge -->
-  <a href="https://github.com/PerfectWin7777/RockTranslate/releases/download/v2.0.6/RockTranslate_Setup_v2.0.6.exe">
-    <img src="https://img.shields.io/badge/Download-Windows%20GUI%20Installer%20v2.0.6-blue?style=for-the-badge&logo=windows&logoColor=white" alt="Download Windows GUI Installer" />
+  <a href="https://github.com/PerfectWin7777/RockTranslate/releases/download/v2.0.7/RockTranslate_Setup_v2.0.7.exe">
+    <img src="https://img.shields.io/badge/Download-Windows%20GUI%20Installer%20v2.0.7-blue?style=for-the-badge&logo=windows&logoColor=white" alt="Download Windows GUI Installer" />
   </a>
 </p>
 
@@ -28,7 +28,7 @@
 
 ---
 
-### 📥 [Click here to download the standalone Windows Desktop GUI Installer v2.0.6 (.exe)](https://github.com/PerfectWin7777/RockTranslate/releases/download/v2.0.6/RockTranslate_Setup_v2.0.6.exe)
+### 📥 [Click here to download the standalone Windows Desktop GUI Installer v2.0.7 (.exe)](https://github.com/PerfectWin7777/RockTranslate/releases/download/v2.0.7/RockTranslate_Setup_v2.0.7.exe)
 
 ---
 
@@ -54,6 +54,7 @@ RockTranslate is a desktop application designed for translating scientific, tech
 
 Built with a local-first architecture, RockTranslate prioritizes performance, reliability, and user control. The application combines advanced document analysis, intelligent translation workflows, and high-fidelity PDF reconstruction to deliver professional-quality results.
 
+*   **New in 2.0.7 — sideways tables, rotation and a toolbar:** tables printed sideways (rotated 90°) are now translated in place and keep their rotation, each cell in its column; a **quick actions toolbar** in the menu bar (translate the page, views, night, search, questions, snapshot…) with **rotate ↺ ↻ by 90°** for both panes, to read sideways pages comfortably. Also: narrow side captions are translated as one paragraph, switching the target language restores the original text exactly, and "reset and translate again" really translates again. [Full list →](CHANGELOG.md)
 *   **A PDF reader that understands the paper (new in 2.0.6):** select 4 lines and read their translation or a plain explanation in a bubble within ~2 s; hover a citation, figure or equation to preview it; ask the paper a question and land on the exact passage; summaries per section, paper glossary, notes, night reading, tabs, command palette. [See it →](#e-read-with-rocktranslate-new-in-206)
 *   **Layout-Preserved PDF Translation:** Retains the exact geometry, columns, margins, and alignment of the original document [2].
 *   **Paragraph-Level Translation with Justified Reflow (new in 2.0.5):** Lines are regrouped into real paragraphs, translated as whole sentences, then reflowed into the original line boxes with one uniform scale per paragraph — justified when the source was justified, like professional document translators.
@@ -168,7 +169,7 @@ A responsive desktop application featuring:
 *   Visual shimmer skeleton loaders and real-time status bars [1, 2].
 *   A full reading assistant (selection bubble, link previews, contents, questions, notes, glossary): see §5.E.
 
-### 📥 [Click here to download the standalone Windows Desktop GUI Installer v2.0.6 (.exe)](https://github.com/PerfectWin7777/RockTranslate/releases/download/v2.0.6/RockTranslate_Setup_v2.0.6.exe)
+### 📥 [Click here to download the standalone Windows Desktop GUI Installer v2.0.7 (.exe)](https://github.com/PerfectWin7777/RockTranslate/releases/download/v2.0.7/RockTranslate_Setup_v2.0.7.exe)
 
 ### B. Command-Line Interface (CLI)
 A lightweight execution engine that can be run globally from the terminal once installed [3].
@@ -531,6 +532,7 @@ Measured on *U-FNO* (37 pages): a question over the whole paper costs ≈ $0.006
 *   **Fonts embedded as subsets:** publisher PDFs only embed the glyphs they use. Translated text needing other glyphs (accents, CJK) falls back to a system font for those characters, which can look slightly different.
 *   **Run-in headings:** a line starting with a bold run-in heading ("**Residual Dropout** We apply…") is translated on its own. Lines with inline math (subscripts, "CO₂", formulas at the start of a line) and list items stay in their paragraph since 2.0.6.
 *   **Night reading of the translation:** the translated page is dimmed rather than inverted (pdf2htmlEX draws the paper and the figures in one image); the original pane is fully dark with intact figures.
+*   **Sideways tables:** the first line of a multi-line cell can come out slightly smaller than the rest of the cell (pdf2htmlEX writes it inside the whole table row). Rotating the view is for reading only: exports keep the PDF's own orientation.
 *   **Longer target languages** shrink the text of a paragraph uniformly to keep it inside its original box (as other layout-preserving translators do).
 *   **Scanned PDFs** (images only) are not supported yet (no OCR).
 *   **pdf2htmlEX on Windows** is our own native x64 build of pdf2htmlEX 0.18.8 (recipe in `tools/pdf2htmlex-windows/`), bundled by the installer and downloaded on first use otherwise (~16 MB). If a conversion stops making progress, RockTranslate stops the process and reports the reason.
@@ -538,6 +540,7 @@ Measured on *U-FNO* (37 pages): a question over the whole paper costs ≈ $0.006
 ### Roadmap:
 *   [x] **Structured extraction** (`rocktranslate.extract`, `to_json`, `to_markdown`, `chunks`, `search`, `highlight`) — see §5.D.
 *   [x] **Bilingual export** of every translated element (JSON, bilingual Markdown).
+*   [x] **Sideways tables translated in place, page rotation and quick actions toolbar** (2.0.7).
 *   [x] **Reading assistant and PDF reader features** (2.0.6) — see §5.E and [ROADMAP_v2.0.6.md](ROADMAP_v2.0.6.md) for the 19 items and where each one lives in the code.
 *   [ ] **Ask across several papers** (a local library of the PDFs you read).
 *   [ ] **Highlights in the translated pane** and highlight export back into the PDF.

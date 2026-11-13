@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.0.7 — 2026-11
 
 ### New
 - **Quick actions toolbar** in the free right side of the menu bar: open, export, side-by-side export · translate /
