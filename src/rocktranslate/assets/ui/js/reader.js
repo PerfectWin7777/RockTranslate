@@ -45,23 +45,30 @@
      */
     RT.md = function (text) {
         const inline = (s) => s
+            // <sup>/<sub> written by the layout rebuild (the text is escaped first: only these come back)
+            .replace(/&lt;(sup|sub)&gt;([\s\S]*?)&lt;\/\1&gt;/g, '<$1>$2</$1>')
             .replace(/`([^`]+)`/g, '<code>$1</code>')
             .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
             .replace(/(^|[\s(])\*([^*\s][^*]*)\*(?=[\s).,;:!?]|$)/g, '$1<em>$2</em>');
         const lines = RT.esc(String(text || '')).replace(/\r/g, '').split('\n');
         const out = []; let list = null; let para = [];
         const flushPara = () => { if (para.length) { out.push('<p>' + inline(para.join('<br>')) + '</p>'); para = []; } };
-        const flushList = () => { if (list) { out.push(`<${list.tag}>` + list.items.map((i) => '<li>' + inline(i) + '</li>').join('') + `</${list.tag}>`); list = null; } };
+        const flushList = () => { if (list) { out.push(`<${list.tag}${list.tag === 'ol' ? ' class="rt-keep"' : ''}>` + list.items.map((i) => '<li>' + inline(i) + '</li>').join('') + `</${list.tag}>`); list = null; } };
         lines.forEach((raw) => {
             const line = raw.trim();
             let m;
             if (!line) { flushPara(); flushList(); return; }
             if ((m = /^(#{1,4})\s+(.*)$/.exec(line))) { flushPara(); flushList(); out.push(`<h${Math.min(6, m[1].length + 3)}>${inline(m[2])}</h${Math.min(6, m[1].length + 3)}>`); return; }
-            if ((m = /^[-*•]\s+(.*)$/.exec(line)) || (m = /^\d+[.)]\s+(.*)$/.exec(line))) {
+            if ((m = /^[-*•]\s+(.*)$/.exec(line))) {
                 flushPara();
-                const tag = /^\d/.test(line) ? 'ol' : 'ul';
-                if (!list || list.tag !== tag) { flushList(); list = { tag, items: [] }; }
+                if (!list || list.tag !== 'ul') { flushList(); list = { tag: 'ul', items: [] }; }
                 list.items.push(m[1]); return;
+            }
+            // Numbered / lettered items keep their own marker ("1.", "a)", "(ii)"), as on the page
+            if ((m = /^(\(?(?:\d{1,3}|[a-zA-Z]|[ivxlc]{1,6})[.)])\s+(.*)$/.exec(line))) {
+                flushPara();
+                if (!list || list.tag !== 'ol') { flushList(); list = { tag: 'ol', items: [] }; }
+                list.items.push('<span class="rt-mk">' + m[1] + '</span> ' + m[2]); return;
             }
             if (list && /^\s{2,}/.test(raw)) { list.items[list.items.length - 1] += ' ' + line; return; }
             flushList(); para.push(line);
@@ -198,6 +205,110 @@
         return r;
     }
 
+    /**
+     * The selection as light Markdown that mirrors its layout on the page:
+     * lines are rebuilt from the boxes of the selected text, then grouped into
+     * paragraphs (vertical gap, first-line indent, short line ending a
+     * sentence), list items (bullet / number / letter markers), headings
+     * (larger text) and <sup>/<sub> (small raised / lowered pieces). Words cut
+     * by a line-end hyphen are joined. Works in both panes. null if unusable.
+     */
+    function structuredText(range) {
+        try {
+            const doc = range.startContainer.ownerDocument;
+            let root = range.commonAncestorContainer;
+            if (root.nodeType !== 1) root = root.parentNode;
+            const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+            const pieces = [];
+            for (let n = walker.currentNode.nodeType === 3 ? walker.currentNode : walker.nextNode(); n; n = walker.nextNode()) {
+                if (!range.intersectsNode(n)) continue;
+                const host = n.parentElement;
+                if (!host || host.closest('.endOfContent, [aria-hidden="true"], script, style')) continue;
+                const a = n === range.startContainer ? range.startOffset : 0;
+                const b = n === range.endContainer ? range.endOffset : n.data.length;
+                const t = n.data.slice(a, b);
+                if (!t.trim()) continue;
+                const r = doc.createRange(); r.setStart(n, a); r.setEnd(n, b);
+                const boxes = Array.from(r.getClientRects()).filter((x) => x.width > 0.3 && x.height > 0.3);
+                if (!boxes.length) continue;
+                const left = Math.min(...boxes.map((x) => x.left)), right = Math.max(...boxes.map((x) => x.right));
+                const top = Math.min(...boxes.map((x) => x.top)), bottom = Math.max(...boxes.map((x) => x.bottom));
+                pieces.push({ t, left, right, top, bottom, h: bottom - top });
+                if (pieces.length > 4000) break;
+            }
+            if (!pieces.length) return null;
+            const median = (v) => { const a = v.slice().sort((x, y) => x - y); return a[Math.floor(a.length / 2)] || 0; };
+            const H = median(pieces.map((p) => p.h)) || 1;
+
+            // Lines: pieces sharing a vertical band (small sup/sub pieces join the line they touch)
+            pieces.sort((p, q) => (p.top + p.bottom) / 2 - (q.top + q.bottom) / 2);
+            const lines = [];
+            pieces.forEach((p) => {
+                const cy = (p.top + p.bottom) / 2;
+                const line = lines.find((l) => cy >= l.top - 0.35 * l.H && cy <= l.bottom + 0.35 * l.H && p.h <= 1.6 * l.H);
+                if (line) { line.items.push(p); if (p.h >= 0.85 * line.H) { line.top = Math.min(line.top, p.top); line.bottom = Math.max(line.bottom, p.bottom); line.H = Math.max(line.H, p.h); } }
+                else lines.push({ items: [p], top: p.top, bottom: p.bottom, H: p.h });
+            });
+            lines.sort((l, m) => l.top - m.top);
+            lines.forEach((l) => {
+                l.items.sort((p, q) => p.left - q.left);
+                const full = l.items.filter((p) => p.h >= 0.85 * l.H);
+                const base = median((full.length ? full : l.items).map((p) => p.bottom));
+                let text = '', prev = null;
+                l.items.forEach((p) => {
+                    let piece = p.t.replace(/\s+/g, ' ');
+                    if (p.h < 0.8 * l.H) {
+                        if (p.bottom < base - 0.18 * l.H) piece = '<sup>' + piece.trim() + '</sup>';
+                        else if (p.top > l.top + 0.3 * l.H) piece = '<sub>' + piece.trim() + '</sub>';
+                    }
+                    if (prev && p.left - prev.right > 0.18 * l.H && !/\s$/.test(text) && !/^\s/.test(piece) && !/^<su[bp]>/.test(piece)) text += ' ';
+                    text += piece; prev = p;
+                });
+                l.text = text.replace(/\s+/g, ' ').trim();
+                l.left = Math.min(...l.items.map((p) => p.left)); l.right = Math.max(...l.items.map((p) => p.right));
+            });
+            const kept = lines.filter((l) => l.text);
+            if (!kept.length) return null;
+            const maxRight = Math.max(...kept.map((l) => l.right));
+            const steps = []; for (let i = 1; i < kept.length; i++) steps.push(kept[i].top - kept[i - 1].top);
+            const step = median(steps) || 1.3 * H;
+            const LIST = /^([•●▪◦·∙‣\-–—*]|\(?(?:\d{1,3}|[a-zA-Z]|[ivxlc]{1,6})[.)])\s+/;
+
+            const blocks = [];
+            kept.forEach((l, i) => {
+                const prev = kept[i - 1];
+                const isList = LIST.test(l.text);
+                const isHeading = l.H > 1.18 * H && l.text.length < 120;
+                let fresh = !prev || isList || isHeading || (prev && prev.heading);
+                if (prev && !fresh) {
+                    const gap = l.top - prev.top;
+                    const blk = blocks[blocks.length - 1];
+                    // Lines of a list item wrapped under its text (hanging indent) stay in the item
+                    const listContinuation = blk && blk.list && l.left > blk.left + 0.4 * H;
+                    // First-line indent: the line starts clearly to the right of the previous one
+                    const indent = !listContinuation && l.left > prev.left + 0.9 * H;
+                    const shortEnd = prev.right < maxRight - 3 * H && /[.:!?]["'”’)\]]*$/.test(prev.text);
+                    fresh = gap > 1.6 * step || indent || shortEnd;
+                }
+                if (fresh) {
+                    let text = l.text;
+                    if (isList) text = text.replace(/^[•●▪◦·∙‣\-–—*]\s+/, '- ');
+                    blocks.push({ text: (isHeading && !isList ? '### ' : '') + text, list: isList, left: l.left });
+                    l.heading = isHeading && !isList;
+                } else {
+                    const blk = blocks[blocks.length - 1];
+                    if (/[A-Za-zÀ-ÿ]-$/.test(blk.text) && /^[a-zà-ÿ]/.test(l.text)) blk.text = blk.text.slice(0, -1) + l.text;
+                    else blk.text += ' ' + l.text;
+                }
+            });
+            return blocks.map((b) => b.text).join('\n\n');
+        } catch (e) {
+            console.warn('[RT] layout rebuild of the selection failed', e);
+            return null;
+        }
+    }
+    RT.structuredText = structuredText;
+
     // Current position of a selection (the pane may have scrolled since)
     function freshRect(sel) {
         try { const r = rangeBox(sel.range); if (r) return toMain(sel.frame, r); } catch (e) { }
@@ -232,6 +343,7 @@
         toolbar.className = 'rt-pop';
         toolbar.innerHTML = [
             ['translate', 'languages', 'rd_translate', 'Ctrl+T'], ['explain', 'lightbulb', 'rd_explain', 'Ctrl+E'],
+            ['chat', 'messages-square', 'rd_chat', 'Ctrl+L'],
             ['copy', 'copy', 'rd_copy', ''], ['cite', 'quote', 'rd_copy_cite', ''], ['highlight', 'highlighter', 'rd_highlight', 'Ctrl+H'],
         ].map(([act, icon, key, sc]) => `<button type="button" data-act="${act}" data-key="${key}" title="${sc}">` +
             `<span class="rt-ico">${RT_ICON(icon)}</span><span class="rt-lbl"></span></button>`).join('');
@@ -262,7 +374,7 @@
         sel = sel || selection;
         if (!sel) { RT.toast(RT.t('rd_select_first'), 'info'); return; }
         hideToolbar(); hideMenu();
-        if (act === 'translate' || act === 'explain') openBubble(act, sel);
+        if (act === 'translate' || act === 'explain' || act === 'chat') openBubble(act, sel);
         else if (act === 'copy') RT.copyText(await RT.api().clean_text(sel.text));
         else if (act === 'cite') {
             const clean = await RT.api().clean_text(sel.text);
@@ -283,6 +395,7 @@
             <div class="rt-bubble-head">
                 <button type="button" data-mode="translate"></button>
                 <button type="button" data-mode="explain"></button>
+                <button type="button" data-mode="chat"></button>
                 <span class="rt-grow"></span>
                 <button type="button" class="rt-icon-btn" data-act="regen" title="">${RT_ICON('refresh-cw')}</button>
                 <button type="button" class="rt-icon-btn" data-act="copy" title="">${RT_ICON('copy')}</button>
@@ -290,6 +403,10 @@
             </div>
             <div class="rt-bubble-src"></div>
             <div class="rt-bubble-body"></div>
+            <div class="rt-chat-input">
+                <textarea rows="1"></textarea>
+                <button type="button" class="rt-icon-btn rt-chat-send" data-act="send">${RT_ICON('send')}</button>
+            </div>
             <div class="rt-bubble-foot"></div>`;
         const head = bubble.querySelector('.rt-bubble-head');
         head.addEventListener('mousedown', startDrag);
@@ -302,12 +419,97 @@
         bubble.addEventListener('click', (e) => {
             const b = e.target.closest('button'); if (!b) return;
             if (b.dataset.mode && bubble._sel) openBubble(b.dataset.mode, bubble._sel, true);
-            else if (b.dataset.act === 'regen' && bubble._sel) openBubble(bubble._mode || 'translate', bubble._sel, true, true);
+            else if (b.dataset.act === 'regen' && bubble._sel) {
+                if (bubble._mode === 'chat') { chatThreads.set(chatKey(bubble._sel), []); openBubble('chat', bubble._sel, true); }
+                else openBubble(bubble._mode || 'translate', bubble._sel, true, true);
+            }
+            else if (b.dataset.act === 'send') sendChat();
+            else if (b.dataset.chip) sendChat(b.dataset.chip);
             else if (b.dataset.act === 'close') closeBubble();
             else if (b.dataset.act === 'copy') RT.copyText(bubble.querySelector('.rt-bubble-body').innerText);
         });
+        const input = bubble.querySelector('.rt-chat-input textarea');
+        input.addEventListener('keydown', (e) => {
+            e.stopPropagation();                                   // typing never triggers app shortcuts
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+            if (e.key === 'Escape') closeBubble();
+        });
+        input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = Math.min(120, input.scrollHeight) + 'px'; });
         document.body.appendChild(bubble);
     }
+
+    // ── "Discuter": a conversation about the selected passage ───────────────
+    // One thread per (document, passage), kept while the app is open.
+    const chatThreads = new Map();
+    const chatKey = (sel) => (RT.store().activePath || '') + '\u0000' + sel.text;
+    function renderChat(thread, streaming) {
+        const body = bubble.querySelector('.rt-bubble-body');
+        if (!thread.length) {
+            const chips = ['rd_chat_s1', 'rd_chat_s2', 'rd_chat_s3', 'rd_chat_s4'].map((k) =>
+                `<button type="button" class="rt-chip" data-chip="${RT.esc(RT.t(k))}">${RT.esc(RT.t(k))}</button>`).join('');
+            body.innerHTML = `<div class="rt-chat-empty">${RT.esc(RT.t('rd_chat_intro'))}</div><div class="rt-chips">${chips}</div>`;
+            return;
+        }
+        body.innerHTML = '<div class="rt-chat">' + thread.map((m, i) => m.role === 'user'
+            ? `<div class="rt-msg rt-msg-user">${RT.esc(m.content)}</div>`
+            : `<div class="rt-msg rt-msg-bot${streaming && i === thread.length - 1 ? ' rt-typing' : ''}">${RT.md(m.content)}</div>`).join('') + '</div>';
+        body.scrollTop = body.scrollHeight;
+        keepBubbleInView();
+    }
+    // A growing conversation lifts the bubble just enough to stay whole on screen
+    function keepBubbleInView() {
+        const r = bubble.getBoundingClientRect();
+        if (r.bottom > window.innerHeight - 8) bubble.style.top = Math.max(40, window.innerHeight - r.height - 8) + 'px';
+    }
+    function openChat(sel) {
+        const thread = chatThreads.get(chatKey(sel)) || [];
+        chatThreads.set(chatKey(sel), thread);
+        bubble.classList.add('rt-chatting');
+        const input = bubble.querySelector('.rt-chat-input textarea');
+        input.placeholder = RT.t('rd_chat_ph');
+        bubble.querySelector('[data-act="send"]').title = RT.t('rd_chat_send');
+        bubble.querySelector('.rt-bubble-foot').textContent = RT.t('rd_chat_foot');
+        bubble.querySelector('.rt-bubble-body').classList.remove('rt-typing');
+        renderChat(thread, false);
+        setTimeout(() => input.focus(), 30);
+    }
+    function sendChat(preset) {
+        const sel = bubble && bubble._sel;
+        if (!sel || bubble._mode !== 'chat' || bubble._chatBusy) return;
+        const input = bubble.querySelector('.rt-chat-input textarea');
+        const message = (preset || input.value).trim();
+        if (!message) return;
+        input.value = ''; input.style.height = 'auto';
+        const thread = chatThreads.get(chatKey(sel)) || [];
+        chatThreads.set(chatKey(sel), thread);
+        const history = thread.map((m) => ({ role: m.role, content: m.content }));
+        thread.push({ role: 'user', content: message }, { role: 'assistant', content: '' });
+        const answer = thread[thread.length - 1];
+        renderChat(thread, true);
+        bubble._chatBusy = true;
+        if (sel.structured === undefined) sel.structured = sel.range ? structuredText(sel.range) : null;
+        const foot = bubble.querySelector('.rt-bubble-foot');
+        foot.textContent = RT.t('rd_working');
+        const started = performance.now();
+        const reqId = RT.assist('chat', message, (piece) => {
+            if (bubbleReq !== reqId) return;
+            answer.content += piece;
+            renderChat(thread, true);
+        }, (res) => {
+            bubble._chatBusy = false;
+            if (!res.ok) {
+                answer.content = answer.content || ('⚠ ' + RT.t('rd_error', { error: res.error || '?' }));
+            } else if (!answer.content) answer.content = res.text || '';
+            if (bubbleReq === reqId) {
+                renderChat(thread, false);
+                const cost = window.rtShowCost !== false && res.cost ? ` · ~$${Number(res.cost).toFixed(4)}` : '';
+                foot.textContent = `${(res.model || '').split('/').pop()} · ${((performance.now() - started) / 1000).toFixed(1)} s${cost}`;
+            }
+        }, { selection: sel.structured || sel.text, history, page: sel.pageNumber || 0 });
+        bubbleReq = reqId;
+    }
+    RT.discuss = (sel) => openBubble('chat', sel);
+
     // Where the reader put the bubble: it reopens there (moving it every time
     // to uncover the text was tiresome). Kept per machine, across sessions.
     const PLACE_KEY = 'rt-bubble-place';
@@ -360,6 +562,7 @@
         try { lang = (await RT.api().get_target_language()) || ''; } catch (e) { }
         bubble.querySelector('[data-mode="translate"]').textContent = RT.t('rd_translate');
         bubble.querySelector('[data-mode="explain"]').textContent = RT.t('rd_explain');
+        bubble.querySelector('[data-mode="chat"]').textContent = RT.t('rd_chat');
         bubble.querySelector('[data-act="copy"]').title = RT.t('rd_copy_answer');
         bubble.querySelector('[data-act="regen"]').title = RT.t('rd_regenerate');
         bubble.querySelector('[data-act="close"]').title = RT.t('rd_close');
@@ -373,6 +576,8 @@
         bubble.style.display = 'flex';
         bubble.querySelector('.rt-bubble-head').title = RT.t('rd_bubble_move');
         if (!keepPosition) placeBubble(sel);
+        bubble.classList.remove('rt-chatting');
+        if (mode === 'chat') { bubbleReq = null; bubble._chatBusy = false; openChat(sel); return; }
         const cacheKey = mode + '\u0000' + lang + '\u0000' + sel.text;
         if (force) bubbleCache.delete(cacheKey);
         if (bubbleCache.has(cacheKey)) {
@@ -385,7 +590,12 @@
         const started = performance.now();
         let first = 0;
         let raw = '';
-        const reqId = RT.assist(mode, sel.text, (piece) => {
+        let sendText = sel.text, extra = {};
+        if (mode === 'translate') {
+            if (sel.structured === undefined) sel.structured = sel.range ? structuredText(sel.range) : null;
+            if (sel.structured) { sendText = sel.structured; extra = { structured: true }; }
+        }
+        const reqId = RT.assist(mode, sendText, (piece) => {
             if (bubbleReq !== reqId) return;
             if (!first) first = performance.now();
             raw += piece;
@@ -401,7 +611,7 @@
             foot.textContent = `${(res.model || '').split('/').pop()} · ${secs} s${firstMs ? ` (${RT.t('rd_first_word', { ms: firstMs })})` : ''}${cost}`;
             if (bubbleCache.size > 200) bubbleCache.delete(bubbleCache.keys().next().value);
             bubbleCache.set(cacheKey, { text: raw, foot: foot.textContent });
-        });
+        }, extra);
         bubbleReq = reqId;
     }
 
@@ -432,6 +642,7 @@
         if (sel) {
             items.push({ icon: 'languages', label: RT.t('rd_translate'), sc: 'Ctrl+T', run: () => runOnSelection('translate', sel) });
             items.push({ icon: 'lightbulb', label: RT.t('rd_explain'), sc: 'Ctrl+E', run: () => runOnSelection('explain', sel) });
+            items.push({ icon: 'messages-square', label: RT.t('rd_chat'), sc: 'Ctrl+L', run: () => runOnSelection('chat', sel) });
             items.push({ icon: 'copy', label: RT.t('rd_copy'), sc: 'Ctrl+C', run: () => runOnSelection('copy', sel) });
             items.push({ icon: 'quote', label: RT.t('rd_copy_cite'), run: () => runOnSelection('cite', sel) });
             if (side === 'original') items.push({ icon: 'highlighter', label: RT.t('rd_highlight'), sc: 'Ctrl+H', run: () => runOnSelection('highlight', sel) });
@@ -1031,6 +1242,7 @@
         if (!RT.docOpen()) return null;
         if (ctrl && !e.shiftKey && k === 't') return () => runOnSelection('translate');
         if (ctrl && !e.shiftKey && k === 'e') return () => runOnSelection('explain');
+        if (ctrl && !e.shiftKey && k === 'l') return () => runOnSelection('chat');
         if (ctrl && !e.shiftKey && k === 'h') return () => runOnSelection('highlight');
         if (ctrl && !e.shiftKey && k === 'b') return () => RT.store().togglePanel();
         if (ctrl && !e.shiftKey && k === 'f') return () => { RT.store().panelOpen = false; RT.store().togglePanel('search'); setTimeout(() => window.dispatchEvent(new CustomEvent('reader-focus-search')), 80); };
@@ -1097,6 +1309,7 @@
             { id: 'continuous', label: t('rd_continuous') + (s.continuous ? ' ✓' : ''), run: () => RT.setContinuous(!s.continuous) },
             { id: 'translate-sel', label: t('rd_translate') + ' · Ctrl+T', sc: 'Ctrl+T', run: () => runOnSelection('translate') },
             { id: 'explain-sel', label: t('rd_explain') + ' · Ctrl+E', sc: 'Ctrl+E', run: () => runOnSelection('explain') },
+            { id: 'chat-sel', label: t('rd_chat') + ' · Ctrl+L', sc: 'Ctrl+L', run: () => runOnSelection('chat') },
             { id: 'panel', label: t('rd_panel'), sc: 'Ctrl+B', run: () => s.togglePanel() },
             { id: 'toc', label: t('rd_tab_toc'), run: () => s.togglePanel('toc') },
             { id: 'search', label: t('rd_search_doc'), sc: 'Ctrl+F', run: () => { s.panelOpen = false; s.togglePanel('search'); setTimeout(() => window.dispatchEvent(new CustomEvent('reader-focus-search')), 80); } },

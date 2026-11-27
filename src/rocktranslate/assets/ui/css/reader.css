@@ -231,3 +231,34 @@
 .rt-sp-tab-ico { display: inline-flex; }
 .rt-sp-tab-ico .rt-svg { width: 14px; height: 14px; }
 .rt-sp-close { display: inline-flex; align-items: center; justify-content: center; }
+
+/* ── Bubble: structured translation (lists keep their own markers) ── */
+.rt-md ol.rt-keep, .rt-bubble-body ol.rt-keep { list-style: none; padding-left: 0.2em; }
+.rt-bubble-body ol.rt-keep li { padding-left: 1.6em; text-indent: -1.6em; }
+.rt-mk { font-variant-numeric: tabular-nums; color: var(--rt-text-2); }
+.rt-bubble-body sup, .rt-bubble-body sub { font-size: 0.75em; line-height: 0; }
+
+/* ── Bubble: Discuter (chat about the selection) ── */
+.rt-chat-input { display: none; align-items: flex-end; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--rt-border); }
+#rt-bubble.rt-chatting .rt-chat-input { display: flex; }
+#rt-bubble.rt-chatting { max-height: min(560px, 80vh); }
+.rt-chat-input textarea {
+    flex: 1; resize: none; min-height: 34px; max-height: 120px; padding: 7px 10px; font: inherit; font-size: 13.5px;
+    line-height: 1.4; border: 1px solid var(--rt-border); border-radius: 10px; background: var(--rt-sunken);
+    color: var(--rt-text); outline: none; user-select: text;
+}
+.rt-chat-input textarea:focus { border-color: var(--rt-accent); }
+.rt-chat-send { color: var(--rt-accent); height: 34px; width: 34px; }
+.rt-chat { display: flex; flex-direction: column; gap: 8px; }
+.rt-msg { max-width: 92%; padding: 7px 10px; border-radius: 12px; font-size: 13.5px; line-height: 1.5; user-select: text; }
+.rt-msg-user { align-self: flex-end; background: var(--rt-accent-soft); color: var(--rt-text); white-space: pre-wrap; }
+.rt-msg-bot { align-self: flex-start; background: var(--rt-sunken); }
+.rt-msg-bot p { margin: 0 0 6px; }
+.rt-msg-bot p:last-child { margin-bottom: 0; }
+.rt-chat-empty { color: var(--rt-text-3); font-size: 13px; margin-bottom: 8px; }
+.rt-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rt-chip {
+    border: 1px solid var(--rt-border); background: transparent; color: var(--rt-text-2); border-radius: 14px;
+    padding: 4px 10px; font-size: 12px; cursor: pointer;
+}
+.rt-chip:hover { border-color: var(--rt-accent); color: var(--rt-accent); }

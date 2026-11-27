@@ -85,10 +85,10 @@ K = {
  "rd_view_original": ("Original", "Original", "Original", "Original"),
  "rd_ctx_none": ("No text selected", "Aucun texte sélectionné", "Ningún texto seleccionado", "Kein Text ausgewählt"),
  "rd_ref_preview": ("Reference", "Référence", "Referencia", "Referenz"),
- "rd_shortcut_list": ("Ctrl+K command palette · Ctrl+T translate selection · Ctrl+E explain · Ctrl+H highlight · Ctrl+B side panel · Ctrl+F search · Ctrl+J ask · Ctrl+Shift+S snapshot · Ctrl+Shift+N night · Hold Alt original",
-                      "Ctrl+K palette · Ctrl+T traduire la sélection · Ctrl+E expliquer · Ctrl+H surligner · Ctrl+B panneau · Ctrl+F rechercher · Ctrl+J questions · Ctrl+Shift+S instantané · Ctrl+Shift+N nuit · Alt maintenu : original",
-                      "Ctrl+K paleta · Ctrl+T traducir selección · Ctrl+E explicar · Ctrl+H resaltar · Ctrl+B panel · Ctrl+F buscar · Ctrl+J preguntar · Ctrl+Shift+S captura · Ctrl+Shift+N noche · Alt mantenido: original",
-                      "Strg+K Befehle · Strg+T Auswahl übersetzen · Strg+E erklären · Strg+H markieren · Strg+B Seitenleiste · Strg+F suchen · Strg+J fragen · Strg+Shift+S Schnappschuss · Strg+Shift+N Nacht · Alt halten: Original"),
+ "rd_shortcut_list": ("Ctrl+K command palette · Ctrl+T translate selection · Ctrl+E explain · Ctrl+L chat · Ctrl+H highlight · Ctrl+B side panel · Ctrl+F search · Ctrl+J ask · Ctrl+Shift+S snapshot · Ctrl+Shift+N night · Hold Alt original",
+                      "Ctrl+K palette · Ctrl+T traduire la sélection · Ctrl+E expliquer · Ctrl+L discuter · Ctrl+H surligner · Ctrl+B panneau · Ctrl+F rechercher · Ctrl+J questions · Ctrl+Shift+S instantané · Ctrl+Shift+N nuit · Alt maintenu : original",
+                      "Ctrl+K paleta · Ctrl+T traducir selección · Ctrl+E explicar · Ctrl+L conversar · Ctrl+H resaltar · Ctrl+B panel · Ctrl+F buscar · Ctrl+J preguntar · Ctrl+Shift+S captura · Ctrl+Shift+N noche · Alt mantenido: original",
+                      "Strg+K Befehle · Strg+T Auswahl übersetzen · Strg+E erklären · Strg+L diskutieren · Strg+H markieren · Strg+B Seitenleiste · Strg+F suchen · Strg+J fragen · Strg+Shift+S Schnappschuss · Strg+Shift+N Nacht · Alt halten: Original"),
  # ── Toolbar (quick actions in the menu bar) ──
  "tb_open": ("Open a PDF", "Ouvrir un PDF", "Abrir un PDF", "PDF öffnen"),
  "tb_export": ("Export the translated PDF", "Exporter le PDF traduit", "Exportar el PDF traducido", "Übersetztes PDF exportieren"),
@@ -122,6 +122,16 @@ K = {
  "rd_open_is_folder": ("This is a folder: give the path of a PDF file.", "C'est un dossier : indiquez le chemin d'un fichier PDF.", "Es una carpeta: indique la ruta de un archivo PDF.", "Das ist ein Ordner: Pfad einer PDF-Datei angeben."),
  "rd_clip_nothing": ("Nothing to open in the clipboard: copy a PDF file, its path or a link.", "Rien à ouvrir dans le presse-papiers : copiez un fichier PDF, son chemin ou un lien.", "Nada que abrir en el portapapeles: copie un PDF, su ruta o un enlace.", "Nichts zum Öffnen in der Zwischenablage: PDF-Datei, Pfad oder Link kopieren."),
  "rd_bubble_move": ("Drag to move: it will reopen here · double-click to reset", "Glissez pour déplacer : elle se rouvrira ici · double-clic pour réinitialiser", "Arrastre para mover: se reabrirá aquí · doble clic para restablecer", "Ziehen zum Verschieben: öffnet sich wieder hier · Doppelklick zum Zurücksetzen"),
+ # ── Bubble: Discuter (chat about the selection) ──
+ "rd_chat": ("Chat", "Discuter", "Conversar", "Diskutieren"),
+ "rd_chat_ph": ("Ask anything about this passage… (Enter to send)", "Demandez ce que vous voulez sur ce passage… (Entrée pour envoyer)", "Pregunte lo que quiera sobre este pasaje… (Intro para enviar)", "Fragen Sie alles zu dieser Passage… (Enter zum Senden)"),
+ "rd_chat_send": ("Send · Enter", "Envoyer · Entrée", "Enviar · Intro", "Senden · Enter"),
+ "rd_chat_intro": ("Talk about the selected passage: ask what it means, for an example, or to work through an exercise.", "Discutez du passage sélectionné : demandez ce qu'il veut dire, un exemple, ou de résoudre un exercice.", "Hable del pasaje seleccionado: pregunte qué significa, pida un ejemplo o que resuelva un ejercicio.", "Sprechen Sie über die Passage: Was bedeutet sie, ein Beispiel, oder eine Übung Schritt für Schritt lösen."),
+ "rd_chat_s1": ("What does this mean, in simple words?", "Qu'est-ce que ça veut dire, simplement ?", "¿Qué significa esto, en palabras sencillas?", "Was bedeutet das, einfach gesagt?"),
+ "rd_chat_s2": ("Explain it with a concrete example", "Explique-le avec un exemple concret", "Explícalo con un ejemplo concreto", "Erkläre es mit einem konkreten Beispiel"),
+ "rd_chat_s3": ("Solve this exercise step by step", "Résous cet exercice étape par étape", "Resuelve este ejercicio paso a paso", "Löse diese Aufgabe Schritt für Schritt"),
+ "rd_chat_s4": ("Summarize it in one sentence", "Résume-le en une phrase", "Resúmelo en una frase", "Fasse es in einem Satz zusammen"),
+ "rd_chat_foot": ("Answers grounded in the passage and its page · ↻ new chat", "Réponses fondées sur le passage et sa page · ↻ nouvelle discussion", "Respuestas basadas en el pasaje y su página · ↻ nueva conversación", "Antworten auf Basis der Passage und ihrer Seite · ↻ neues Gespräch"),
 }
 langs = ["en", "fr", "es", "de"]
 out = ["/**",

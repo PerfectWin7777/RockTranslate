@@ -31,7 +31,7 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
-from ..assist import (ask_document, build_glossary, clean_selection, explain_text, glossary_to_rules,
+from ..assist import (ask_document, build_glossary, clean_selection, discuss_selection, explain_text, glossary_to_rules,
                       page_texts, summarize_text, translate_text)
 from ..config_manager import config_db
 
@@ -206,8 +206,9 @@ class ReaderApiMixin:
 
     def assist_start(self, mode: str, text: str, req_id: str, extra: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
         """
-        Starts a reading-assistant request. mode: 'translate' | 'explain' |
-        'summarize' (text = section text, extra.title) | 'ask' (text = question).
+        Starts a reading-assistant request. mode: 'translate' (extra.structured) |
+        'explain' | 'summarize' (text = section text, extra.title) | 'ask' (text =
+        question) | 'chat' (text = new message; extra.selection, extra.history, extra.page).
         The answer streams to window.rtAssistDelta, then window.rtAssistDone.
         """
         text = (text or "").strip()
@@ -225,7 +226,19 @@ class ReaderApiMixin:
             try:
                 on_delta = self._stream_to_ui(req_id)
                 if mode == "translate":
-                    out = translate_text(client, text, lang, on_delta=on_delta)
+                    out = translate_text(client, text, lang, on_delta=on_delta, structured=bool(extra.get("structured")))
+                elif mode == "chat":
+                    # text = the new message; extra: selection, history, page (1-based)
+                    title = self.get_doc_citation().get("title") if getattr(self, "_active_pdf_path", None) else None
+                    page_text = None
+                    try:
+                        page = int(extra.get("page") or 0)
+                        pages = self._doc_pages() if page > 0 else []
+                        page_text = pages[page - 1] if 0 < page <= len(pages) else None
+                    except Exception:
+                        page_text = None
+                    out = discuss_selection(client, str(extra.get("selection") or ""), extra.get("history") or [],
+                                            text, lang, title=title, page_text=page_text, on_delta=on_delta)
                 elif mode == "explain":
                     title = self.get_doc_citation().get("title") if getattr(self, "_active_pdf_path", None) else None
                     out = explain_text(client, text, lang, on_delta=on_delta, context=title)

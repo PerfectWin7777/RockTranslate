@@ -89,7 +89,13 @@ def chat(client: LLMClient, system: str, user: str, on_delta: Optional[Delta] = 
     One chat completion. With on_delta, the answer is streamed and on_delta
     receives each new piece of text as it arrives. Returns the full text.
     """
-    messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+    return converse(client, [{"role": "system", "content": system}, {"role": "user", "content": user}],
+                    on_delta=on_delta, max_tokens=max_tokens, temperature=temperature)
+
+
+def converse(client: LLMClient, messages: List[Dict[str, str]], on_delta: Optional[Delta] = None,
+             max_tokens: int = 2048, temperature: float = 0.2) -> str:
+    """A completion over a whole conversation (system, then user/assistant turns), optionally streamed."""
     kwargs = _base_kwargs(client, messages, max_tokens, temperature)
     started = time.monotonic()
     if on_delta is None:
@@ -133,8 +139,13 @@ def _json_from(raw: str) -> Any:
 # ── Quick actions on a selection ──────────────────────────────────────────────
 
 def translate_text(client: LLMClient, text: str, lang: Optional[str] = None,
-                   on_delta: Optional[Delta] = None) -> str:
-    """A passage translated into `lang` (default: the client's target language)."""
+                   on_delta: Optional[Delta] = None, structured: bool = False) -> str:
+    """
+    A passage translated into `lang` (default: the client's target language).
+    structured=True: the passage comes as light Markdown rebuilt from the page
+    layout (paragraphs, '- ' / '1.' items, '### ' headings, <sup>/<sub>); the
+    translation keeps exactly that structure.
+    """
     lang = lang or client.target_lang
     system = (
         f"You translate passages of scientific papers into {lang}. The passage was copied from a PDF: "
@@ -143,10 +154,55 @@ def translate_text(client: LLMClient, text: str, lang: Optional[str] = None,
         "or (Smith et al., 2020) and proper nouns exactly as they are. Use the established terminology of the "
         "field. Answer with the translation only: no quotes, no notes, no preamble."
     )
+    if structured:
+        system += (
+            " The passage is given in light Markdown that mirrors its layout on the page: keep EXACTLY the same "
+            "structure - the same paragraphs (blank lines), the same list items with their markers ('- ', '1.', "
+            "'a)'), the same '### ' headings, and the <sup>...</sup> / <sub>...</sub> tags around the same "
+            "characters. Do not add or remove blocks, do not add Markdown that is not in the passage."
+        )
     glossary = (client.custom_glossary or "").strip()
     if glossary:
         system += f"\nMandatory terminology (source -> {lang}):\n{glossary}"
-    return chat(client, system, clean_selection(text), on_delta=on_delta, max_tokens=4096, temperature=0.1)
+    user = text.strip() if structured else clean_selection(text)
+    return chat(client, system, user, on_delta=on_delta, max_tokens=4096, temperature=0.1)
+
+
+def discuss_selection(client: LLMClient, selection: str, history: List[Dict[str, str]], message: str,
+                      lang: Optional[str] = None, title: Optional[str] = None, page_text: Optional[str] = None,
+                      on_delta: Optional[Delta] = None) -> str:
+    """
+    A conversation about a selected passage ("what does this mean?", "explain it
+    with an example", "solve this exercise"). The passage, the paper's title and
+    the text of its page are the context; `history` holds the previous turns
+    ([{role: user|assistant, content}]), `message` the new question.
+    """
+    lang = lang or client.target_lang
+    system = (
+        "You are a patient tutor helping a researcher or a student read a scientific document. They selected a "
+        "passage and talk with you about it: answer what they ask - explain, rephrase, give examples, work "
+        "through an exercise step by step, check a derivation, compare with other notions. Ground your answers "
+        "in the passage and the page; when you add general knowledge that is not in the document, say so "
+        "briefly. Be clear and concise; for exercises, show the steps. Light Markdown: short paragraphs, '- ' "
+        "bullets, **bold**, numbered steps; math inline with Unicode symbols (no LaTeX). "
+        f"Answer in the language of the user's last message; if unsure, in {lang}."
+    )
+    context = []
+    if title:
+        context.append(f"Document: {title}")
+    if page_text:
+        context.append("Text of the page (for context, may be partial):\n" + page_text.strip()[:6000])
+    context.append("Selected passage:\n" + selection.strip()[:8000])
+    messages: List[Dict[str, str]] = [{"role": "system", "content": system},
+                                      {"role": "user", "content": "\n\n".join(context)},
+                                      {"role": "assistant", "content": "I have read the passage. What would you like to know?"}]
+    for turn in (history or [])[-16:]:                       # the last turns are enough, and keep the cost low
+        role = "assistant" if turn.get("role") == "assistant" else "user"
+        content = str(turn.get("content", "")).strip()
+        if content:
+            messages.append({"role": role, "content": content[:6000]})
+    messages.append({"role": "user", "content": message.strip()})
+    return converse(client, messages, on_delta=on_delta, max_tokens=2048, temperature=0.3)
 
 
 def explain_text(client: LLMClient, text: str, lang: Optional[str] = None,

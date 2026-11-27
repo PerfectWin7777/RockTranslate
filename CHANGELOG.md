@@ -7,6 +7,12 @@
   id (`1706.03762`), a local path with or without quotes (Explorer's "Copy as path") or a `file://` URI. **Ctrl+V
   anywhere** (outside a text field), or the new "Paste & open" button, opens the PDF that was copied: a PDF file copied
   in the Explorer/Finder (Ctrl+C on the file), its path, or a link.
+- **Chat about a passage ("Discuter", Ctrl+L).** Next to Translate and Explain, the bubble now holds a conversation
+  about the selected passage: "what does this mean?", "explain it with an example", "solve this exercise step by step"…
+  Answers stream, are grounded in the passage and its page (and say when they add general knowledge), follow the
+  language you write in, and the thread is kept per passage. One-click suggestions start it.
+- **Translations in the bubble keep the layout of the passage**: paragraphs, bullet and numbered items with their own
+  markers, headings, subscripts and superscripts are rebuilt from the page and kept in the translation.
 - **Icons everywhere**: menus, toolbar, selection toolbar, bubble, right-click menu, side panel tabs and home screen
   use one consistent icon set (Lucide, embedded: works offline).
 - **The translation bubble reopens where you put it.** Move it once to uncover the text: the next selections open it

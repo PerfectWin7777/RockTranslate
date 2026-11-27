@@ -90,7 +90,7 @@ document.addEventListener('alpine:init', () => {
                 "rd_view_original": "Original",
                 "rd_ctx_none": "No text selected",
                 "rd_ref_preview": "Reference",
-                "rd_shortcut_list": "Ctrl+K command palette · Ctrl+T translate selection · Ctrl+E explain · Ctrl+H highlight · Ctrl+B side panel · Ctrl+F search · Ctrl+J ask · Ctrl+Shift+S snapshot · Ctrl+Shift+N night · Hold Alt original",
+                "rd_shortcut_list": "Ctrl+K command palette · Ctrl+T translate selection · Ctrl+E explain · Ctrl+L chat · Ctrl+H highlight · Ctrl+B side panel · Ctrl+F search · Ctrl+J ask · Ctrl+Shift+S snapshot · Ctrl+Shift+N night · Hold Alt original",
                 "tb_open": "Open a PDF",
                 "tb_export": "Export the translated PDF",
                 "tb_sbs": "Export side by side (original | translation)",
@@ -121,7 +121,16 @@ document.addEventListener('alpine:init', () => {
                 "rd_open_not_pdf": "This file is not a PDF.",
                 "rd_open_is_folder": "This is a folder: give the path of a PDF file.",
                 "rd_clip_nothing": "Nothing to open in the clipboard: copy a PDF file, its path or a link.",
-                "rd_bubble_move": "Drag to move: it will reopen here · double-click to reset"
+                "rd_bubble_move": "Drag to move: it will reopen here · double-click to reset",
+                "rd_chat": "Chat",
+                "rd_chat_ph": "Ask anything about this passage… (Enter to send)",
+                "rd_chat_send": "Send · Enter",
+                "rd_chat_intro": "Talk about the selected passage: ask what it means, for an example, or to work through an exercise.",
+                "rd_chat_s1": "What does this mean, in simple words?",
+                "rd_chat_s2": "Explain it with a concrete example",
+                "rd_chat_s3": "Solve this exercise step by step",
+                "rd_chat_s4": "Summarize it in one sentence",
+                "rd_chat_foot": "Answers grounded in the passage and its page · ↻ new chat"
         },
         "fr": {
                 "rd_translate": "Traduire",
@@ -208,7 +217,7 @@ document.addEventListener('alpine:init', () => {
                 "rd_view_original": "Original",
                 "rd_ctx_none": "Aucun texte sélectionné",
                 "rd_ref_preview": "Référence",
-                "rd_shortcut_list": "Ctrl+K palette · Ctrl+T traduire la sélection · Ctrl+E expliquer · Ctrl+H surligner · Ctrl+B panneau · Ctrl+F rechercher · Ctrl+J questions · Ctrl+Shift+S instantané · Ctrl+Shift+N nuit · Alt maintenu : original",
+                "rd_shortcut_list": "Ctrl+K palette · Ctrl+T traduire la sélection · Ctrl+E expliquer · Ctrl+L discuter · Ctrl+H surligner · Ctrl+B panneau · Ctrl+F rechercher · Ctrl+J questions · Ctrl+Shift+S instantané · Ctrl+Shift+N nuit · Alt maintenu : original",
                 "tb_open": "Ouvrir un PDF",
                 "tb_export": "Exporter le PDF traduit",
                 "tb_sbs": "Exporter côte à côte (original | traduction)",
@@ -239,7 +248,16 @@ document.addEventListener('alpine:init', () => {
                 "rd_open_not_pdf": "Ce fichier n'est pas un PDF.",
                 "rd_open_is_folder": "C'est un dossier : indiquez le chemin d'un fichier PDF.",
                 "rd_clip_nothing": "Rien à ouvrir dans le presse-papiers : copiez un fichier PDF, son chemin ou un lien.",
-                "rd_bubble_move": "Glissez pour déplacer : elle se rouvrira ici · double-clic pour réinitialiser"
+                "rd_bubble_move": "Glissez pour déplacer : elle se rouvrira ici · double-clic pour réinitialiser",
+                "rd_chat": "Discuter",
+                "rd_chat_ph": "Demandez ce que vous voulez sur ce passage… (Entrée pour envoyer)",
+                "rd_chat_send": "Envoyer · Entrée",
+                "rd_chat_intro": "Discutez du passage sélectionné : demandez ce qu'il veut dire, un exemple, ou de résoudre un exercice.",
+                "rd_chat_s1": "Qu'est-ce que ça veut dire, simplement ?",
+                "rd_chat_s2": "Explique-le avec un exemple concret",
+                "rd_chat_s3": "Résous cet exercice étape par étape",
+                "rd_chat_s4": "Résume-le en une phrase",
+                "rd_chat_foot": "Réponses fondées sur le passage et sa page · ↻ nouvelle discussion"
         },
         "es": {
                 "rd_translate": "Traducir",
@@ -326,7 +344,7 @@ document.addEventListener('alpine:init', () => {
                 "rd_view_original": "Original",
                 "rd_ctx_none": "Ningún texto seleccionado",
                 "rd_ref_preview": "Referencia",
-                "rd_shortcut_list": "Ctrl+K paleta · Ctrl+T traducir selección · Ctrl+E explicar · Ctrl+H resaltar · Ctrl+B panel · Ctrl+F buscar · Ctrl+J preguntar · Ctrl+Shift+S captura · Ctrl+Shift+N noche · Alt mantenido: original",
+                "rd_shortcut_list": "Ctrl+K paleta · Ctrl+T traducir selección · Ctrl+E explicar · Ctrl+L conversar · Ctrl+H resaltar · Ctrl+B panel · Ctrl+F buscar · Ctrl+J preguntar · Ctrl+Shift+S captura · Ctrl+Shift+N noche · Alt mantenido: original",
                 "tb_open": "Abrir un PDF",
                 "tb_export": "Exportar el PDF traducido",
                 "tb_sbs": "Exportar lado a lado (original | traducción)",
@@ -357,7 +375,16 @@ document.addEventListener('alpine:init', () => {
                 "rd_open_not_pdf": "Este archivo no es un PDF.",
                 "rd_open_is_folder": "Es una carpeta: indique la ruta de un archivo PDF.",
                 "rd_clip_nothing": "Nada que abrir en el portapapeles: copie un PDF, su ruta o un enlace.",
-                "rd_bubble_move": "Arrastre para mover: se reabrirá aquí · doble clic para restablecer"
+                "rd_bubble_move": "Arrastre para mover: se reabrirá aquí · doble clic para restablecer",
+                "rd_chat": "Conversar",
+                "rd_chat_ph": "Pregunte lo que quiera sobre este pasaje… (Intro para enviar)",
+                "rd_chat_send": "Enviar · Intro",
+                "rd_chat_intro": "Hable del pasaje seleccionado: pregunte qué significa, pida un ejemplo o que resuelva un ejercicio.",
+                "rd_chat_s1": "¿Qué significa esto, en palabras sencillas?",
+                "rd_chat_s2": "Explícalo con un ejemplo concreto",
+                "rd_chat_s3": "Resuelve este ejercicio paso a paso",
+                "rd_chat_s4": "Resúmelo en una frase",
+                "rd_chat_foot": "Respuestas basadas en el pasaje y su página · ↻ nueva conversación"
         },
         "de": {
                 "rd_translate": "Übersetzen",
@@ -444,7 +471,7 @@ document.addEventListener('alpine:init', () => {
                 "rd_view_original": "Original",
                 "rd_ctx_none": "Kein Text ausgewählt",
                 "rd_ref_preview": "Referenz",
-                "rd_shortcut_list": "Strg+K Befehle · Strg+T Auswahl übersetzen · Strg+E erklären · Strg+H markieren · Strg+B Seitenleiste · Strg+F suchen · Strg+J fragen · Strg+Shift+S Schnappschuss · Strg+Shift+N Nacht · Alt halten: Original",
+                "rd_shortcut_list": "Strg+K Befehle · Strg+T Auswahl übersetzen · Strg+E erklären · Strg+L diskutieren · Strg+H markieren · Strg+B Seitenleiste · Strg+F suchen · Strg+J fragen · Strg+Shift+S Schnappschuss · Strg+Shift+N Nacht · Alt halten: Original",
                 "tb_open": "PDF öffnen",
                 "tb_export": "Übersetztes PDF exportieren",
                 "tb_sbs": "Nebeneinander exportieren (Original | Übersetzung)",
@@ -475,7 +502,16 @@ document.addEventListener('alpine:init', () => {
                 "rd_open_not_pdf": "Diese Datei ist kein PDF.",
                 "rd_open_is_folder": "Das ist ein Ordner: Pfad einer PDF-Datei angeben.",
                 "rd_clip_nothing": "Nichts zum Öffnen in der Zwischenablage: PDF-Datei, Pfad oder Link kopieren.",
-                "rd_bubble_move": "Ziehen zum Verschieben: öffnet sich wieder hier · Doppelklick zum Zurücksetzen"
+                "rd_bubble_move": "Ziehen zum Verschieben: öffnet sich wieder hier · Doppelklick zum Zurücksetzen",
+                "rd_chat": "Diskutieren",
+                "rd_chat_ph": "Fragen Sie alles zu dieser Passage… (Enter zum Senden)",
+                "rd_chat_send": "Senden · Enter",
+                "rd_chat_intro": "Sprechen Sie über die Passage: Was bedeutet sie, ein Beispiel, oder eine Übung Schritt für Schritt lösen.",
+                "rd_chat_s1": "Was bedeutet das, einfach gesagt?",
+                "rd_chat_s2": "Erkläre es mit einem konkreten Beispiel",
+                "rd_chat_s3": "Löse diese Aufgabe Schritt für Schritt",
+                "rd_chat_s4": "Fasse es in einem Satz zusammen",
+                "rd_chat_foot": "Antworten auf Basis der Passage und ihrer Seite · ↻ neues Gespräch"
         }
 };
     const store = Alpine.store('i18n');

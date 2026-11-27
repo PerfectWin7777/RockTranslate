@@ -5,8 +5,16 @@ RockTranslate v2.0.8 — opening PDFs from links, paths and the clipboard
 
 import os
 import sys
+import tempfile
 
 import pytest
+
+# Isolated HOME (like the other suites): config, caches and saved translations
+# of this run never touch the user's. The real HOME is kept for the next suite.
+os.environ.setdefault("RT_REAL_HOME", os.path.expanduser("~"))
+_TMP_HOME = tempfile.mkdtemp(prefix="rt_test_home_")
+os.environ["HOME"] = _TMP_HOME
+os.environ["LOCALAPPDATA"] = _TMP_HOME
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 
@@ -71,3 +79,37 @@ def test_open_from_clipboard(monkeypatch, pdf):
     assert cls.open_from_clipboard(api)["status"] == "started" and api.urls == ["https://arxiv.org/abs/1706.03762"]
     monkeypatch.setattr(ta, "read_clipboard", lambda: ["just a sentence"])
     assert cls.open_from_clipboard(api) == {"status": "error", "message": "clipboard_nothing"}
+
+
+class _FakeClient:
+    target_lang = "French"
+    custom_glossary = ""
+    model = "stub/model"
+
+
+def test_structured_translation_keeps_the_passage(monkeypatch):
+    """The layout-rebuilt passage is sent as is (not flattened), with the 'keep the structure' instruction."""
+    import rocktranslate.core.assist as assist
+    seen = {}
+    monkeypatch.setattr(assist, "converse", lambda client, messages, **kw: seen.update(messages=messages) or "ok")
+    passage = "First paragraph.\n\n- item with b<sub>perf</sub>\n- second item"
+    assist.translate_text(_FakeClient(), passage, "French", structured=True)
+    assert seen["messages"][1]["content"] == passage
+    assert "EXACTLY the same structure" in seen["messages"][0]["content"]
+    assist.translate_text(_FakeClient(), "a line\ncut in two", "French")
+    assert seen["messages"][1]["content"] == "a line cut in two"          # plain mode still cleans the copy
+
+
+def test_discuss_builds_the_conversation(monkeypatch):
+    import rocktranslate.core.assist as assist
+    seen = {}
+    monkeypatch.setattr(assist, "converse", lambda client, messages, **kw: seen.update(messages=messages) or "answer")
+    history = [{"role": "user", "content": "What is phi?"}, {"role": "assistant", "content": "The porosity."}]
+    out = assist.discuss_selection(_FakeClient(), "phi: porosity ...", history, "And sigma?", "French",
+                                   title="U-FNO", page_text="Full page text")
+    msgs = seen["messages"]
+    assert out == "answer"
+    assert msgs[0]["role"] == "system" and "language of the user's last message" in msgs[0]["content"]
+    assert "U-FNO" in msgs[1]["content"] and "Full page text" in msgs[1]["content"] and "phi: porosity" in msgs[1]["content"]
+    assert [m["role"] for m in msgs[3:]] == ["user", "assistant", "user"]
+    assert msgs[-1]["content"] == "And sigma?"
