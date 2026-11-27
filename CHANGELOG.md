@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.0.8 — 2026-11
 
 ### New
 - **Open a PDF from anything you copied.** The home field takes a web link with or without `https://`, a bare arXiv
