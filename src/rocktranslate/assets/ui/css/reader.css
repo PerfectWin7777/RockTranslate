@@ -262,3 +262,8 @@
     padding: 4px 10px; font-size: 12px; cursor: pointer;
 }
 .rt-chip:hover { border-color: var(--rt-accent); color: var(--rt-accent); }
+
+/* ── Voice ── */
+.rt-chat-mic { height: 34px; width: 34px; }
+.rt-chat-mic.rt-recording { color: #fff; background: #d93025; animation: rt-pulse 1.2s ease-in-out infinite; }
+@keyframes rt-pulse { 50% { box-shadow: 0 0 0 6px rgba(217, 48, 37, 0.18); } }

@@ -20,7 +20,9 @@ Author: RockTranslate Contributors
 License: MIT License
 """
 
+import base64
 import json
+import os
 import re
 import time
 from typing import Any, Callable, Dict, List, Optional
@@ -124,6 +126,49 @@ def converse(client: LLMClient, messages: List[Dict[str, str]], on_delta: Option
         logger.debug(f"Streamed usage unavailable: {e}")
     logger.info(f"Assistant answer in {time.monotonic() - started:.1f}s ({client.model})")
     return "".join(parts).strip()
+
+
+# ── Dictation (speech -> text) ────────────────────────────────────────────────
+
+TRANSCRIPTION_ROUTES = (
+    # (provider name in the settings, env variable, how) - first available wins
+    ("Google Gemini", "GEMINI_API_KEY", "gemini/gemini-3.5-flash-lite"),
+    ("OpenAI", "OPENAI_API_KEY", "gpt-4o-mini-transcribe"),
+    ("Groq", "GROQ_API_KEY", "groq/whisper-large-v3-turbo"),
+)
+
+
+def transcribe_audio(audio: bytes, mime: str, keys: Dict[str, str], prefer: Optional[str] = None,
+                     language: Optional[str] = None) -> Dict[str, Any]:
+    """
+    A short voice message turned into text with one of the user's providers:
+    Gemini (audio sent in a normal request), OpenAI or Groq (transcription
+    endpoint). `keys` maps provider names to keys; `prefer` puts the active
+    provider first. Returns {"text", "model"}; raises LookupError when no
+    provider able to transcribe has a key.
+    """
+    routes = sorted(TRANSCRIPTION_ROUTES, key=lambda r: 0 if r[0] == prefer else 1)
+    fmt = (mime or "audio/webm").split("/")[-1].split(";")[0] or "webm"
+    for provider, env_name, model in routes:
+        key = (keys.get(provider) or os.environ.get(env_name) or "").strip()
+        if not key:
+            continue
+        if model.startswith("gemini/"):
+            hint = f" The speaker uses {language}." if language else ""
+            response = litellm.completion(
+                model=model, api_key=key, timeout=60, max_tokens=800,
+                messages=[{"role": "user", "content": [
+                    {"type": "text", "text": "Transcribe this voice message exactly, in the language spoken. "
+                                             "Answer with the transcription only." + hint},
+                    {"type": "input_audio", "input_audio": {"data": base64.b64encode(audio).decode(), "format": fmt}},
+                ]}])
+            text = response.choices[0].message.content or ""
+        else:
+            response = litellm.transcription(model=model, api_key=key, timeout=60,
+                                             file=(f"voice.{fmt}", audio, mime or "audio/webm"))
+            text = getattr(response, "text", "") or ""
+        return {"text": text.strip(), "model": model}
+    raise LookupError("no_transcription_provider")
 
 
 def _json_from(raw: str) -> Any:

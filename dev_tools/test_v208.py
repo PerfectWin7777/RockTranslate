@@ -113,3 +113,24 @@ def test_discuss_builds_the_conversation(monkeypatch):
     assert "U-FNO" in msgs[1]["content"] and "Full page text" in msgs[1]["content"] and "phi: porosity" in msgs[1]["content"]
     assert [m["role"] for m in msgs[3:]] == ["user", "assistant", "user"]
     assert msgs[-1]["content"] == "And sigma?"
+
+
+def test_transcription_picks_an_available_provider(monkeypatch):
+    """Dictation uses the active provider first, then any provider with a key; none -> LookupError."""
+    import rocktranslate.core.assist as assist
+    calls = []
+
+    class Resp:
+        text = "hello"
+        choices = [type("C", (), {"message": type("M", (), {"content": "bonjour"})()})()]
+
+    monkeypatch.setattr(assist.litellm, "completion", lambda **kw: calls.append(("completion", kw["model"])) or Resp())
+    monkeypatch.setattr(assist.litellm, "transcription", lambda **kw: calls.append(("transcription", kw["model"])) or Resp())
+    for name in ("GEMINI_API_KEY", "OPENAI_API_KEY", "GROQ_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    out = assist.transcribe_audio(b"x" * 2000, "audio/webm", {"Google Gemini": "g", "OpenAI": "o"}, prefer="OpenAI")
+    assert out["text"] == "hello" and calls[-1] == ("transcription", "gpt-4o-mini-transcribe")
+    out = assist.transcribe_audio(b"x" * 2000, "audio/webm", {"Google Gemini": "g"})
+    assert out["text"] == "bonjour" and calls[-1][1].startswith("gemini/")
+    with pytest.raises(LookupError):
+        assist.transcribe_audio(b"x" * 2000, "audio/webm", {"DeepSeek": "d"})

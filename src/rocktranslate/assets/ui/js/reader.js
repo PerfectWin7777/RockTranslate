@@ -397,6 +397,7 @@
                 <button type="button" data-mode="explain"></button>
                 <button type="button" data-mode="chat"></button>
                 <span class="rt-grow"></span>
+                <button type="button" class="rt-icon-btn" data-act="speak" title="">${RT_ICON('volume-2')}</button>
                 <button type="button" class="rt-icon-btn" data-act="regen" title="">${RT_ICON('refresh-cw')}</button>
                 <button type="button" class="rt-icon-btn" data-act="copy" title="">${RT_ICON('copy')}</button>
                 <button type="button" class="rt-icon-btn" data-act="close" title="">${RT_ICON('x')}</button>
@@ -404,6 +405,7 @@
             <div class="rt-bubble-src"></div>
             <div class="rt-bubble-body"></div>
             <div class="rt-chat-input">
+                <button type="button" class="rt-icon-btn rt-chat-mic" data-act="mic">${RT_ICON('mic')}</button>
                 <textarea rows="1"></textarea>
                 <button type="button" class="rt-icon-btn rt-chat-send" data-act="send">${RT_ICON('send')}</button>
             </div>
@@ -424,6 +426,8 @@
                 else openBubble(bubble._mode || 'translate', bubble._sel, true, true);
             }
             else if (b.dataset.act === 'send') sendChat();
+            else if (b.dataset.act === 'speak') speakBubble();
+            else if (b.dataset.act === 'mic') toggleDictation();
             else if (b.dataset.chip) sendChat(b.dataset.chip);
             else if (b.dataset.act === 'close') closeBubble();
             else if (b.dataset.act === 'copy') RT.copyText(bubble.querySelector('.rt-bubble-body').innerText);
@@ -547,7 +551,94 @@
         bubble.style.left = Math.min(Math.max(10, rect.left), window.innerWidth - w - 10) + 'px';
         bubble.style.top = top + 'px';
     }
-    function closeBubble() { if (bubble) bubble.style.display = 'none'; bubbleReq = null; }
+    function closeBubble() {
+        if (bubble) bubble.style.display = 'none';
+        bubbleReq = null;
+        stopSpeaking();
+        if (recorder && recorder.state === 'recording') { recorder._discard = true; recorder.stop(); }
+    }
+
+    // ── Voice: read answers aloud, dictate questions ────────────────────────
+    const LANG_CODES = { French: 'fr', Spanish: 'es', English: 'en', German: 'de', Portuguese: 'pt', Italian: 'it',
+                         Arabic: 'ar', 'Chinese (Simplified)': 'zh', Chinese: 'zh', Japanese: 'ja', Russian: 'ru',
+                         Dutch: 'nl', Polish: 'pl', Turkish: 'tr', Korean: 'ko' };
+    let speaking = false;
+    function stopSpeaking() {
+        try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) { }
+        speaking = false;
+        if (bubble) bubble.querySelector('[data-act="speak"]').innerHTML = RT_ICON('volume-2');
+    }
+    /** Reads the answer shown in the bubble (in chat: the last answer) with a voice of its language. */
+    async function speakBubble() {
+        if (!window.speechSynthesis) { RT.toast(RT.t('rd_speak_unavailable'), 'error'); return; }
+        if (speaking) { stopSpeaking(); return; }
+        const body = bubble.querySelector('.rt-bubble-body');
+        const last = bubble._mode === 'chat' ? Array.from(body.querySelectorAll('.rt-msg-bot')).pop() : body;
+        const text = (last ? last.innerText : '').trim();
+        if (!text) return;
+        let lang = '';
+        try { lang = (await RT.api().get_target_language()) || ''; } catch (e) { }
+        // A chat answer follows the language of the question: let the voice match the text
+        const code = bubble._mode === 'chat' ? '' : (LANG_CODES[lang] || '');
+        const utter = new SpeechSynthesisUtterance(text);
+        const voices = window.speechSynthesis.getVoices();
+        const voice = code && voices.find((v) => (v.lang || '').toLowerCase().startsWith(code));
+        if (voice) { utter.voice = voice; utter.lang = voice.lang; } else if (code) utter.lang = code;
+        utter.rate = 1.0;
+        utter.onend = utter.onerror = () => stopSpeaking();
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utter);
+        speaking = true;
+        bubble.querySelector('[data-act="speak"]').innerHTML = RT_ICON('square');
+    }
+
+    let recorder = null, recordTimer = null;
+    /** Click: start recording; click again (or 60 s): stop, transcribe, append to the message box. */
+    async function toggleDictation() {
+        const mic = bubble.querySelector('[data-act="mic"]');
+        if (recorder && recorder.state === 'recording') { recorder.stop(); return; }
+        if (!navigator.mediaDevices || !window.MediaRecorder) { RT.toast(RT.t('rd_mic_unavailable'), 'error', 6000); return; }
+        let stream;
+        try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+        catch (e) { RT.toast(RT.t('rd_mic_unavailable'), 'error', 7000); return; }
+        const type = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4']
+            .find((t) => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || '';
+        const chunks = [];
+        recorder = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+        recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+        recorder.onstop = async () => {
+            clearTimeout(recordTimer);
+            stream.getTracks().forEach((t) => t.stop());
+            mic.classList.remove('rt-recording');
+            mic.innerHTML = RT_ICON('mic');
+            if (recorder._discard) return;
+            const blob = new Blob(chunks, { type: recorder.mimeType || type || 'audio/webm' });
+            const foot = bubble.querySelector('.rt-bubble-foot');
+            foot.textContent = RT.t('rd_transcribing');
+            const b64 = await new Promise((resolve) => {
+                const fr = new FileReader();
+                fr.onload = () => resolve(String(fr.result).split(',')[1] || '');
+                fr.readAsDataURL(blob);
+            });
+            let res;
+            try { res = await RT.api().transcribe_audio(b64, blob.type); } catch (e) { res = { ok: false, error: String(e) }; }
+            foot.textContent = RT.t('rd_chat_foot');
+            if (!res || !res.ok) {
+                const key = { no_transcription_provider: 'rd_mic_no_provider', too_short: 'rd_mic_too_short' }[res && res.error];
+                RT.toast(key ? RT.t(key) : RT.t('rd_error', { error: (res && res.error) || '?' }), 'error', 7000);
+                return;
+            }
+            const input = bubble.querySelector('.rt-chat-input textarea');
+            input.value = (input.value ? input.value.trimEnd() + ' ' : '') + res.text;
+            input.dispatchEvent(new Event('input'));
+            input.focus();
+        };
+        recorder.start();
+        mic.classList.add('rt-recording');
+        mic.innerHTML = RT_ICON('square');
+        bubble.querySelector('.rt-bubble-foot').textContent = RT.t('rd_mic_listening');
+        recordTimer = setTimeout(() => { if (recorder && recorder.state === 'recording') recorder.stop(); }, 60000);
+    }
 
     // Answers already received in this session, per (mode, selected text):
     // switching Translate <-> Explain shows them again without a new request.
@@ -565,6 +656,9 @@
         bubble.querySelector('[data-mode="chat"]').textContent = RT.t('rd_chat');
         bubble.querySelector('[data-act="copy"]').title = RT.t('rd_copy_answer');
         bubble.querySelector('[data-act="regen"]').title = RT.t('rd_regenerate');
+        bubble.querySelector('[data-act="speak"]').title = RT.t('rd_speak');
+        bubble.querySelector('[data-act="mic"]').title = RT.t('rd_mic');
+        stopSpeaking();
         bubble.querySelector('[data-act="close"]').title = RT.t('rd_close');
         bubble.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
         const src = sel.text.replace(/\s+/g, ' ').trim();

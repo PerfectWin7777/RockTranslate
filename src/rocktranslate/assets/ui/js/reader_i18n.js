@@ -130,7 +130,15 @@ document.addEventListener('alpine:init', () => {
                 "rd_chat_s2": "Explain it with a concrete example",
                 "rd_chat_s3": "Solve this exercise step by step",
                 "rd_chat_s4": "Summarize it in one sentence",
-                "rd_chat_foot": "Answers grounded in the passage and its page · ↻ new chat"
+                "rd_chat_foot": "Answers grounded in the passage and its page · ↻ new chat",
+                "rd_speak": "Read aloud",
+                "rd_speak_unavailable": "Reading aloud is not available on this system.",
+                "rd_mic": "Dictate (click again to stop)",
+                "rd_mic_listening": "Listening… click the square to stop",
+                "rd_transcribing": "Transcribing…",
+                "rd_mic_unavailable": "Microphone unavailable: allow microphone access for RockTranslate in the system settings.",
+                "rd_mic_no_provider": "Dictation needs a Gemini, OpenAI or Groq key (Settings > AI model).",
+                "rd_mic_too_short": "The recording is too short: speak a little longer."
         },
         "fr": {
                 "rd_translate": "Traduire",
@@ -257,7 +265,15 @@ document.addEventListener('alpine:init', () => {
                 "rd_chat_s2": "Explique-le avec un exemple concret",
                 "rd_chat_s3": "Résous cet exercice étape par étape",
                 "rd_chat_s4": "Résume-le en une phrase",
-                "rd_chat_foot": "Réponses fondées sur le passage et sa page · ↻ nouvelle discussion"
+                "rd_chat_foot": "Réponses fondées sur le passage et sa page · ↻ nouvelle discussion",
+                "rd_speak": "Lire à voix haute",
+                "rd_speak_unavailable": "La lecture à voix haute n'est pas disponible sur ce système.",
+                "rd_mic": "Dicter (cliquez à nouveau pour arrêter)",
+                "rd_mic_listening": "J'écoute… cliquez sur le carré pour arrêter",
+                "rd_transcribing": "Transcription…",
+                "rd_mic_unavailable": "Micro indisponible : autorisez l'accès au micro pour RockTranslate dans les paramètres du système.",
+                "rd_mic_no_provider": "La dictée demande une clé Gemini, OpenAI ou Groq (Paramètres > Modèle IA).",
+                "rd_mic_too_short": "L'enregistrement est trop court : parlez un peu plus longtemps."
         },
         "es": {
                 "rd_translate": "Traducir",
@@ -384,7 +400,15 @@ document.addEventListener('alpine:init', () => {
                 "rd_chat_s2": "Explícalo con un ejemplo concreto",
                 "rd_chat_s3": "Resuelve este ejercicio paso a paso",
                 "rd_chat_s4": "Resúmelo en una frase",
-                "rd_chat_foot": "Respuestas basadas en el pasaje y su página · ↻ nueva conversación"
+                "rd_chat_foot": "Respuestas basadas en el pasaje y su página · ↻ nueva conversación",
+                "rd_speak": "Leer en voz alta",
+                "rd_speak_unavailable": "La lectura en voz alta no está disponible en este sistema.",
+                "rd_mic": "Dictar (clic de nuevo para detener)",
+                "rd_mic_listening": "Escuchando… clic en el cuadrado para detener",
+                "rd_transcribing": "Transcribiendo…",
+                "rd_mic_unavailable": "Micrófono no disponible: permita el acceso al micrófono en los ajustes del sistema.",
+                "rd_mic_no_provider": "El dictado necesita una clave Gemini, OpenAI o Groq (Ajustes > Modelo IA).",
+                "rd_mic_too_short": "La grabación es demasiado corta: hable un poco más."
         },
         "de": {
                 "rd_translate": "Übersetzen",
@@ -511,7 +535,15 @@ document.addEventListener('alpine:init', () => {
                 "rd_chat_s2": "Erkläre es mit einem konkreten Beispiel",
                 "rd_chat_s3": "Löse diese Aufgabe Schritt für Schritt",
                 "rd_chat_s4": "Fasse es in einem Satz zusammen",
-                "rd_chat_foot": "Antworten auf Basis der Passage und ihrer Seite · ↻ neues Gespräch"
+                "rd_chat_foot": "Antworten auf Basis der Passage und ihrer Seite · ↻ neues Gespräch",
+                "rd_speak": "Vorlesen",
+                "rd_speak_unavailable": "Vorlesen ist auf diesem System nicht verfügbar.",
+                "rd_mic": "Diktieren (erneut klicken zum Beenden)",
+                "rd_mic_listening": "Ich höre zu… auf das Quadrat klicken zum Beenden",
+                "rd_transcribing": "Transkription…",
+                "rd_mic_unavailable": "Mikrofon nicht verfügbar: Mikrofonzugriff in den Systemeinstellungen erlauben.",
+                "rd_mic_no_provider": "Diktieren braucht einen Gemini-, OpenAI- oder Groq-Schlüssel (Einstellungen > KI-Modell).",
+                "rd_mic_too_short": "Die Aufnahme ist zu kurz: etwas länger sprechen."
         }
 };
     const store = Alpine.store('i18n');

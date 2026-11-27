@@ -132,6 +132,15 @@ K = {
  "rd_chat_s3": ("Solve this exercise step by step", "Résous cet exercice étape par étape", "Resuelve este ejercicio paso a paso", "Löse diese Aufgabe Schritt für Schritt"),
  "rd_chat_s4": ("Summarize it in one sentence", "Résume-le en une phrase", "Resúmelo en una frase", "Fasse es in einem Satz zusammen"),
  "rd_chat_foot": ("Answers grounded in the passage and its page · ↻ new chat", "Réponses fondées sur le passage et sa page · ↻ nouvelle discussion", "Respuestas basadas en el pasaje y su página · ↻ nueva conversación", "Antworten auf Basis der Passage und ihrer Seite · ↻ neues Gespräch"),
+ # ── Voice ──
+ "rd_speak": ("Read aloud", "Lire à voix haute", "Leer en voz alta", "Vorlesen"),
+ "rd_speak_unavailable": ("Reading aloud is not available on this system.", "La lecture à voix haute n'est pas disponible sur ce système.", "La lectura en voz alta no está disponible en este sistema.", "Vorlesen ist auf diesem System nicht verfügbar."),
+ "rd_mic": ("Dictate (click again to stop)", "Dicter (cliquez à nouveau pour arrêter)", "Dictar (clic de nuevo para detener)", "Diktieren (erneut klicken zum Beenden)"),
+ "rd_mic_listening": ("Listening… click the square to stop", "J'écoute… cliquez sur le carré pour arrêter", "Escuchando… clic en el cuadrado para detener", "Ich höre zu… auf das Quadrat klicken zum Beenden"),
+ "rd_transcribing": ("Transcribing…", "Transcription…", "Transcribiendo…", "Transkription…"),
+ "rd_mic_unavailable": ("Microphone unavailable: allow microphone access for RockTranslate in the system settings.", "Micro indisponible : autorisez l'accès au micro pour RockTranslate dans les paramètres du système.", "Micrófono no disponible: permita el acceso al micrófono en los ajustes del sistema.", "Mikrofon nicht verfügbar: Mikrofonzugriff in den Systemeinstellungen erlauben."),
+ "rd_mic_no_provider": ("Dictation needs a Gemini, OpenAI or Groq key (Settings > AI model).", "La dictée demande une clé Gemini, OpenAI ou Groq (Paramètres > Modèle IA).", "El dictado necesita una clave Gemini, OpenAI o Groq (Ajustes > Modelo IA).", "Diktieren braucht einen Gemini-, OpenAI- oder Groq-Schlüssel (Einstellungen > KI-Modell)."),
+ "rd_mic_too_short": ("The recording is too short: speak a little longer.", "L'enregistrement est trop court : parlez un peu plus longtemps.", "La grabación es demasiado corta: hable un poco más.", "Die Aufnahme ist zu kurz: etwas länger sprechen."),
 }
 langs = ["en", "fr", "es", "de"]
 out = ["/**",

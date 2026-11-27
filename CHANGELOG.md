@@ -11,6 +11,9 @@
   about the selected passage: "what does this mean?", "explain it with an example", "solve this exercise step by step"…
   Answers stream, are grounded in the passage and its page (and say when they add general knowledge), follow the
   language you write in, and the thread is kept per passage. One-click suggestions start it.
+- **Voice.** The bubble reads its answer aloud (speaker button, system voices, offline, in the answer's language).
+  In "Discuter", the microphone button dictates the question: the recording is transcribed by your Gemini, OpenAI
+  or Groq key and added to the message box, ready to send.
 - **Translations in the bubble keep the layout of the passage**: paragraphs, bullet and numbered items with their own
   markers, headings, subscripts and superscripts are rebuilt from the page and kept in the translation.
 - **Icons everywhere**: menus, toolbar, selection toolbar, bubble, right-click menu, side panel tabs and home screen

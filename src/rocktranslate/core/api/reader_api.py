@@ -31,7 +31,8 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
-from ..assist import (ask_document, build_glossary, clean_selection, discuss_selection, explain_text, glossary_to_rules,
+from ..assist import (ask_document, build_glossary, clean_selection, discuss_selection, explain_text,
+                      transcribe_audio, glossary_to_rules,
                       page_texts, summarize_text, translate_text)
 from ..config_manager import config_db
 
@@ -174,6 +175,37 @@ class ReaderApiMixin:
         return pages
 
     # ── Reading assistant (streamed to the UI) ───────────────────────────────
+
+    def transcribe_audio(self, audio_base64: str, mime: str = "audio/webm") -> Dict[str, Any]:
+        """
+        Exposed to the UI (dictation): a voice message recorded in the bubble,
+        returned as text by the user's Gemini, OpenAI or Groq key.
+        Returns {"ok": True, "text"} or {"ok": False, "error": key or message}.
+        """
+        import base64
+        try:
+            audio = base64.b64decode(audio_base64 or "", validate=False)
+        except ValueError:
+            return {"ok": False, "error": "bad_audio"}
+        if len(audio) < 800:
+            return {"ok": False, "error": "too_short"}
+        if len(audio) > 20 * 1024 * 1024:
+            return {"ok": False, "error": "too_long"}
+        keys = config_db.get("APIConfig", "api_keys_by_provider", {})
+        if isinstance(keys, str):
+            try:
+                keys = json.loads(keys)
+            except ValueError:
+                keys = {}
+        try:
+            result = transcribe_audio(audio, mime, keys or {}, prefer=config_db.get("APIConfig", "provider", None),
+                                      language=config_db.get("SystemConfig", "ui_language", None))
+            return {"ok": True, "text": result["text"], "model": result["model"]}
+        except LookupError:
+            return {"ok": False, "error": "no_transcription_provider"}
+        except Exception as e:
+            logger.warning(f"Dictation failed: {e}")
+            return {"ok": False, "error": str(e)[:300]}
 
     def _assistant_client(self):
         client = self._resolve_llm_client()       # toasts "missing key" itself
