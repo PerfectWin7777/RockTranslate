@@ -60,6 +60,9 @@
 }
 
 .open-file-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     background-color: var(--accent-blue);
     color: var(--rt-text-on-accent);
     font-weight: 600;
@@ -238,3 +241,6 @@
     stroke-linecap: round;
     stroke-linejoin: round;
 }
+
+.open-file-ico, .url-paste-btn [data-icon] { display: inline-flex; }
+.open-file-ico svg { width: 16px; height: 16px; }

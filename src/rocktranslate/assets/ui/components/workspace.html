@@ -27,11 +27,13 @@
             <div class="rt-sp-tabs-scroll">
                 <template x-for="tb in ['toc', 'search', 'ask', 'notes', 'glossary']" :key="tb">
                     <button type="button" :class="{ active: $store.reader.panelTab === tb }" :title="t('rd_tab_' + tb)"
-                        @click="$store.reader.panelTab = tb; localStorage.setItem('rt-reader-panelTab', JSON.stringify(tb))"
-                        x-text="t('rd_tab_' + tb)"></button>
+                        @click="$store.reader.panelTab = tb; localStorage.setItem('rt-reader-panelTab', JSON.stringify(tb))">
+                        <span class="rt-sp-tab-ico" :data-icon="{ toc: 'list-tree', search: 'search', ask: 'message-circle-question', notes: 'notebook-pen', glossary: 'book-a' }[tb]"></span>
+                        <span x-text="t('rd_tab_' + tb)"></span>
+                    </button>
                 </template>
             </div>
-            <button type="button" class="rt-sp-close" @click="$store.reader.togglePanel()" :title="t('rd_close') + ' (Ctrl+B)'">✕</button>
+            <button type="button" class="rt-sp-close" @click="$store.reader.togglePanel()" :title="t('rd_close') + ' (Ctrl+B)'"><span data-icon="x"></span></button>
         </nav>
 
         <!-- Contents -->

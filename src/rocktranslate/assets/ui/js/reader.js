@@ -231,10 +231,10 @@
         toolbar.id = 'rt-seltool';
         toolbar.className = 'rt-pop';
         toolbar.innerHTML = [
-            ['translate', '文A', 'rd_translate', 'Ctrl+T'], ['explain', '?', 'rd_explain', 'Ctrl+E'],
-            ['copy', '⧉', 'rd_copy', ''], ['cite', '❝', 'rd_copy_cite', ''], ['highlight', '▍', 'rd_highlight', 'Ctrl+H'],
+            ['translate', 'languages', 'rd_translate', 'Ctrl+T'], ['explain', 'lightbulb', 'rd_explain', 'Ctrl+E'],
+            ['copy', 'copy', 'rd_copy', ''], ['cite', 'quote', 'rd_copy_cite', ''], ['highlight', 'highlighter', 'rd_highlight', 'Ctrl+H'],
         ].map(([act, icon, key, sc]) => `<button type="button" data-act="${act}" data-key="${key}" title="${sc}">` +
-            `<span class="rt-ico">${icon}</span><span class="rt-lbl"></span></button>`).join('');
+            `<span class="rt-ico">${RT_ICON(icon)}</span><span class="rt-lbl"></span></button>`).join('');
         toolbar.addEventListener('mousedown', (e) => e.preventDefault());   // keep the selection
         toolbar.addEventListener('click', (e) => {
             const b = e.target.closest('button'); if (!b) return;
@@ -284,9 +284,9 @@
                 <button type="button" data-mode="translate"></button>
                 <button type="button" data-mode="explain"></button>
                 <span class="rt-grow"></span>
-                <button type="button" class="rt-icon-btn" data-act="regen" title="">↻</button>
-                <button type="button" class="rt-icon-btn" data-act="copy" title="">⧉</button>
-                <button type="button" class="rt-icon-btn" data-act="close" title="">✕</button>
+                <button type="button" class="rt-icon-btn" data-act="regen" title="">${RT_ICON('refresh-cw')}</button>
+                <button type="button" class="rt-icon-btn" data-act="copy" title="">${RT_ICON('copy')}</button>
+                <button type="button" class="rt-icon-btn" data-act="close" title="">${RT_ICON('x')}</button>
             </div>
             <div class="rt-bubble-src"></div>
             <div class="rt-bubble-body"></div>
@@ -421,25 +421,26 @@
         menu._items = items;
         menu.innerHTML = items.map((it, i) => it.sep ? '<div class="rt-sep"></div>' :
             `<div class="rt-menu-item${it.disabled ? ' disabled' : ''}" data-i="${it.disabled ? '' : i}">` +
-            `<span>${RT.esc(it.label)}</span><span class="rt-sc">${RT.esc(it.sc || '')}</span></div>`).join('');
+            `<span class="rt-menu-ico">${it.icon ? RT_ICON(it.icon) : ''}</span>` +
+            `<span class="rt-menu-lbl">${RT.esc(it.label)}</span><span class="rt-sc">${RT.esc(it.sc || '')}</span></div>`).join('');
         menu.style.display = 'block';
-        menu.style.left = Math.min(x, window.innerWidth - menu.offsetWidth - 6) + 'px';
-        menu.style.top = Math.min(y, window.innerHeight - menu.offsetHeight - 6) + 'px';
+        menu.style.left = Math.max(6, Math.min(x, window.innerWidth - menu.offsetWidth - 6)) + 'px';
+        menu.style.top = Math.max(6, Math.min(y, window.innerHeight - menu.offsetHeight - 6)) + 'px';
     }
     function contextItems(sel, side, pageNumber) {
         const items = [];
         if (sel) {
-            items.push({ label: RT.t('rd_translate'), sc: 'Ctrl+T', run: () => runOnSelection('translate', sel) });
-            items.push({ label: RT.t('rd_explain'), sc: 'Ctrl+E', run: () => runOnSelection('explain', sel) });
-            items.push({ label: RT.t('rd_copy'), sc: 'Ctrl+C', run: () => runOnSelection('copy', sel) });
-            items.push({ label: RT.t('rd_copy_cite'), run: () => runOnSelection('cite', sel) });
-            if (side === 'original') items.push({ label: RT.t('rd_highlight'), sc: 'Ctrl+H', run: () => runOnSelection('highlight', sel) });
+            items.push({ icon: 'languages', label: RT.t('rd_translate'), sc: 'Ctrl+T', run: () => runOnSelection('translate', sel) });
+            items.push({ icon: 'lightbulb', label: RT.t('rd_explain'), sc: 'Ctrl+E', run: () => runOnSelection('explain', sel) });
+            items.push({ icon: 'copy', label: RT.t('rd_copy'), sc: 'Ctrl+C', run: () => runOnSelection('copy', sel) });
+            items.push({ icon: 'quote', label: RT.t('rd_copy_cite'), run: () => runOnSelection('cite', sel) });
+            if (side === 'original') items.push({ icon: 'highlighter', label: RT.t('rd_highlight'), sc: 'Ctrl+H', run: () => runOnSelection('highlight', sel) });
             items.push({ sep: true });
         }
-        items.push({ label: RT.t('rd_snapshot'), sc: 'Ctrl+Shift+S', run: () => startSnapshot(side) });
-        if (side === 'original') items.push({ label: RT.t('rd_page_image'), run: () => copyOriginalPage(pageNumber) });
-        else items.push({ label: RT.t('rd_trans_page_image'), run: () => copyTranslatedPage(pageNumber) });
-        if (pageNumber) items.push({ label: RT.t('rd_translate_page') + ` (${pageNumber})`, run: () => translatePages([pageNumber - 1], true) });
+        items.push({ icon: 'scan', label: RT.t('rd_snapshot'), sc: 'Ctrl+Shift+S', run: () => startSnapshot(side) });
+        if (side === 'original') items.push({ icon: 'image', label: RT.t('rd_page_image'), run: () => copyOriginalPage(pageNumber) });
+        else items.push({ icon: 'image-plus', label: RT.t('rd_trans_page_image'), run: () => copyTranslatedPage(pageNumber) });
+        if (pageNumber) items.push({ icon: 'file-text', label: RT.t('rd_translate_page') + ` (${pageNumber})`, run: () => translatePages([pageNumber - 1], true) });
         return items;
     }
 

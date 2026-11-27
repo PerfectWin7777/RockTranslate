@@ -106,6 +106,24 @@
     white-space: nowrap;
 }
 
+.dropdown-icon {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    display: inline-flex;
+    color: var(--rt-text-2);
+}
+
+.dropdown-icon svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 1.8;
+}
+
+.dropdown-item:hover .dropdown-icon {
+    color: inherit;
+}
+
 .dropdown-checkmark {
     font-weight: 600;
     font-size: 11px;
@@ -269,3 +287,6 @@
 @media (max-width: 1080px) { .tb-read { display: none; } }
 @media (max-width: 900px)  { .menu-model-indicator { display: none; } }
 @media (max-width: 820px)  { .rt-toolbar { display: none; } }
+
+/* Lucide icons inside the toolbar buttons */
+.tb-btn [data-icon] { display: inline-flex; }

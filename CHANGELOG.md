@@ -7,6 +7,8 @@
   id (`1706.03762`), a local path with or without quotes (Explorer's "Copy as path") or a `file://` URI. **Ctrl+V
   anywhere** (outside a text field), or the new "Paste & open" button, opens the PDF that was copied: a PDF file copied
   in the Explorer/Finder (Ctrl+C on the file), its path, or a link.
+- **Icons everywhere**: menus, toolbar, selection toolbar, bubble, right-click menu, side panel tabs and home screen
+  use one consistent icon set (Lucide, embedded: works offline).
 - **The translation bubble reopens where you put it.** Move it once to uncover the text: the next selections open it
   at the same place (kept on screen). Double-click its header to put it back next to the selection.
 

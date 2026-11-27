@@ -24,9 +24,9 @@
         <h2 class="dashboard-title" x-text="$store.i18n.translate('drag_drop_title')"></h2>
 
         <!-- Select button -->
-        <button class="open-file-btn" 
-                @click="openFilePicker()" 
-                x-text="$store.i18n.translate('open_file_btn')">
+        <button class="open-file-btn" @click="openFilePicker()">
+            <span class="open-file-ico" data-icon="folder-open"></span>
+            <span x-text="$store.i18n.translate('open_file_btn')"></span>
         </button>
 
         <!-- Or open a PDF from a web link (arXiv, journal, repository...) -->
@@ -40,7 +40,7 @@
                     x-text="$store.i18n.translate('rd_open_btn')"></button>
             <button type="button" class="url-paste-btn" @click="RT.openClipboard()"
                     :title="$store.i18n.translate('rd_paste_open')" :aria-label="$store.i18n.translate('rd_paste_open')">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M12 11v6M9 14l3 3 3-3"/></svg>
+                <span data-icon="clipboard-paste"></span>
             </button>
         </form>
 

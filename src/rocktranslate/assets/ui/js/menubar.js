@@ -276,3 +276,53 @@ function menubarController() {
         }
     };
 }
+/**
+ * Menu icons: one table, i18n label key -> Lucide icon (js/icons.js).
+ * Every menu entry whose label is translate('<key>') gets its icon before the
+ * label, also for entries rendered later (templates, recent files).
+ */
+(function () {
+    const MENU_ICONS = {
+        item_open: 'folder-open', item_close: 'circle-x', item_export: 'file-down', item_export_direct: 'printer',
+        item_properties: 'info', item_recent: 'history', item_clear_history: 'trash-2', item_quit: 'log-out',
+        item_start_trans: 'languages', item_stop_trans: 'languages', item_trans_range: 'files',
+        rd_translate_refs_menu: 'book-open', item_api_config: 'key-round', item_target_lang: 'globe',
+        item_zoom_in: 'zoom-in', item_zoom_out: 'zoom-out', item_zoom_reset: 'scan', rd_panel: 'panel-right',
+        item_show_progress: 'activity', item_hover_original: 'mouse-pointer-2', item_fullscreen: 'expand',
+        item_theme_toggle: 'sun-moon', item_layout_both: 'columns-2', item_layout_pdf: 'file', item_layout_trans: 'type',
+        rd_palette: 'command', rd_search_doc: 'search', rd_ask_doc: 'message-circle-question', rd_tab_glossary: 'book-a',
+        rd_continuous: 'repeat', rd_night: 'moon', rd_snapshot: 'scan', rd_page_image: 'image',
+        rd_trans_page_image: 'image-plus', rd_sbs: 'columns-2', rd_export_notes: 'notebook-pen', rd_open_link: 'link',
+        rd_shortcuts: 'keyboard', prefs_menu_item: 'settings', item_trans_engine: 'sliders-horizontal',
+        item_system_settings: 'monitor-cog', item_app_lang: 'languages', item_clear_cache: 'eraser',
+        item_reset_settings: 'rotate-ccw', item_about: 'info', item_website: 'globe', item_github: 'git-branch',
+        item_issues: 'bug', rd_export_tmx: 'file-output', rd_export_highlights: 'highlighter',
+    };
+    window.RT_MENU_ICONS = MENU_ICONS;
+
+    function decorate(root) {
+        (root.querySelectorAll ? root.querySelectorAll('.dropdown-item .dropdown-label') : []).forEach((label) => {
+            if (label.querySelector('.dropdown-icon')) return;
+            // The label is the element translated by key (toggles also have an x-text checkmark)
+            const text = label.querySelector('[x-text*="translate(\'"]');
+            const m = text && /translate\('([a-z_0-9]+)'\)/.exec(text.getAttribute('x-text') || '');
+            const icon = m && MENU_ICONS[m[1]];
+            if (!icon) return;
+            const span = document.createElement('span');
+            span.className = 'dropdown-icon';
+            span.dataset.icon = icon;
+            label.insertBefore(span, text);
+        });
+    }
+    const start = () => {
+        const bar = document.getElementById('menubar-container') || document.body;
+        decorate(bar);
+        let queued = false;          // at most one pass per frame, whatever the number of mutations
+        new MutationObserver(() => {
+            if (queued) return;
+            queued = true;
+            requestAnimationFrame(() => { queued = false; decorate(document.getElementById('menubar-container') || bar); });
+        }).observe(bar, { childList: true, subtree: true });
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else setTimeout(start, 0);
+})();

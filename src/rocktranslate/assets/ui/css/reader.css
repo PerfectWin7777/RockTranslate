@@ -118,7 +118,8 @@
     background: transparent; color: var(--rt-text); border-radius: 7px; cursor: pointer; white-space: nowrap;
 }
 #rt-seltool button:hover { background: var(--rt-accent-soft); color: var(--rt-accent); }
-#rt-seltool .rt-ico { font-size: 12px; opacity: .8; }
+#rt-seltool .rt-ico { display: inline-flex; opacity: .85; }
+#rt-seltool .rt-ico svg { width: 14px; height: 14px; }
 
 #rt-bubble { display: none; flex-direction: column; max-height: min(460px, 70vh); }
 .rt-bubble-head { display: flex; align-items: center; gap: 4px; padding: 6px 6px 6px 8px; cursor: move; border-bottom: 1px solid var(--rt-border); }
@@ -218,3 +219,15 @@
 }
 .rt-qa-actions { display: flex; gap: 6px; margin-top: 4px; }
 .rt-qa-actions .rt-mini-btn { font-size: 11px; }
+
+/* ── Lucide icons (js/icons.js) ── */
+.rt-svg { width: 16px; height: 16px; flex: 0 0 auto; display: block; }
+.rt-icon-btn { display: inline-flex; align-items: center; justify-content: center; }
+.rt-icon-btn .rt-svg { width: 15px; height: 15px; }
+.rt-menu-item { display: flex; align-items: center; gap: 8px; }
+.rt-menu-ico { width: 16px; display: inline-flex; color: var(--rt-text-3); }
+.rt-menu-lbl { flex: 1; }
+.rt-sp-tabs button { display: inline-flex; align-items: center; gap: 5px; }
+.rt-sp-tab-ico { display: inline-flex; }
+.rt-sp-tab-ico .rt-svg { width: 14px; height: 14px; }
+.rt-sp-close { display: inline-flex; align-items: center; justify-content: center; }
