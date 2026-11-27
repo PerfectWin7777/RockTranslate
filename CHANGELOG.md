@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.8.1 — 2026-11
+
+### Improvements
+- **Faster start.** The LLM library (about 2 s to load) is now loaded on first use and warmed in the background once
+  the window is shown: the splash screen appears about 2 seconds sooner, and the splash minimum is 0.6 s instead of 1.5 s.
+- **Larger app icon.** The tile now fills the icon and the "RT" letters cover about twice the area, so the icon reads
+  well on the desktop, the taskbar and the title bar (16 to 256 px). Rebuilt by `dev_tools/gen_app_icon.py`.
+
 ## 2.0.8 — 2026-11
 
 ### New
