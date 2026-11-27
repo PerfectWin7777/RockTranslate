@@ -16,6 +16,11 @@
   or Groq key and added to the message box, ready to send.
 - **Translations in the bubble keep the layout of the passage**: paragraphs, bullet and numbered items with their own
   markers, headings, subscripts and superscripts are rebuilt from the page and kept in the translation.
+- **Highlights in the translated pane, and into the PDF.** A highlight made on the original now also shows on the same
+  passage of the translation. Tools > "Export highlights into the PDF" writes them as real highlight annotations (notes
+  as comments) in a copy of the PDF, readable in Acrobat, Edge, Zotero… Highlights follow the page rotation.
+- **Translation memory export (TMX).** Tools > "Export translation memory" saves every translated paragraph with its
+  source for CAT tools (Trados, memoQ, OmegaT…); also `rocktranslate paper.pdf -f pdf,tmx` and `Document.to_tmx()`.
 - **Icons everywhere**: menus, toolbar, selection toolbar, bubble, right-click menu, side panel tabs and home screen
   use one consistent icon set (Lucide, embedded: works offline).
 - **The translation bubble reopens where you put it.** Move it once to uncover the text: the next selections open it

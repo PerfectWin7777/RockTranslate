@@ -1163,8 +1163,10 @@
     function addHighlight(sel) {
         if (sel.side !== 'original' || !sel.pageEl) return;
         const pr = sel.pageEl.getBoundingClientRect();
-        const rects = Array.from(sel.range.getClientRects()).filter((r) => r.width > 1 && r.height > 1)
-            .map((r) => [(r.left - pr.left) / pr.width, (r.top - pr.top) / pr.height, r.width / pr.width, r.height / pr.height]);
+        // Stored as fractions of the page in its normal orientation (whatever the toolbar rotation)
+        const turn = RT.rotation ? RT.rotation() : 0;
+        const rects = mergeLineRects(Array.from(sel.range.getClientRects()).filter((r) => r.width > 1 && r.height > 1)
+            .map((r) => rotateFraction([(r.left - pr.left) / pr.width, (r.top - pr.top) / pr.height, r.width / pr.width, r.height / pr.height], -turn)));
         if (!rects.length) return;
         const store = RT.store();
         const item = { id: 'h' + Date.now().toString(36), page: sel.pageNumber, rects, text: sel.text.replace(/\s+/g, ' ').trim(),
@@ -1176,13 +1178,42 @@
         if (!store.panelOpen || store.panelTab !== 'notes') store.togglePanel('notes');
     }
     RT.saveHighlights = () => RT.api() && RT.api().save_highlights(JSON.parse(JSON.stringify(RT.store().highlights)));
+    /**
+     * One rectangle per visual line: a range returns overlapping boxes (the text
+     * node and its span, glyph runs). Boxes sharing a line and touching are merged.
+     */
+    function mergeLineRects(rects) {
+        const out = [];
+        rects.slice().sort((a, b) => a[1] - b[1] || a[0] - b[0]).forEach(([x, y, w, h]) => {
+            const line = out.find((r) => {
+                const overlap = Math.min(r[1] + r[3], y + h) - Math.max(r[1], y);
+                const gap = Math.max(r[0], x) - Math.min(r[0] + r[2], x + w);
+                return overlap > 0.5 * Math.min(r[3], h) && gap < 0.012;
+            });
+            if (!line) { out.push([x, y, w, h]); return; }
+            const x0 = Math.min(line[0], x), y0 = Math.min(line[1], y);
+            const x1 = Math.max(line[0] + line[2], x + w), y1 = Math.max(line[1] + line[3], y + h);
+            line[0] = x0; line[1] = y0; line[2] = x1 - x0; line[3] = y1 - y0;
+        });
+        return out;
+    }
+    /** A page-fraction rectangle [x, y, w, h] seen after turning the page clockwise by `deg`. */
+    function rotateFraction(r, deg) {
+        const [x, y, w, h] = r, d = ((deg % 360) + 360) % 360;
+        if (d === 90) return [1 - y - h, x, h, w];
+        if (d === 180) return [1 - x - w, 1 - y - h, w, h];
+        if (d === 270) return [y, 1 - x - w, h, w];
+        return [x, y, w, h];
+    }
     function renderHighlights(pageNumber) {
+        renderTranslatedHighlights(pageNumber);
         try {
             const doc = RT.pdfFrame().contentDocument;
             const pageEl = doc.querySelector(`.page[data-page-number="${pageNumber}"]`); if (!pageEl) return;
             pageEl.querySelectorAll('.rt-hl').forEach((n) => n.remove());
+            const turn = RT.rotation ? RT.rotation() : 0;
             RT.store().highlights.filter((h) => h.page === pageNumber).forEach((h) => {
-                h.rects.forEach(([x, y, w, hh]) => {
+                h.rects.map((r) => rotateFraction(r, turn)).forEach(([x, y, w, hh]) => {
                     const d = doc.createElement('div'); d.className = 'rt-hl'; d.dataset.id = h.id;
                     Object.assign(d.style, { position: 'absolute', left: (x * 100) + '%', top: (y * 100) + '%', width: (w * 100) + '%',
                         height: (hh * 100) + '%', background: h.color, opacity: '0.38', mixBlendMode: 'multiply',
@@ -1192,6 +1223,30 @@
             });
         } catch (e) { }
     }
+    // Translated pane: the layout is kept, so the same area of the page holds the
+    // translation of the highlighted passage. Drawn inside the page content (.pc),
+    // which also carries the toolbar rotation.
+    function renderTranslatedHighlights(pageNumber) {
+        try {
+            const doc = RT.htmlFrame().contentDocument;
+            const pf = doc && doc.querySelectorAll('.pf')[pageNumber - 1]; if (!pf) return;
+            const host = pf.querySelector('.pc') || pf;
+            host.querySelectorAll('.rt-hl').forEach((n) => n.remove());
+            RT.store().highlights.filter((h) => h.page === pageNumber).forEach((h) => {
+                h.rects.forEach(([x, y, w, hh]) => {
+                    const d = doc.createElement('div'); d.className = 'rt-hl'; d.dataset.id = h.id;
+                    Object.assign(d.style, { position: 'absolute', left: (x * 100) + '%', top: (y * 100) + '%', width: (w * 100) + '%',
+                        height: (hh * 100) + '%', background: h.color, opacity: '0.38', mixBlendMode: 'multiply',
+                        pointerEvents: 'none', zIndex: '5', borderRadius: '2px' });
+                    host.appendChild(d);
+                });
+            });
+        } catch (e) { }
+    }
+    RT.renderAllHighlights = () => {
+        const count = (RT.app() && RT.app().pagesCount) || 0;
+        for (let p = 1; p <= count; p++) renderHighlights(p);
+    };
     RT.renderHighlights = renderHighlights;
     RT.HL_COLORS = HL_COLORS;
 
@@ -1290,6 +1345,7 @@
         app.pdfViewer.pagesRotation = deg;           // PDF.js re-renders the original
         applyHtmlRotation(deg);
         RT.store().rotation = deg;
+        setTimeout(() => { try { RT.renderAllHighlights(); } catch (e) { } }, 400);
         // Stay on the page being read, in both panes (page heights changed)
         setTimeout(() => {
             try { RT.goTo({ pageIndex: page - 1 }); } catch (e) { }
@@ -1309,6 +1365,7 @@
             const deg = RT.rotation();
             RT.store().rotation = deg;
             if (deg) applyHtmlRotation(deg);
+            try { RT.renderAllHighlights(); } catch (e) { }
         }, 300));
     })();
     function altDown() {
@@ -1416,6 +1473,8 @@
             { id: 'night', label: t('rd_night') + (s.night ? ' ✓' : ''), sc: 'Ctrl+Shift+N', run: () => RT.setNight(!s.night) },
             { id: 'export', label: t('item_export'), run: () => window.pywebview.api.export_translated_pdf() },
             { id: 'sbs', label: t('rd_sbs'), run: () => RT.api().export_side_by_side() },
+            { id: 'tmx', label: t('rd_export_tmx'), run: () => RT.api().export_tmx() },
+            { id: 'hl-pdf', label: t('rd_export_highlights'), run: () => RT.api().export_highlights_pdf() },
             { id: 'notes-export', label: t('rd_export_notes'), run: () => window.dispatchEvent(new CustomEvent('reader-export-notes')) },
             { id: 'layout-both', label: t('item_layout_both'), run: () => window.dispatchEvent(new CustomEvent('trigger-layout-change', { detail: { mode: 'both' } })) },
             { id: 'layout-trans', label: t('item_layout_trans'), run: () => window.dispatchEvent(new CustomEvent('trigger-layout-change', { detail: { mode: 'trans_only' } })) },

@@ -138,7 +138,14 @@ document.addEventListener('alpine:init', () => {
                 "rd_transcribing": "Transcribing…",
                 "rd_mic_unavailable": "Microphone unavailable: allow microphone access for RockTranslate in the system settings.",
                 "rd_mic_no_provider": "Dictation needs a Gemini, OpenAI or Groq key (Settings > AI model).",
-                "rd_mic_too_short": "The recording is too short: speak a little longer."
+                "rd_mic_too_short": "The recording is too short: speak a little longer.",
+                "rd_export_tmx": "Export translation memory (TMX)",
+                "rd_tmx_empty": "Nothing translated yet in this document.",
+                "rd_tmx_done": "Translation memory saved: {n} segments ({path})",
+                "rd_export_highlights": "Export highlights into the PDF",
+                "rd_hl_export_empty": "No highlight in this document yet (select text, then Ctrl+H).",
+                "rd_hl_export_done": "{n} highlights written into {path}",
+                "rd_hl_export_same_file": "Choose another file name: the original PDF is never overwritten."
         },
         "fr": {
                 "rd_translate": "Traduire",
@@ -273,7 +280,14 @@ document.addEventListener('alpine:init', () => {
                 "rd_transcribing": "Transcription…",
                 "rd_mic_unavailable": "Micro indisponible : autorisez l'accès au micro pour RockTranslate dans les paramètres du système.",
                 "rd_mic_no_provider": "La dictée demande une clé Gemini, OpenAI ou Groq (Paramètres > Modèle IA).",
-                "rd_mic_too_short": "L'enregistrement est trop court : parlez un peu plus longtemps."
+                "rd_mic_too_short": "L'enregistrement est trop court : parlez un peu plus longtemps.",
+                "rd_export_tmx": "Exporter la mémoire de traduction (TMX)",
+                "rd_tmx_empty": "Rien n'est encore traduit dans ce document.",
+                "rd_tmx_done": "Mémoire de traduction enregistrée : {n} segments ({path})",
+                "rd_export_highlights": "Exporter les surlignages dans le PDF",
+                "rd_hl_export_empty": "Aucun surlignage dans ce document (sélectionnez du texte, puis Ctrl+H).",
+                "rd_hl_export_done": "{n} surlignages écrits dans {path}",
+                "rd_hl_export_same_file": "Choisissez un autre nom : le PDF d'origine n'est jamais écrasé."
         },
         "es": {
                 "rd_translate": "Traducir",
@@ -408,7 +422,14 @@ document.addEventListener('alpine:init', () => {
                 "rd_transcribing": "Transcribiendo…",
                 "rd_mic_unavailable": "Micrófono no disponible: permita el acceso al micrófono en los ajustes del sistema.",
                 "rd_mic_no_provider": "El dictado necesita una clave Gemini, OpenAI o Groq (Ajustes > Modelo IA).",
-                "rd_mic_too_short": "La grabación es demasiado corta: hable un poco más."
+                "rd_mic_too_short": "La grabación es demasiado corta: hable un poco más.",
+                "rd_export_tmx": "Exportar memoria de traducción (TMX)",
+                "rd_tmx_empty": "Todavía no hay nada traducido en este documento.",
+                "rd_tmx_done": "Memoria de traducción guardada: {n} segmentos ({path})",
+                "rd_export_highlights": "Exportar los resaltados al PDF",
+                "rd_hl_export_empty": "Ningún resaltado en este documento (seleccione texto y Ctrl+H).",
+                "rd_hl_export_done": "{n} resaltados escritos en {path}",
+                "rd_hl_export_same_file": "Elija otro nombre: el PDF original nunca se sobrescribe."
         },
         "de": {
                 "rd_translate": "Übersetzen",
@@ -543,7 +564,14 @@ document.addEventListener('alpine:init', () => {
                 "rd_transcribing": "Transkription…",
                 "rd_mic_unavailable": "Mikrofon nicht verfügbar: Mikrofonzugriff in den Systemeinstellungen erlauben.",
                 "rd_mic_no_provider": "Diktieren braucht einen Gemini-, OpenAI- oder Groq-Schlüssel (Einstellungen > KI-Modell).",
-                "rd_mic_too_short": "Die Aufnahme ist zu kurz: etwas länger sprechen."
+                "rd_mic_too_short": "Die Aufnahme ist zu kurz: etwas länger sprechen.",
+                "rd_export_tmx": "Translation Memory exportieren (TMX)",
+                "rd_tmx_empty": "In diesem Dokument ist noch nichts übersetzt.",
+                "rd_tmx_done": "Translation Memory gespeichert: {n} Segmente ({path})",
+                "rd_export_highlights": "Markierungen ins PDF exportieren",
+                "rd_hl_export_empty": "Noch keine Markierung in diesem Dokument (Text auswählen, dann Strg+H).",
+                "rd_hl_export_done": "{n} Markierungen in {path} geschrieben",
+                "rd_hl_export_same_file": "Anderen Dateinamen wählen: das Original-PDF wird nie überschrieben."
         }
 };
     const store = Alpine.store('i18n');

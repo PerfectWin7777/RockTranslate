@@ -479,6 +479,68 @@ class ReaderApiMixin:
             f.write(content)
         return {"status": "success", "path": dest}
 
+    def export_tmx(self) -> Dict[str, Any]:
+        """
+        Translation memory (TMX) of everything translated in this document for
+        the current language: source paragraph -> translation, for CAT tools.
+        """
+        from ..tmx import clean_pairs, write_tmx
+        originals = getattr(self, "_original_texts", {}) or {}
+        pairs = [(originals.get(seg_id, ""), text)
+                 for page in sorted((getattr(self, "_translated_pages", {}) or {}).keys())
+                 for seg_id, text in self._translated_pages[page].items()]
+        pairs = clean_pairs(pairs)
+        if not pairs:
+            self._send_toast_i18n("rd_tmx_empty", "warning")
+            return {"status": "empty"}
+        if not self._window:
+            return {"status": "error"}
+        stem = os.path.splitext(os.path.basename(getattr(self, "_active_pdf_path", "") or "document"))[0]
+        lang = config_db.get("SystemConfig", "target_lang", "French")
+        dest = self._window.create_file_dialog(
+            getattr(getattr(webview, "FileDialog", None), "SAVE", None) or webview.SAVE_DIALOG,
+            save_filename=f"{stem}.{lang.split()[0].lower()}.tmx", file_types=("TMX (*.tmx)", "All files (*.*)"))
+        if not dest:
+            return {"status": "cancelled"}
+        dest = dest[0] if isinstance(dest, (list, tuple)) else dest
+        from ... import __version__
+        count = write_tmx(pairs, dest, "en", lang, tool_version=__version__, note=os.path.basename(dest))
+        self._send_toast_i18n("rd_tmx_done", "success", variables={"n": count, "path": dest})
+        return {"status": "success", "path": dest, "units": count}
+
+    def export_highlights_pdf(self) -> Dict[str, Any]:
+        """
+        Copy of the original PDF with the reader's highlights as real PDF
+        highlight annotations (notes as comments), through a save dialog.
+        """
+        from ..annotate import write_highlights
+        pdf = getattr(self, "_active_pdf_path", None)
+        items = self._library_read().get("highlights") or [] if pdf else []
+        if not pdf or not items:
+            self._send_toast_i18n("rd_hl_export_empty", "warning")
+            return {"status": "empty"}
+        if not self._window:
+            return {"status": "error"}
+        stem = os.path.splitext(os.path.basename(pdf))[0]
+        dest = self._window.create_file_dialog(
+            getattr(getattr(webview, "FileDialog", None), "SAVE", None) or webview.SAVE_DIALOG,
+            save_filename=f"{stem}_highlights.pdf", file_types=("PDF (*.pdf)", "All files (*.*)"))
+        if not dest:
+            return {"status": "cancelled"}
+        dest = dest[0] if isinstance(dest, (list, tuple)) else dest
+        if os.path.abspath(dest) == os.path.abspath(pdf):
+            self._send_toast_i18n("rd_hl_export_same_file", "error")
+            return {"status": "error"}
+        try:
+            password = (getattr(self, "_pdf_passwords", {}) or {}).get(os.path.abspath(pdf))
+            count = write_highlights(pdf, dest, items, password=password)
+        except Exception as e:
+            logger.warning(f"Highlights export failed: {e}")
+            self._send_toast_i18n("rd_error", "error", variables={"error": str(e)[:200]})
+            return {"status": "error"}
+        self._send_toast_i18n("rd_hl_export_done", "success", variables={"n": count, "path": dest})
+        return {"status": "success", "path": dest, "count": count}
+
     def export_side_by_side(self) -> None:
         """Bilingual study copy (original | translation on each sheet)."""
         if not getattr(self, "_active_pdf_path", None) or not self._window:

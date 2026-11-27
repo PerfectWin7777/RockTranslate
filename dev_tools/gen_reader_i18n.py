@@ -141,6 +141,15 @@ K = {
  "rd_mic_unavailable": ("Microphone unavailable: allow microphone access for RockTranslate in the system settings.", "Micro indisponible : autorisez l'accès au micro pour RockTranslate dans les paramètres du système.", "Micrófono no disponible: permita el acceso al micrófono en los ajustes del sistema.", "Mikrofon nicht verfügbar: Mikrofonzugriff in den Systemeinstellungen erlauben."),
  "rd_mic_no_provider": ("Dictation needs a Gemini, OpenAI or Groq key (Settings > AI model).", "La dictée demande une clé Gemini, OpenAI ou Groq (Paramètres > Modèle IA).", "El dictado necesita una clave Gemini, OpenAI o Groq (Ajustes > Modelo IA).", "Diktieren braucht einen Gemini-, OpenAI- oder Groq-Schlüssel (Einstellungen > KI-Modell)."),
  "rd_mic_too_short": ("The recording is too short: speak a little longer.", "L'enregistrement est trop court : parlez un peu plus longtemps.", "La grabación es demasiado corta: hable un poco más.", "Die Aufnahme ist zu kurz: etwas länger sprechen."),
+ # ── TMX export ──
+ "rd_export_tmx": ("Export translation memory (TMX)", "Exporter la mémoire de traduction (TMX)", "Exportar memoria de traducción (TMX)", "Translation Memory exportieren (TMX)"),
+ "rd_tmx_empty": ("Nothing translated yet in this document.", "Rien n'est encore traduit dans ce document.", "Todavía no hay nada traducido en este documento.", "In diesem Dokument ist noch nichts übersetzt."),
+ "rd_tmx_done": ("Translation memory saved: {n} segments ({path})", "Mémoire de traduction enregistrée : {n} segments ({path})", "Memoria de traducción guardada: {n} segmentos ({path})", "Translation Memory gespeichert: {n} Segmente ({path})"),
+ # ── Highlights export ──
+ "rd_export_highlights": ("Export highlights into the PDF", "Exporter les surlignages dans le PDF", "Exportar los resaltados al PDF", "Markierungen ins PDF exportieren"),
+ "rd_hl_export_empty": ("No highlight in this document yet (select text, then Ctrl+H).", "Aucun surlignage dans ce document (sélectionnez du texte, puis Ctrl+H).", "Ningún resaltado en este documento (seleccione texto y Ctrl+H).", "Noch keine Markierung in diesem Dokument (Text auswählen, dann Strg+H)."),
+ "rd_hl_export_done": ("{n} highlights written into {path}", "{n} surlignages écrits dans {path}", "{n} resaltados escritos en {path}", "{n} Markierungen in {path} geschrieben"),
+ "rd_hl_export_same_file": ("Choose another file name: the original PDF is never overwritten.", "Choisissez un autre nom : le PDF d'origine n'est jamais écrasé.", "Elija otro nombre: el PDF original nunca se sobrescribe.", "Anderen Dateinamen wählen: das Original-PDF wird nie überschrieben."),
 }
 langs = ["en", "fr", "es", "de"]
 out = ["/**",

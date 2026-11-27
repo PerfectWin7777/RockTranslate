@@ -134,3 +134,86 @@ def test_transcription_picks_an_available_provider(monkeypatch):
     assert out["text"] == "bonjour" and calls[-1][1].startswith("gemini/")
     with pytest.raises(LookupError):
         assist.transcribe_audio(b"x" * 2000, "audio/webm", {"DeepSeek": "d"})
+
+
+def test_tmx_file(tmp_path):
+    """Valid TMX 1.4: escaped text, internal tags removed, identical pairs and duplicates skipped."""
+    import xml.etree.ElementTree as ET
+    from rocktranslate.core.tmx import language_code, write_tmx
+    path = tmp_path / "paper.tmx"
+    n = write_tmx([("A <color_ff0000>red</color_ff0000> word & more", "Un mot <b>rouge</b> & plus"),
+                   ("A <color_ff0000>red</color_ff0000> word & more", "Un mot <b>rouge</b> & plus"),
+                   ("42", "42"), ("CO<sub>2</sub> storage", "stockage du CO<sub>2</sub>")],
+                  str(path), "en", "French", tool_version="2.0.8", note="paper.pdf")
+    assert n == 2
+    root = ET.parse(path).getroot()
+    assert root.get("version") == "1.4" and root.find("header").get("srclang") == "en"
+    tus = root.findall("./body/tu")
+    segs = [[s.text for s in tu.iter("seg")] for tu in tus]
+    langs = [tuv.get("{http://www.w3.org/XML/1998/namespace}lang") for tuv in tus[0].findall("tuv")]
+    assert segs[0] == ["A red word & more", "Un mot rouge & plus"] and segs[1] == ["CO2 storage", "stockage du CO2"]
+    assert langs == ["en", "fr"]
+    assert language_code("Chinese (Simplified)") == "zh-CN" and language_code("pt-BR") == "pt-BR"
+
+
+def test_document_to_tmx(tmp_path):
+    from rocktranslate.document import Document, Element
+    els = [Element(type="NarrativeText", text="The model works.", page=1, bbox=(0, 0, 1, 1), translation="Le modèle marche."),
+           Element(type="Table", text="", page=1, bbox=(0, 0, 1, 1), table=[["Rate", "0.1"]],
+                   table_translation=[["Taux", "0.1"]]),
+           Element(type="Formula", text="E = mc2", page=1, bbox=(0, 0, 1, 1), translation="E = mc2")]
+    doc = Document(els, "paper.pdf", {1: (600, 800)}, target_language="French")
+    assert doc.to_tmx(str(tmp_path / "p.tmx")) == 2              # paragraph + "Rate" cell; the formula is skipped
+    assert "<seg>Taux</seg>" in (tmp_path / "p.tmx").read_text(encoding="utf-8")
+
+
+def test_gui_export_tmx(tmp_path):
+    """The GUI exports what was translated in the session, through the save dialog."""
+    from rocktranslate.core.api.reader_api import ReaderApiMixin
+
+    class Win:
+        def create_file_dialog(self, *a, **kw):
+            return [str(tmp_path / "out.tmx")]
+
+    class Api(ReaderApiMixin):
+        def __init__(self):
+            self._window, self._active_pdf_path = Win(), "/x/paper.pdf"
+            self._original_texts = {"p-1": "Hello world.", "g-2": "12"}
+            self._translated_pages = {0: {"p-1": "Bonjour le monde.", "g-2": "12"}}
+            self.toasts = []
+
+        def _send_toast_i18n(self, key, kind="info", duration=5000, variables=None):
+            self.toasts.append(key)
+
+    api = Api()
+    res = api.export_tmx()
+    assert res["status"] == "success" and res["units"] == 1 and api.toasts == ["rd_tmx_done"]
+    assert "Bonjour le monde." in (tmp_path / "out.tmx").read_text(encoding="utf-8")
+    api._translated_pages = {}
+    assert api.export_tmx()["status"] == "empty"
+
+
+def test_highlights_written_into_the_pdf(tmp_path):
+    """Highlights become /Highlight annotations at the right place; the page's own /Rotate is undone."""
+    from pypdf import PdfReader, PdfWriter
+    from rocktranslate.core.annotate import rotate_fraction, write_highlights
+    src = tmp_path / "in.pdf"
+    w = PdfWriter()
+    w.add_blank_page(width=600, height=800)
+    w.add_blank_page(width=600, height=800)
+    w.pages[1].rotate(90)
+    w.write(str(src))
+    items = [{"page": 1, "rects": [[0.1, 0.25, 0.5, 0.05]], "color": "#9ccfff", "note": "important"},
+             {"page": 2, "rects": [[0.1, 0.25, 0.5, 0.05]]},
+             {"page": 7, "rects": [[0, 0, 1, 1]]}]                       # no such page: skipped
+    out = tmp_path / "out.pdf"
+    assert write_highlights(str(src), str(out), items) == 2
+    r = PdfReader(str(out))
+    a = r.pages[0]["/Annots"][0].get_object()
+    assert a["/Subtype"] == "/Highlight" and a["/Contents"] == "important"
+    assert [round(float(v)) for v in a["/QuadPoints"]] == [60, 600, 360, 600, 60, 560, 360, 560]
+    assert len(r.pages[1]["/Annots"]) == 1
+    # turning and turning back gives the same rectangle
+    for deg in (90, 180, 270):
+        back = rotate_fraction(rotate_fraction([0.1, 0.2, 0.3, 0.05], deg), -deg)
+        assert [round(v, 6) for v in back] == [0.1, 0.2, 0.3, 0.05]

@@ -99,6 +99,9 @@ def _write_structured(doc, base: str, formats: List[str], bilingual: bool, trans
     if "md" in formats or "markdown" in formats:
         written.append(base + ".md")
         doc.to_markdown(written[-1], translated=translated and not bilingual, bilingual=bilingual)
+    if "tmx" in formats and translated:
+        written.append(base + ".tmx")
+        doc.to_tmx(written[-1])
     if "chunks" in formats:
         written.append(base + ".chunks.json")
         with open(written[-1], "w", encoding="utf-8") as f:
@@ -297,7 +300,7 @@ def main() -> None:
     parser.add_argument("--password", help="Password of a protected PDF.")
     parser.add_argument("--keep-html", help="Also save the translated HTML to this path.")
     parser.add_argument("-f", "--format", default="pdf",
-                        help="Comma-separated outputs: pdf, json, md, chunks (default: pdf).\n"
+                        help="Comma-separated outputs: pdf, json, md, chunks, tmx (default: pdf).\n"
                              "json/md/chunks hold every element with its aligned translation.")
     parser.add_argument("--side-by-side", metavar="PDF",
                         help="Also write a bilingual study copy: original page | translated page.")
@@ -359,7 +362,7 @@ def main() -> None:
     out_stem = os.path.join(default_output_dir(source, args.input),
                             os.path.splitext(os.path.basename(args.input))[0])
     pdf_output = args.output or (f"{out_stem}_translated.pdf" if is_url(source) else None)
-    structured = any(f in formats for f in ("json", "md", "markdown", "chunks"))
+    structured = any(f in formats for f in ("json", "md", "markdown", "chunks", "tmx"))
     try:
         report = translator.translate_document(
             args.input, pdf_output, pages=args.pages, progress=progress,

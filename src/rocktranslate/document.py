@@ -258,6 +258,27 @@ class Document:
     def to_text(self, translated: bool = False) -> str:
         return "\n\n".join(_pick(e, translated) for e in self.elements if e.type not in FURNITURE)
 
+    def tmx_pairs(self) -> List[Tuple[str, str]]:
+        """(source, translation) pairs of a translated document: paragraphs, then table cells."""
+        pairs: List[Tuple[str, str]] = []
+        for e in self.elements:
+            if e.type == TABLE and e.table and e.table_translation:
+                for row, trow in zip(e.table, e.table_translation):
+                    pairs += [(a, b) for a, b in zip(row, trow) if a and b]
+            elif e.translation and e.type not in (FORMULA, IMAGE):
+                pairs.append((e.text, e.translation))
+        return pairs
+
+    def to_tmx(self, path: str, source_language: str = "en") -> int:
+        """
+        Translation memory (TMX 1.4) of a translated document, for CAT tools
+        (Trados, memoQ, OmegaT...). Returns the number of translation units.
+        """
+        from . import __version__
+        from .core.tmx import write_tmx
+        return write_tmx(self.tmx_pairs(), path, source_language, self.target_language or "und",
+                         tool_version=__version__, note=self.filename)
+
     def to_markdown(self, path: Optional[str] = None, translated: bool = False, bilingual: bool = False,
                     page_markers: bool = False) -> str:
         """
