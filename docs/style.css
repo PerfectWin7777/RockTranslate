@@ -2082,3 +2082,32 @@ html, body { max-width: 100%; overflow-x: clip; }
     padding: 6px 14px;
     border-radius: 999px;
 }
+
+/* Agent skills band (platform section) */
+.agent-skills {
+    margin-top: 34px;
+    padding-top: 26px;
+    border-top: 1px solid var(--border-medium);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    gap: 32px;
+    align-items: start;
+}
+.agent-skills h3 { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); margin-bottom: 8px; }
+.agent-skills p { color: var(--text-secondary); line-height: 1.55; font-size: 0.95rem; }
+.agent-skills-link { display: inline-block; margin-top: 12px; font-weight: 700; color: var(--accent-primary); text-decoration: none; }
+.agent-skills-link:hover { text-decoration: underline; }
+.agent-skills-demo { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.agent-skills-cmd {
+    font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent-primary);
+    overflow-wrap: anywhere; padding: 10px 12px; border: 1px solid var(--border-medium); border-radius: 8px;
+}
+.agent-skills-demo p { font-size: 0.9rem; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-subtle); }
+.agent-skills-demo p span {
+    display: inline-block; margin-right: 8px; font-size: 0.72rem; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-primary);
+}
+.agent-skills-agent code { font-family: var(--font-mono); font-size: 0.82rem; }
+@media (max-width: 960px) {
+    .agent-skills { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+}

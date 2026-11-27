@@ -532,6 +532,24 @@ rocktranslate.extract("paper.pdf").toc()                          # contents, ev
 
 Measured on *U-FNO* (37 pages): a question over the whole paper costs ≈ $0.006, a glossary ≈ $0.006, a 4-line translation ≈ $0.0002.
 
+### F. From an AI agent (skills)
+
+Give your AI agent (any agent that reads `SKILL.md` skills, such as Claude Code) the ability to use RockTranslate on its own. Copy the skill folder into the agent's skills directory, then just ask:
+
+```bash
+cp -r skills/extract-scientific-pdf ~/.claude/skills/
+```
+
+> *"Extract the tables of https://arxiv.org/abs/1706.03762 as Markdown"* → the agent installs the engine the first time (private virtual environment, nothing changed on your system), runs `rocktranslate extract`, and answers with the tables.
+
+| Skill | What the agent can do | |
+|---|---|---|
+| [`extract-scientific-pdf`](skills/extract-scientific-pdf/) | JSON elements with page and box, Markdown, RAG chunks, figures as PNG. Local, no API key | **Free**, in this repository |
+| `translate-scientific-pdf` | Translated PDF with the exact layout, bilingual copy, glossary, cost estimate | Coming to skill marketplaces |
+| `read-scientific-paper` | Answers with verbatim quotes and pages, section summaries, formula explanations | Coming to skill marketplaces |
+
+More in [`skills/`](skills/).
+
 ---
 
 ## 6. Known Limitations & Roadmap (TODO)
@@ -549,6 +567,7 @@ Measured on *U-FNO* (37 pages): a question over the whole paper costs ≈ $0.006
 ### Roadmap:
 *   [x] **Structured extraction** (`rocktranslate.extract`, `to_json`, `to_markdown`, `chunks`, `search`, `highlight`) — see §5.D.
 *   [x] **Bilingual export** of every translated element (JSON, bilingual Markdown).
+*   [x] **Agent skill: free `extract-scientific-pdf`** for AI agents ([skills/](skills/)).
 *   [x] **Chat about a passage, voice, highlights in the translation and into the PDF, TMX export** (2.0.8).
 *   [x] **Sideways tables translated in place, page rotation and quick actions toolbar** (2.0.7).
 *   [x] **Reading assistant and PDF reader features** (2.0.6) — see §5.E and [ROADMAP_v2.0.6.md](ROADMAP_v2.0.6.md) for the 19 items and where each one lives in the code.

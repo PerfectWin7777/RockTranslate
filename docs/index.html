@@ -970,6 +970,18 @@ doc.highlight(hits, "attention.pdf",
                         <code>rocktranslate extract paper.pdf -f json,md</code>
                     </div>
                 </div>
+                <div class="agent-skills">
+                    <div class="agent-skills-text">
+                        <h3>From an AI agent</h3>
+                        <p>Give your agent (any agent that reads <code>SKILL.md</code> skills, such as Claude Code) the <strong>free extraction skill</strong>: it installs the engine the first time, runs it, and answers with the tables, sections or figures you asked for. Translation and paper-reading skills are coming to skill marketplaces.</p>
+                        <a href="https://github.com/PerfectWin7777/RockTranslate/tree/main/skills" class="agent-skills-link">Get the skill on GitHub →</a>
+                    </div>
+                    <div class="agent-skills-demo" aria-label="Example">
+                        <code class="agent-skills-cmd">cp -r skills/extract-scientific-pdf ~/.claude/skills/</code>
+                        <p class="agent-skills-you"><span>You</span> Extract the tables of arxiv.org/abs/1706.03762 as Markdown</p>
+                        <p class="agent-skills-agent"><span>Agent</span> Ran <code>rocktranslate extract</code> on the paper: 4 tables found (pages 6, 8, 9 and 10). Table 2, “The Transformer achieves better BLEU scores…”, as Markdown: …</p>
+                    </div>
+                </div>
             </div>
         </section>
 
