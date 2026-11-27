@@ -22,15 +22,50 @@ from typing import Callable, Optional, List, Dict, Any, Tuple
 from loguru import logger
 import json_repair
 
-# Suppress verbose debug console logs from LiteLLM dependencies
-try:
-    import litellm
-    litellm.suppress_debug_info = True
-    # A parameter a model does not take (e.g. 'temperature' on the Gemini 3.5
-    # family since LiteLLM 1.11x) is dropped instead of failing every request.
-    litellm.drop_params = True
-except ImportError:
-    litellm = None
+class _LazyLiteLLM:
+    """
+    Stands for the `litellm` module, imported on first use.
+
+    Importing litellm costs about two seconds (provider SDKs, model registry);
+    deferring it lets the GUI window and the CLI help appear at once. Attribute
+    reads and writes go to the real module, so `litellm.completion(...)` and
+    test patches keep working unchanged.
+    """
+    _module = None
+    _missing = False
+
+    def _load(self):
+        if self._module is None and not self._missing:
+            try:
+                import litellm as module
+            except ImportError:
+                type(self)._missing = True
+                return None
+            # Quiet console, and a parameter a model does not take (e.g.
+            # 'temperature' on the Gemini 3.5 family since LiteLLM 1.11x) is
+            # dropped instead of failing every request.
+            module.suppress_debug_info = True
+            module.drop_params = True
+            type(self)._module = module
+        return self._module
+
+    def available(self) -> bool:
+        return self._load() is not None
+
+    def __getattr__(self, name):
+        module = self._load()
+        if module is None:
+            raise ImportError("The 'litellm' library is required. Please install it via 'pip install litellm'.")
+        return getattr(module, name)
+
+    def __setattr__(self, name, value):
+        setattr(self._load(), name, value)
+
+    def __delattr__(self, name):
+        delattr(self._load(), name)
+
+
+litellm = _LazyLiteLLM()
 
 # Safe imports supporting both standard package modules and direct scripts
 from .constants import (
@@ -106,7 +141,7 @@ class LLMClient:
         self.usage: Dict[str, Any] = {"requests": 0, "prompt_tokens": 0, "completion_tokens": 0, "cost_usd": 0.0}
         self._usage_lock = threading.Lock()
 
-        if litellm is None:
+        if not litellm.available():
             raise ImportError(
                 "The 'litellm' library is required. Please install it via 'pip install litellm'."
             )

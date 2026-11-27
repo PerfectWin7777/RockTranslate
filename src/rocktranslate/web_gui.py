@@ -164,7 +164,7 @@ def main() -> None:
         # Calculate elapsed time since program startup
         elapsed = (datetime.datetime.now() - start_time).total_seconds()
         # Keep the splash visible just long enough to avoid a flash (min 0.1s)
-        remaining_delay = max(0.1, 1.5 - elapsed)
+        remaining_delay = max(0.1, 0.6 - elapsed)
         
         def reveal_main_window():
             try:
@@ -197,6 +197,17 @@ def main() -> None:
                 logger.warning(f"Background chrome-headless-shell download failed: {e}")
 
         threading.Thread(target=ensure_measuring_engine, name="rocktranslate-engine-fetch", daemon=True).start()
+
+        # litellm is imported lazily (about 2 s) so the window shows at once;
+        # warm it now in the background so the first request does not wait.
+        def warm_llm_library() -> None:
+            try:
+                from rocktranslate.core.llm_client import litellm
+                litellm.available()
+            except Exception as e:
+                logger.debug(f"litellm warm-up skipped: {e}")
+
+        threading.Thread(target=warm_llm_library, name="rocktranslate-llm-warmup", daemon=True).start()
 
     window.events.loaded += on_window_loaded
 
