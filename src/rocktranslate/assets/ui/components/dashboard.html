@@ -30,12 +30,18 @@
         </button>
 
         <!-- Or open a PDF from a web link (arXiv, journal, repository...) -->
+        <!-- Or open from a web link, a local path (quoted or not), a file:// URI or an arXiv id;
+             "Paste & open" also opens a PDF FILE copied in the Explorer/Finder (Ctrl+V works anywhere) -->
         <form class="url-open-form" @submit.prevent="openUrl()">
-            <input type="url" class="url-open-input" x-model="pdfUrl"
-                   :placeholder="$store.i18n.translate('url_open_placeholder')"
+            <input type="text" class="url-open-input" x-model="pdfUrl" spellcheck="false" autocomplete="off"
+                   :placeholder="$store.i18n.translate('rd_open_source_ph')"
                    @dragover.stop @drop.stop>
             <button type="submit" class="url-open-btn" :disabled="!pdfUrl.trim()"
-                    x-text="$store.i18n.translate('url_open_btn')"></button>
+                    x-text="$store.i18n.translate('rd_open_btn')"></button>
+            <button type="button" class="url-paste-btn" @click="RT.openClipboard()"
+                    :title="$store.i18n.translate('rd_paste_open')" :aria-label="$store.i18n.translate('rd_paste_open')">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M12 11v6M9 14l3 3 3-3"/></svg>
+            </button>
         </form>
 
         <!-- Reactive connection status indicators -->

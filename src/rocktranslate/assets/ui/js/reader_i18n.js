@@ -112,7 +112,16 @@ document.addEventListener('alpine:init', () => {
                 "tb_ask": "Ask the paper · Ctrl+J",
                 "tb_snapshot": "Snapshot of an area · Ctrl+Shift+S",
                 "tb_palette": "All commands · Ctrl+K",
-                "tb_rotated": "Rotated {deg}°"
+                "tb_rotated": "Rotated {deg}°",
+                "rd_open_source_ph": "…or paste a link, a file path or an arXiv id",
+                "rd_open_btn": "Open",
+                "rd_paste_open": "Paste & open · Ctrl+V",
+                "rd_open_empty": "Paste a link, a file path or an arXiv id first.",
+                "rd_open_not_found": "File not found: check the path.",
+                "rd_open_not_pdf": "This file is not a PDF.",
+                "rd_open_is_folder": "This is a folder: give the path of a PDF file.",
+                "rd_clip_nothing": "Nothing to open in the clipboard: copy a PDF file, its path or a link.",
+                "rd_bubble_move": "Drag to move: it will reopen here · double-click to reset"
         },
         "fr": {
                 "rd_translate": "Traduire",
@@ -221,7 +230,16 @@ document.addEventListener('alpine:init', () => {
                 "tb_ask": "Questionner l'article · Ctrl+J",
                 "tb_snapshot": "Instantané d'une zone · Ctrl+Maj+S",
                 "tb_palette": "Toutes les commandes · Ctrl+K",
-                "tb_rotated": "Pivoté de {deg}°"
+                "tb_rotated": "Pivoté de {deg}°",
+                "rd_open_source_ph": "…ou collez un lien, un chemin de fichier ou un identifiant arXiv",
+                "rd_open_btn": "Ouvrir",
+                "rd_paste_open": "Coller et ouvrir · Ctrl+V",
+                "rd_open_empty": "Collez d'abord un lien, un chemin de fichier ou un identifiant arXiv.",
+                "rd_open_not_found": "Fichier introuvable : vérifiez le chemin.",
+                "rd_open_not_pdf": "Ce fichier n'est pas un PDF.",
+                "rd_open_is_folder": "C'est un dossier : indiquez le chemin d'un fichier PDF.",
+                "rd_clip_nothing": "Rien à ouvrir dans le presse-papiers : copiez un fichier PDF, son chemin ou un lien.",
+                "rd_bubble_move": "Glissez pour déplacer : elle se rouvrira ici · double-clic pour réinitialiser"
         },
         "es": {
                 "rd_translate": "Traducir",
@@ -330,7 +348,16 @@ document.addEventListener('alpine:init', () => {
                 "tb_ask": "Preguntar al artículo · Ctrl+J",
                 "tb_snapshot": "Captura de una zona · Ctrl+Mayús+S",
                 "tb_palette": "Todos los comandos · Ctrl+K",
-                "tb_rotated": "Girado {deg}°"
+                "tb_rotated": "Girado {deg}°",
+                "rd_open_source_ph": "…o pegue un enlace, una ruta de archivo o un identificador arXiv",
+                "rd_open_btn": "Abrir",
+                "rd_paste_open": "Pegar y abrir · Ctrl+V",
+                "rd_open_empty": "Pegue primero un enlace, una ruta o un identificador arXiv.",
+                "rd_open_not_found": "Archivo no encontrado: compruebe la ruta.",
+                "rd_open_not_pdf": "Este archivo no es un PDF.",
+                "rd_open_is_folder": "Es una carpeta: indique la ruta de un archivo PDF.",
+                "rd_clip_nothing": "Nada que abrir en el portapapeles: copie un PDF, su ruta o un enlace.",
+                "rd_bubble_move": "Arrastre para mover: se reabrirá aquí · doble clic para restablecer"
         },
         "de": {
                 "rd_translate": "Übersetzen",
@@ -439,7 +466,16 @@ document.addEventListener('alpine:init', () => {
                 "tb_ask": "Den Artikel fragen · Strg+J",
                 "tb_snapshot": "Schnappschuss eines Bereichs · Strg+Umschalt+S",
                 "tb_palette": "Alle Befehle · Strg+K",
-                "tb_rotated": "Um {deg}° gedreht"
+                "tb_rotated": "Um {deg}° gedreht",
+                "rd_open_source_ph": "…oder Link, Dateipfad oder arXiv-ID einfügen",
+                "rd_open_btn": "Öffnen",
+                "rd_paste_open": "Einfügen & öffnen · Strg+V",
+                "rd_open_empty": "Zuerst einen Link, Dateipfad oder eine arXiv-ID einfügen.",
+                "rd_open_not_found": "Datei nicht gefunden: Pfad prüfen.",
+                "rd_open_not_pdf": "Diese Datei ist kein PDF.",
+                "rd_open_is_folder": "Das ist ein Ordner: Pfad einer PDF-Datei angeben.",
+                "rd_clip_nothing": "Nichts zum Öffnen in der Zwischenablage: PDF-Datei, Pfad oder Link kopieren.",
+                "rd_bubble_move": "Ziehen zum Verschieben: öffnet sich wieder hier · Doppelklick zum Zurücksetzen"
         }
 };
     const store = Alpine.store('i18n');

@@ -291,7 +291,14 @@
             <div class="rt-bubble-src"></div>
             <div class="rt-bubble-body"></div>
             <div class="rt-bubble-foot"></div>`;
-        bubble.querySelector('.rt-bubble-head').addEventListener('mousedown', startDrag);
+        const head = bubble.querySelector('.rt-bubble-head');
+        head.addEventListener('mousedown', startDrag);
+        // Double-click on the header: forget the chosen place, back next to the selection
+        head.addEventListener('dblclick', (e) => {
+            if (e.target.closest('button')) return;
+            savePlace(null);
+            if (bubble._sel) placeBubble(bubble._sel);
+        });
         bubble.addEventListener('click', (e) => {
             const b = e.target.closest('button'); if (!b) return;
             if (b.dataset.mode && bubble._sel) openBubble(b.dataset.mode, bubble._sel, true);
@@ -301,12 +308,42 @@
         });
         document.body.appendChild(bubble);
     }
+    // Where the reader put the bubble: it reopens there (moving it every time
+    // to uncover the text was tiresome). Kept per machine, across sessions.
+    const PLACE_KEY = 'rt-bubble-place';
+    function savedPlace() {
+        try { const p = JSON.parse(localStorage.getItem(PLACE_KEY) || 'null'); return p && isFinite(p.left) && isFinite(p.top) ? p : null; } catch (e) { return null; }
+    }
+    function savePlace(p) {
+        try { if (p) localStorage.setItem(PLACE_KEY, JSON.stringify(p)); else localStorage.removeItem(PLACE_KEY); } catch (e) { }
+    }
     function startDrag(e) {
-        if (e.target.closest('button')) return;
+        if (e.target.closest('button') || e.detail > 1) return;
         const r = bubble.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
-        const move = (ev) => { bubble.style.left = (ev.clientX - dx) + 'px'; bubble.style.top = (ev.clientY - dy) + 'px'; };
-        const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); };
+        let moved = false;
+        const move = (ev) => { moved = true; bubble.style.left = (ev.clientX - dx) + 'px'; bubble.style.top = (ev.clientY - dy) + 'px'; };
+        const up = () => {
+            document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up);
+            if (moved) savePlace({ left: parseFloat(bubble.style.left), top: parseFloat(bubble.style.top) });
+        };
         document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
+    }
+    // Opening place: the reader's chosen place (kept on screen), else next to the selection
+    function placeBubble(sel) {
+        const w = Math.min(480, window.innerWidth - 24);
+        bubble.style.width = w + 'px';
+        const saved = savedPlace();
+        if (saved) {
+            bubble.style.left = Math.min(Math.max(4, saved.left), window.innerWidth - w - 4) + 'px';
+            bubble.style.top = Math.min(Math.max(40, saved.top), window.innerHeight - 120) + 'px';
+            return;
+        }
+        const rect = freshRect(sel);
+        let top = rect.bottom + 10;
+        if (top + 260 > window.innerHeight) top = rect.top - 270;
+        top = Math.min(Math.max(44, top), window.innerHeight - 220);   // always on screen
+        bubble.style.left = Math.min(Math.max(10, rect.left), window.innerWidth - w - 10) + 'px';
+        bubble.style.top = top + 'px';
     }
     function closeBubble() { if (bubble) bubble.style.display = 'none'; bubbleReq = null; }
 
@@ -334,16 +371,8 @@
         body.textContent = ''; body.classList.add('rt-typing');
         foot.textContent = RT.t('rd_working');
         bubble.style.display = 'flex';
-        if (!keepPosition) {
-            const w = Math.min(480, window.innerWidth - 24);
-            const rect = freshRect(sel);
-            bubble.style.width = w + 'px';
-            let top = rect.bottom + 10;
-            if (top + 260 > window.innerHeight) top = rect.top - 270;
-            top = Math.min(Math.max(44, top), window.innerHeight - 220);   // always on screen
-            bubble.style.left = Math.min(Math.max(10, rect.left), window.innerWidth - w - 10) + 'px';
-            bubble.style.top = top + 'px';
-        }
+        bubble.querySelector('.rt-bubble-head').title = RT.t('rd_bubble_move');
+        if (!keepPosition) placeBubble(sel);
         const cacheKey = mode + '\u0000' + lang + '\u0000' + sel.text;
         if (force) bubbleCache.delete(cacheKey);
         if (bubbleCache.has(cacheKey)) {
@@ -927,6 +956,25 @@
             st.textContent = ROTATE_CSS[deg] || '';
         } catch (e) { console.warn('[RT] rotation', e); }
     }
+    // ── Opening PDFs: typed/pasted text, or the clipboard (Ctrl+V anywhere) ──
+    const OPEN_ERRORS = { empty: 'rd_open_empty', not_found: 'rd_open_not_found', not_pdf: 'rd_open_not_pdf',
+                          is_folder: 'rd_open_is_folder', invalid_url: 'rd_open_not_found',
+                          clipboard_nothing: 'rd_clip_nothing' };
+    function reportOpen(res) {
+        if (res && (res.status === 'started' || res.status === 'opened')) return true;
+        const key = OPEN_ERRORS[res && res.message] || 'rd_open_not_found';
+        RT.toast(RT.t(key), 'error', 5000);
+        return false;
+    }
+    /** Link (http/https, no scheme, arXiv id), local path (quoted or not) or file:// URI. */
+    RT.openSource = async function (text) {
+        try { return reportOpen(await RT.api().open_pdf_source(text)); } catch (e) { return false; }
+    };
+    /** The PDF copied in the Explorer/Finder, or a copied path/link (read in Python). */
+    RT.openClipboard = async function () {
+        try { return reportOpen(await RT.api().open_from_clipboard()); } catch (e) { return false; }
+    };
+
     RT.rotation = () => { const app = RT.app(); return app && app.pdfViewer ? (app.pdfViewer.pagesRotation || 0) : 0; };
     RT.rotate = function (delta) {
         const app = RT.app();
@@ -969,10 +1017,16 @@
     }
 
     // ── Keyboard shortcuts ───────────────────────────────────────────────────
+    function isEditable(el) {
+        if (!el || !el.closest) return false;
+        return !!el.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]');
+    }
     function shortcutFor(e) {
         const k = (e.key || '').toLowerCase();
         const ctrl = e.ctrlKey || e.metaKey;
         if (ctrl && !e.shiftKey && k === 'k') return () => RT.palette.open();
+        // Ctrl+V outside a text field: open the PDF that was copied (file, path or link)
+        if (ctrl && !e.shiftKey && !e.altKey && k === 'v' && !isEditable(e.target)) return () => RT.openClipboard();
         if (!RT.docOpen()) return null;
         if (ctrl && !e.shiftKey && k === 't') return () => runOnSelection('translate');
         if (ctrl && !e.shiftKey && k === 'e') return () => runOnSelection('explain');
@@ -1033,7 +1087,8 @@
         const s = RT.store(), doc = RT.docOpen(), t = RT.t;
         const list = [
             { id: 'open', label: t('item_open'), sc: '', run: () => window.dispatchEvent(new CustomEvent('trigger-file-picker')) },
-            { id: 'open-link', label: t('rd_open_link'), run: () => { const u = window.prompt(t('rd_link_prompt')); if (u) RT.api().open_pdf_url(u); } },
+            { id: 'open-link', label: t('rd_open_link'), run: () => { const u = window.prompt(t('rd_open_source_ph')); if (u) RT.openSource(u); } },
+            { id: 'open-clipboard', label: t('rd_paste_open'), sc: 'Ctrl+V', run: () => RT.openClipboard() },
         ];
         if (doc) list.push(
             { id: 'translate-all', label: t('item_start_trans'), run: () => window.dispatchEvent(new CustomEvent('trigger-toggle-translation')) },

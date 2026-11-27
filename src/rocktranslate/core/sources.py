@@ -20,7 +20,7 @@ import re
 import urllib.parse
 import urllib.request
 from email.message import Message
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 
 from loguru import logger
 
@@ -126,6 +126,58 @@ def download_pdf(url: str, progress: Optional[Callable[[int, int], None]] = None
     os.replace(tmp, path)
     logger.info(f"Downloaded {size / 1e6:.1f} MB -> {path}")
     return path
+
+
+_ARXIV_ID_RE = re.compile(r"^(?:arxiv:\s*)?(\d{4}\.\d{4,5}(?:v\d+)?)$", re.I)
+_SCHEMELESS_URL_RE = re.compile(r"^(?:www\.|arxiv\.org/|openreview\.net/|doi\.org/)[^\s]+$", re.I)
+
+
+def parse_pdf_source(text: str) -> Tuple[str, str]:
+    """
+    Interprets what a user pasted to open a PDF. Returns (kind, value):
+
+        ("url",  "https://...")      http(s) link; also 'arxiv.org/abs/..', 'www..'
+                                     without scheme, and a bare arXiv id ('1706.03762')
+        ("path", "/abs/path.pdf")    an existing local PDF: Windows or POSIX path, with
+                                     or without quotes (Explorer's 'Copy as path'),
+                                     file:// URI, ~ and environment variables expanded
+        ("error", key)               'empty', 'not_found', 'not_pdf', 'is_folder'
+
+    Only the first non-empty line counts (a copied list of files opens the first one).
+    """
+    lines = [ln.strip() for ln in (text or "").replace("\r", "\n").split("\n") if ln.strip()]
+    if not lines:
+        return "error", "empty"
+    raw = lines[0].strip().strip('"').strip("'").strip("\u201c\u201d\u2018\u2019").strip()
+    if not raw:
+        return "error", "empty"
+    if is_url(raw):
+        return "url", raw
+    m = _ARXIV_ID_RE.match(raw)
+    if m:
+        return "url", f"https://arxiv.org/abs/{m.group(1)}"
+    if _SCHEMELESS_URL_RE.match(raw):
+        return "url", "https://" + raw
+    path = raw
+    if path.lower().startswith("file:"):
+        parsed = urllib.parse.urlparse(path)
+        path = urllib.request.url2pathname(urllib.parse.unquote(parsed.path))
+        if parsed.netloc and parsed.netloc not in ("", "localhost"):
+            path = f"//{parsed.netloc}{path}"          # UNC share: file://server/share/x.pdf
+        elif os.name == "nt" and re.match(r"^[\\/][A-Za-z]:", path):
+            path = path[1:]                              # file:///C:/x.pdf -> C:/x.pdf
+    path = os.path.expandvars(os.path.expanduser(path))
+    if os.path.isdir(path):
+        return "error", "is_folder"
+    if not os.path.isfile(path):
+        return "error", "not_found"
+    try:
+        with open(path, "rb") as f:
+            if f.read(5) != b"%PDF-" and not path.lower().endswith(".pdf"):
+                return "error", "not_pdf"
+    except OSError:
+        return "error", "not_found"
+    return "path", os.path.abspath(path)
 
 
 def resolve_pdf_source(source: str) -> str:

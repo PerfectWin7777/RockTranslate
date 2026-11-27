@@ -29,7 +29,8 @@ from ..html_transformer import convert_pdf_to_html, instrument_html, PIPELINE_VE
 from ..config_manager import config_db
 from ..constants import DEFAULT_ASSETS_DIR, DEFAULT_PROVIDERS, DEFAULT_PARALLEL_REQUESTS
 from ..chunker import build_batches, reference_segment_ids, should_translate
-from ..sources import download_pdf, is_url
+from ..sources import download_pdf, is_url, parse_pdf_source
+from ..clipboard import read_clipboard
 from ..llm_client import LLMClient
 from ..renderer import apply_translations_offline, print_html_with_fallback
 from ..pdf_metadata import get_pdf_metadata
@@ -140,6 +141,35 @@ class TranslationApiMixin:
 
         threading.Thread(target=worker, name="rocktranslate-download", daemon=True).start()
         return {"status": "started"}
+
+    def open_pdf_source(self, text: str) -> Dict[str, str]:
+        """
+        Exposed to the UI: opens whatever was typed or pasted - a web link (with
+        or without https://, a bare arXiv id), a local path (quoted or not, as
+        Explorer's 'Copy as path' gives it), or a file:// URI.
+        Returns {"status": "started"|"opened"} or {"status": "error", "message": key}.
+        """
+        kind, value = parse_pdf_source(text)
+        if kind == "url":
+            return self.open_pdf_url(value)
+        if kind == "path":
+            self.extract_pdf(value)
+            return {"status": "opened", "path": value}
+        return {"status": "error", "message": value}
+
+    def open_from_clipboard(self) -> Dict[str, str]:
+        """
+        Exposed to the UI (Ctrl+V anywhere, "Paste & open"): opens the PDF that
+        was copied - a file copied in the Explorer/Finder, a path or a link.
+        """
+        for item in read_clipboard():
+            kind, value = parse_pdf_source(item)
+            if kind == "url":
+                return self.open_pdf_url(value)
+            if kind == "path":
+                self.extract_pdf(value)
+                return {"status": "opened", "path": value}
+        return {"status": "error", "message": "clipboard_nothing"}
 
     def open_protected_pdf(self, file_path: str, password: str) -> None:
         """Exposed to the UI: retries opening a password-protected PDF."""

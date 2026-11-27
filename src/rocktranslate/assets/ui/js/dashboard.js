@@ -79,22 +79,11 @@ function dashboardController() {
         // Web link typed or pasted in the dashboard field
         pdfUrl: '',
 
-        /** Downloads the PDF behind a link (in Python), then opens it like a local file. */
+        /** Opens what was typed or pasted: link, local path, file:// URI or arXiv id (resolved in Python). */
         async openUrl() {
-            const url = (this.pdfUrl || '').trim();
-            if (!url) return;
-            const i18n = Alpine.store('i18n');
-            if (!/^https?:\/\//i.test(url)) {
-                window.showToast(i18n.translate('toast_invalid_url'), 'error', 5000);
-                return;
-            }
-            try {
-                const res = await window.pywebview.api.open_pdf_url(url);
-                if (res && res.status === 'started') this.pdfUrl = '';
-                else window.showToast(i18n.translate('toast_invalid_url'), 'error', 5000);
-            } catch (error) {
-                console.error("[Dashboard] Could not open the link:", error);
-            }
+            const text = (this.pdfUrl || '').trim();
+            if (!text) return;
+            if (await RT.openSource(text)) this.pdfUrl = '';
         },
 
         async openFilePicker() {

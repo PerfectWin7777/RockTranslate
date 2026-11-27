@@ -361,6 +361,9 @@ function workspaceController() {
 
                 // Forward physical keyboard shortcuts up to the main application context
                 iframeDoc.addEventListener('keydown', (e) => {
+                    // Keys typed in a field of the pane (PDF.js find bar...) stay there:
+                    // no app shortcut, and Ctrl+V pastes instead of opening a PDF
+                    if (e.target && e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
                     const clonedEvent = new KeyboardEvent('keydown', {
                         key: e.key,
                         code: e.code,
@@ -452,6 +455,9 @@ function workspaceController() {
 
                 // Forward physical keyboard shortcuts up to the main application context
                 rightDoc.addEventListener('keydown', (e) => {
+                    // Keys typed in a field of the pane (PDF.js find bar...) stay there:
+                    // no app shortcut, and Ctrl+V pastes instead of opening a PDF
+                    if (e.target && e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
                     const clonedEvent = new KeyboardEvent('keydown', {
                         key: e.key,
                         code: e.code,

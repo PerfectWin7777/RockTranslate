@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### New
+- **Open a PDF from anything you copied.** The home field takes a web link with or without `https://`, a bare arXiv
+  id (`1706.03762`), a local path with or without quotes (Explorer's "Copy as path") or a `file://` URI. **Ctrl+V
+  anywhere** (outside a text field), or the new "Paste & open" button, opens the PDF that was copied: a PDF file copied
+  in the Explorer/Finder (Ctrl+C on the file), its path, or a link.
+- **The translation bubble reopens where you put it.** Move it once to uncover the text: the next selections open it
+  at the same place (kept on screen). Double-click its header to put it back next to the selection.
+
 ### Fixes
 - **Fresh `pip install` translates again with the default model.** Recent LiteLLM releases (1.11x) reject the
   `temperature` parameter for the Gemini 3.5 family instead of ignoring it, so every request of a new install failed

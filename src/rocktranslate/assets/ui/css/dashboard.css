@@ -176,7 +176,7 @@
     display: flex;
     gap: 6px;
     margin-top: 14px;
-    width: min(420px, 90%);
+    width: min(480px, 92%);
 }
 
 .url-open-input {
@@ -209,4 +209,32 @@
 .url-open-btn:disabled {
     opacity: 0.45;
     cursor: default;
+}
+
+/* Paste & open: a PDF file copied in the Explorer/Finder, a path or a link */
+.url-paste-btn {
+    flex: 0 0 auto;
+    width: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-color);
+    border-radius: var(--rt-radius-sm);
+    background: var(--bg-secondary);
+    color: var(--accent-blue);
+    cursor: pointer;
+}
+
+.url-paste-btn:hover {
+    border-color: var(--accent-blue);
+}
+
+.url-paste-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
