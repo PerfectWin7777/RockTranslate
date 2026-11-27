@@ -2044,3 +2044,41 @@ html, body { max-width: 100%; overflow-x: clip; }
     .reader-grid { grid-template-columns: 1fr; }
     .reader-features { grid-template-columns: 1fr; }
 }
+
+/* ── Demo on real papers (second video) ── */
+.demo-papers-section {
+    padding: 72px 0 24px;
+}
+
+.demo-papers-frame {
+    max-width: 1040px;
+    margin: 0 auto;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid var(--border-color, rgba(0, 0, 0, 0.08));
+    box-shadow: 0 24px 60px rgba(20, 20, 40, 0.18);
+    background: #0b0f18;
+}
+
+.demo-papers-frame video {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.demo-papers-chips {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 22px;
+}
+
+.demo-papers-chips span {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: var(--accent-primary-subtle);
+    padding: 6px 14px;
+    border-radius: 999px;
+}

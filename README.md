@@ -120,6 +120,13 @@ pip install git+https://github.com/PerfectWin7777/RockTranslate.git
   <img src="docs/assets/readme_animation.gif" width="800" alt="RockTranslate Application Demo" />
 </p>
 
+### Translated in place, then zoomed in (new demo)
+*A geology paper: the original in English, both views, the translation rebuilt paragraph by paragraph, then a zoom where the English text turns into French at the same place. The full 3-minute video (French, Spanish and German, tables, equations and the reading assistant) is on the [website](https://perfectwin7777.github.io/RockTranslate/#demo-papers) and [here as MP4](docs/assets/web/demo_papers.mp4).*
+
+<p align="center">
+  <img src="docs/assets/readme_demo_zoom.gif" width="800" alt="RockTranslate translating a geology paper into French, then zooming on the translated paragraphs" />
+</p>
+
 ---
 
 ### 🔬 1. English to Spanish (Elsevier Double-Column Layout)
