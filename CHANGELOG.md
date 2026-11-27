@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- **Fresh `pip install` translates again with the default model.** Recent LiteLLM releases (1.11x) reject the
+  `temperature` parameter for the Gemini 3.5 family instead of ignoring it, so every request of a new install failed
+  (translation and reading assistant). Unsupported parameters are now dropped (`litellm.drop_params`).
+
 ## 2.0.7 — 2026-11
 
 ### New

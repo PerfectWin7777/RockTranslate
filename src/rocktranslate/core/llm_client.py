@@ -26,6 +26,9 @@ import json_repair
 try:
     import litellm
     litellm.suppress_debug_info = True
+    # A parameter a model does not take (e.g. 'temperature' on the Gemini 3.5
+    # family since LiteLLM 1.11x) is dropped instead of failing every request.
+    litellm.drop_params = True
 except ImportError:
     litellm = None
 

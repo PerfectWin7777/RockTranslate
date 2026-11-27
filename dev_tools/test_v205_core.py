@@ -667,3 +667,9 @@ def test_reset_pages_really_translates_again(tmp_path, monkeypatch):
     api._trans_thread.join(10)
     flat = {k: v for page in api._translated_pages.values() for k, v in page.items()}
     assert flat and all(v.startswith("NEW:") for v in flat.values()), flat
+
+
+def test_litellm_drops_unsupported_params():
+    """A model refusing a parameter (temperature on Gemini 3.5 with recent LiteLLM) must not fail every request."""
+    from rocktranslate.core.llm_client import litellm
+    assert litellm is None or litellm.drop_params is True
